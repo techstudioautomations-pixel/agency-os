@@ -1,8 +1,8 @@
 export type Topic = { id: string; title: string; angle: string; platform: string; format: string; decision: "pending" | "approved" | "cut" | "revise"; note?: string };
 export const accounts = [
   { name:"Marker Group", color:"#46796C", health:"On track", package:"Essential", due:"Thu, 16 Oct", waiting:2 },
-  { name:"Housebuild", color:"#B7864B", health:"Needs review", package:"Custom", due:"Fri, 17 Oct", waiting:1 },
-  { name:"BuildRegs", color:"#5376B4", health:"On track", package:"Essential", due:"Thu, 16 Oct", waiting:0 },
+  { name:"House Build", color:"#B7864B", health:"Needs review", package:"Custom", due:"Fri, 17 Oct", waiting:1 },
+  { name:"Buildreg", color:"#5376B4", health:"On track", package:"Essential", due:"Thu, 16 Oct", waiting:0 },
   { name:"Element", color:"#7C6AA6", health:"Onboarding", package:"Growth", due:"—", waiting:0 },
   { name:"EnergyFix", color:"#5E8D55", health:"Onboarding", package:"Essential", due:"—", waiting:0 },
   { name:"CapCon", color:"#A76C64", health:"Prospect", package:"Growth", due:"—", waiting:0 },
