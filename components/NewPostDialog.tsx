@@ -6,6 +6,9 @@ import type { Dispatch, SetStateAction } from "react";
 type PostDraft = {
   projectId: string;
   platform: string;
+  platforms: string[];
+  captions: Record<string, string>;
+  customizeCaptions: boolean;
   format: string;
   title: string;
   caption: string;
@@ -48,12 +51,13 @@ export function NewPostDialog({ projects, draft, setDraft, onClose, onCreate }: 
       </div>
       <div className="mt-5 grid gap-3 sm:grid-cols-2">
         <label className="text-[10px] font-bold">Account<select value={draft.projectId} onChange={event => setDraft(old => ({ ...old, projectId: event.target.value }))} className={field}>{projects.map(project => <option key={project.id} value={project.id}>{project.name}</option>)}</select></label>
-        <label className="text-[10px] font-bold">Platform<select value={draft.platform} onChange={event => setDraft(old => ({ ...old, platform: event.target.value }))} className={field}>{["LinkedIn", "Instagram", "Facebook", "X", "TikTok"].map(platform => <option key={platform}>{platform}</option>)}</select></label>
+        <div className="text-[10px] font-bold">Where will this be posted?<div className="mt-1.5 flex flex-wrap gap-2">{["LinkedIn", "Instagram", "Facebook", "X", "TikTok"].map(platform => <button key={platform} type="button" aria-pressed={draft.platforms.includes(platform)} onClick={() => setDraft(old => { const selected=old.platforms.includes(platform); const next=selected?old.platforms.filter(item=>item!==platform):[...old.platforms,platform]; if(!next.length)return old; return {...old,platforms:next,platform:next[0]}; })} className={`rounded-full px-3 py-2.5 text-[10px] font-extrabold ${draft.platforms.includes(platform)?"bg-[#1557B8] text-white":"bg-[#E7EFFB] text-[#1557B8]"}`}>{platform}</button>)}</div></div>
         <label className="text-[10px] font-bold">Format<select value={draft.format} onChange={event => setDraft(old => ({ ...old, format: event.target.value }))} className={field}>{["Single image", "Carousel", "Reel / video", "Text post", "Story", "Other"].map(format => <option key={format}>{format}</option>)}</select></label>
         <label className="text-[10px] font-bold">Target date<input type="date" value={draft.date} onChange={event => setDraft(old => ({ ...old, date: event.target.value }))} className={field}/></label>
       </div>
       <label className="mt-3 block text-[10px] font-bold">Post title<input value={draft.title} onChange={event => setDraft(old => ({ ...old, title: event.target.value }))} placeholder="What is this post about?" className={field}/></label>
       <label className="mt-3 block text-[10px] font-bold">Caption / copy<textarea value={draft.caption} onChange={event => setDraft(old => ({ ...old, caption: event.target.value }))} placeholder="Write the post or paste the approved copy…" className={`${field} min-h-28`}/></label>
+      {draft.platforms.length>1&&<div className="mt-3 rounded-2xl bg-[#F4F8FE] p-4"><label className="flex items-center gap-2 text-[10px] font-bold"><input type="checkbox" checked={draft.customizeCaptions} onChange={event=>setDraft(old=>({...old,customizeCaptions:event.target.checked}))}/>Customize the copy for each platform</label>{draft.customizeCaptions&&<div className="mt-3 grid gap-3 sm:grid-cols-2">{draft.platforms.map(platform=><label key={platform} className="text-[10px] font-bold">{platform}<textarea value={draft.captions[platform]??""} onChange={event=>setDraft(old=>({...old,captions:{...old.captions,[platform]:event.target.value}}))} placeholder={`Leave blank to use the main caption on ${platform}`} className={`${field} min-h-24`}/></label>)}</div>}</div>}
       <label className="mt-3 block text-[10px] font-bold">Canva, Drive, or design link<input type="url" value={draft.designLink} onChange={event => setDraft(old => ({ ...old, designLink: event.target.value }))} placeholder="https://…" className={field}/></label>
       <label className="mt-3 flex cursor-pointer items-center gap-3 rounded-2xl border-2 border-dashed border-[#C9D5E8] bg-[#F4F8FE] p-4">
         <ImagePlus size={22} className="text-[#1557B8]"/><span className="flex-1"><span className="block text-[11px] font-bold">Add images, video, or a PDF</span><span className="mt-1 block text-[9px] text-[#858078]">Choose several files for a carousel. You can also use the design link above.</span></span>

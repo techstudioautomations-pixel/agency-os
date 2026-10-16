@@ -23,7 +23,7 @@ Never add a service-role key to browser environment variables. RLS is the bounda
 
 ## Phase 1 state
 
-The public showcase has Home, project workspaces, an inbox for review, a visual calendar, client ideas and assets, weekly reports, a client preview, team records, CRM, operations, and internal finance. The account-first post form accepts copy, a Canva or Drive link, several images or files, and a choice to save a draft, add to the plan, or send for review. Review comments and decisions remain with the post in this browser session.
+The public showcase has Home, project workspaces, an inbox for review, a visual calendar, client ideas and assets, weekly reports, a client preview, team records, CRM, operations, and internal finance. The account-first post form accepts several platforms, shared or channel-specific copy, a Canva or Drive link, several images or files, and a choice to save a draft, add to the plan, or send for review. Review comments and decisions remain with the post in this browser session.
 
 Seeded account names and fees include Marker Group ($500 monthly), Buildreg ($500 monthly), House Build ($750 monthly), Element ($1,000), CapCon ($1,000), EnergyFix ($500), and iRevise ($500 pending showcase). Firereg has no confirmed fee. Marker Group is assigned to Chelsie at $110 monthly, with María approving posts. House Build is assigned to Velinda at $100 monthly. Ryan is assigned to Buildreg; his rate has not been supplied and remains unset. Three additional $1,000 rows from the earlier sheet are still marked as pending names. The unconfirmed $5,000 Agency operations job is excluded.
 
