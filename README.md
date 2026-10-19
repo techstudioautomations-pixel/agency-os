@@ -1,3 +1,46 @@
+# Agency OS · The Works
+
+The operating system for The Works: one place for client checklists, freelancer checklists, the monthly content cycle, approvals, reporting, leads and finance.
+
+## What is where
+
+| Screen | For | What it does |
+|---|---|---|
+| Today | Everyone | One queue of everything waiting on you (reviews, client approvals, checklists, reports, invoices, follow-ups), the monthly cycle against the agreed dates, clients at a glance, freelancer allocation |
+| Clients | Owners, operations | Each client with its green/amber/red "ready for production" light and checklist progress |
+| Client profile | Owners, operations (freelancers see Marketing and Reporting only) | Overview, Checklist, Marketing (Strategy → Ideas → Content → Calendar), Reporting, Files & links, Finance (owners) |
+| Content approvals | Owners, operations | Every post this month, grouped by who acts next |
+| Reports | Everyone | Month-end per client: content delivered, numbers in, checked, approved, sent |
+| Leads | Owners | Pipeline. Marking a lead as won creates the client and starts its checklist |
+| Freelancers | Owners, operations | Setup checklist per freelancer. Nobody is assigned to a client before NDA and contract are signed |
+| Finance | Owners | Fees, invoices, freelancer payouts (after the client pays), agency costs, profit, tax set-aside, executive summary, hours by account |
+| How we work | Everyone | The SOPs as visual flows, who gets notified, approval modes, and the agreed rules (owners can change them) |
+
+Use the name at the bottom of the sidebar to preview the OS as María, Gareth, Niamh (operations) or a freelancer.
+
+## How a post moves
+
+Idea approved → copy → copy review → design → design review (expert check for technical claims) → client approval (mode A, logged by operations) → scheduled → live. Each step shows whose turn it is, notifies the next person, and logs changes with a category (brand, copy, layout, factual).
+
+## Data in this version
+
+Sample data is generated around today's date. Changes are saved in this browser only (localStorage), so each device has its own copy. "Reset sample data" in How we work restores it. Files under 1.5 MB are kept; larger ones last only for the session. Email and Slack notifications are shown in the bell but not sent until a database and email provider are connected (see `supabase/`).
+
+The previous version is still available at `/classic/`.
+
+## Run it
+
+```bash
+npm install
+npm run dev
+```
+
+Code: `app/page.tsx` (routes), `components/works/` (screens), `lib/works/` (types, seed data, rules, store).
+
+---
+
+## Previous README
+
 # Agency OS
 
 Phase 1 workspace prototype for a small content agency. The interface is available in demo mode; the database is designed for a separate Supabase project and does not reuse the command center's auth or data.
