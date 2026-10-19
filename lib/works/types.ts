@@ -77,7 +77,27 @@ export type Client = {
   hours: Record<string, { owner: number; ops: number; freelancer: number }>;
   /** Mode A and B: the client approves the month's plan. */
   planApproval: Record<string, { status: "Not sent" | "Sent" | "Approved"; date: string; via: string }>;
+  /** Who can get into which account. Never passwords: only the vault reference. */
+  access: AccessItem[];
+  files: ClientFile[];
+  /** Extra costs on this client. They also appear in Finance. */
+  costs: ClientCost[];
 };
+
+export type AccessItem = {
+  id: string;
+  platform: string;
+  account: string;
+  ownedBy: "Client" | "Agency";
+  people: string;
+  status: "Requested" | "Active" | "Removed";
+  date: string;
+  vaultRef: string;
+};
+
+export type Attachment = { name: string; url: string; addedAt: string; addedBy: string };
+export type ClientFile = Attachment & { id: string; category: "Brand" | "Contract" | "Report" | "Photos" | "Other" };
+export type ClientCost = { id: string; label: string; amount: number; month: string; recurring: boolean };
 
 export type IdeaDecision = "New" | "Approved" | "Maybe" | "Rejected";
 
@@ -94,6 +114,8 @@ export type Idea = {
   createdAt: string;
   source?: string;
   postId?: string;
+  /** The month the idea is planned for. */
+  month: string;
 };
 
 export type PostStatus =
@@ -174,6 +196,12 @@ export type MonthReport = {
   approved: boolean;
   sentAt: string;
   reportLink: string;
+  /** The freelancer's month-end report, as a file or link. */
+  freelancerReport?: Attachment;
+  /** The report we send the client. */
+  clientReport?: Attachment;
+  financeReport?: Attachment;
+  financeSentAt?: string;
 };
 
 export type LeadStage = "New" | "Contacted" | "Discovery call" | "Proposal sent" | "Won" | "Lost";
@@ -235,7 +263,7 @@ export type Route =
   | { view: "today" }
   | { view: "clients" }
   | { view: "client"; clientId: string; tab?: string; sub?: string; postId?: string }
-  | { view: "content" }
+  | { view: "marketing"; clientId?: string; tab?: string; postId?: string }
   | { view: "reports" }
   | { view: "leads"; leadId?: string }
   | { view: "freelancers"; freelancerId?: string }

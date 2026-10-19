@@ -6,21 +6,22 @@ The operating system for The Works: one place for client checklists, freelancer 
 
 | Screen | For | What it does |
 |---|---|---|
-| Today | Everyone | One queue of everything waiting on you (reviews, client approvals, checklists, reports, invoices, follow-ups), the monthly cycle against the agreed dates, clients at a glance, freelancer allocation |
-| Clients | Owners, operations | Each client with its green/amber/red "ready for production" light and checklist progress |
-| Client profile | Owners, operations (freelancers see Marketing and Reporting only) | Overview, Checklist, Marketing (Strategy → Ideas → Content → Calendar), Reporting, Files & links, Finance (owners) |
-| Content approvals | Owners, operations | Every post this month, grouped by who acts next |
-| Reports | Everyone | Month-end per client: content delivered, numbers in, checked, approved, sent |
-| Leads | Owners | Pipeline. Marking a lead as won creates the client and starts its checklist |
-| Freelancers | Owners, operations | Setup checklist per freelancer. Nobody is assigned to a client before NDA and contract are signed |
-| Finance | Owners | Fees, invoices, freelancer payouts (after the client pays), agency costs, profit, tax set-aside, executive summary, hours by account |
-| How we work | Everyone | The SOPs as visual flows, who gets notified, approval modes, and the agreed rules (owners can change them) |
+| Today | Everyone | Greeting, the posts in review (as artwork), what goes out this week, clients at a glance with post thumbnails, and who is on which account |
+| Clients | Owners, operations | Each client card with recent artwork, onboarding light and freelancer |
+| Client page | Owners, operations | Overview, Onboarding (tick-list by phase), Access (who can get in, never passwords), Reporting (attach and tick each month), Files & links, Finance (owners: fee, invoice, payout, costs on this client) |
+| Marketing | Everyone (freelancers see their own clients) | Pick a client or all clients: Posts (artwork grid by who acts next), Calendar (drag to move, open slots for agreed posts), Ideas (upload a document, approve / maybe / reject), Strategy (offer, personas, pillars), Results (freelancer month-end report) |
+| Post review | Everyone | Artwork and caption as they will appear, one conversation with change requests to tick off, the next action at the bottom, edit panel for the freelancer, Next for you |
+| Reports | Everyone | Month-end per client: freelancer report in, client report sent, finance statement sent (owners) |
+| Leads | Owners | Pipeline by stage. Marking a lead as won creates the client and starts onboarding |
+| Freelancers | Owners, operations | Setup tick-list with the NDA/contract gate, accounts, services and prices |
+| Finance | Owners | Fees, invoices, payouts after the client pays, client and agency costs, profit, tax set-aside, finance statements, hours by account |
+| How we work | Everyone | The SOPs as visual flows and the agreed rules |
 
 Use the name at the bottom of the sidebar to preview the OS as María, Gareth, Niamh (operations) or a freelancer.
 
 ## How a post moves
 
-Idea approved → copy → copy review → design → design review (expert check for technical claims) → client approval (mode A, logged by operations) → scheduled → live. Each step shows whose turn it is, notifies the next person, and logs changes with a category (brand, copy, layout, factual).
+Idea approved → copy → copy review → design → design review (expert check for technical claims) → client approval (mode A, logged by operations) → scheduled → live. Each step shows whose turn it is, notifies the next person, and logs change requests with a category (brand, copy, layout, factual) for the freelancer to tick off. Posts without uploaded artwork show a branded preview drawn from the title and client colour.
 
 ## Data in this version
 

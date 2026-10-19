@@ -1,9 +1,9 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import { Bell, BookOpen, ChevronDown, ChevronLeft, ChevronRight, CircleDollarSign, FileBarChart, Home, LayoutGrid, Menu, Send, Users, Workflow, X } from "lucide-react";
+import { Bell, BookOpen, ChevronDown, ChevronLeft, ChevronRight, CircleDollarSign, FileBarChart, Home, LayoutGrid, Menu, Send, Sparkles, Users, X } from "lucide-react";
 import { useStore } from "@/lib/works/store";
-import { ago, buildQueue, everyone, gate, isFreelancer, me, monthName, myClients, shiftMonth, turnOf } from "@/lib/works/logic";
+import { ago, everyone, gate, isFreelancer, me, monthName, myClients, shiftMonth, turnOf } from "@/lib/works/logic";
 import type { Route } from "@/lib/works/types";
 import { Avatar, Chip, ClientMark, Light } from "./kit";
 
@@ -17,22 +17,21 @@ export function Shell({ title, sub, actions, children }: { title: ReactNode; sub
   const [who, setWho] = useState(false);
   const person = me(state);
   const freelancer = isFreelancer(state);
-  const queue = buildQueue(state).filter((item) => item.who === state.me);
   const contentWaiting = state.posts.filter((post) => turnOf(state, post).who === state.me).length;
   const notices = state.notices.filter((notice) => notice.to === state.me);
   const unread = notices.filter((notice) => !notice.read).length;
 
   const nav: NavItem[] = freelancer
     ? [
-        { view: "today", label: "My work", icon: Home, badge: queue.length },
-        { view: "clients", label: "My clients", icon: LayoutGrid },
-        { view: "reports", label: "Month-end numbers", icon: FileBarChart },
+        { view: "today", label: "My work", icon: Home },
+        { view: "marketing", label: "Marketing", icon: Sparkles, badge: contentWaiting },
+        { view: "reports", label: "Monthly reports", icon: FileBarChart },
         { view: "how", label: "How we work", icon: BookOpen },
       ]
     : [
-        { view: "today", label: "Today", icon: Home, badge: queue.length },
+        { view: "today", label: "Today", icon: Home },
         { view: "clients", label: "Clients", icon: LayoutGrid },
-        { view: "content", label: "Content approvals", icon: Workflow, badge: contentWaiting },
+        { view: "marketing", label: "Marketing", icon: Sparkles, badge: contentWaiting },
         { view: "reports", label: "Reports", icon: FileBarChart },
         ...(person.role === "owner" ? [{ view: "leads" as const, label: "Leads", icon: Send }] : []),
         { view: "freelancers", label: "Freelancers", icon: Users },
@@ -75,8 +74,8 @@ export function Shell({ title, sub, actions, children }: { title: ReactNode; sub
             {clients.map((client) => (
               <button
                 key={client.id}
-                onClick={() => { go({ view: "client", clientId: client.id }); setMenu(false); }}
-                className={`flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left text-[13px] font-semibold ${route.view === "client" && route.clientId === client.id ? "bg-[#F1F0ED]" : "text-[#55514B] hover:bg-[#F6F5F2]"}`}
+                onClick={() => { go(freelancer ? { view: "marketing", clientId: client.id } : { view: "client", clientId: client.id }); setMenu(false); }}
+                className={`flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left text-[13px] font-semibold ${(route.view === "client" || route.view === "marketing") && route.clientId === client.id ? "bg-[#F1F0ED]" : "text-[#55514B] hover:bg-[#F6F5F2]"}`}
               >
                 <ClientMark client={client} size={24} />
                 <span className="flex-1 truncate">{client.name}</span>

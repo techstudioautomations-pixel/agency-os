@@ -1,94 +1,73 @@
 "use client";
 
-import { useState } from "react";
-import { ArrowRight, ExternalLink, Plus } from "lucide-react";
+import { useState, type ReactNode } from "react";
+import { ArrowRight, Check, ExternalLink, FileText, FolderOpen, KeyRound, Link2, Pencil, Plus, ShieldAlert, Sparkles, Trash2 } from "lucide-react";
 import { useStore } from "@/lib/works/store";
-import { canBeAssigned, gate, isFreelancer, isOwner, me, missing, money, monthName, myClients, nameOf, personById, progress, stageOf, stages, turnOf } from "@/lib/works/logic";
-import type { ApprovalMode, Client } from "@/lib/works/types";
+import { canBeAssigned, gate, isFreelancer, isOwner, missing, money, monthName, nameOf, personById, progress, shiftMonth, shortDate, todayIso } from "@/lib/works/logic";
+import type { AccessItem, ApprovalMode, Client, ClientFile } from "@/lib/works/types";
 import { Shell } from "./Shell";
-import { ChecklistView, GateBanner } from "./Checklist";
-import { ClientMarketing } from "./Marketing";
-import { ClientReporting } from "./Reports";
-import { Avatar, Bar, Button, Card, CardHead, Chip, ClientMark, Empty, Field, Light, Segmented, fieldClass, tone } from "./kit";
+import { GateBanner, PhaseChecklist } from "./Checklist";
+import { PostArt } from "./PostArt";
+import { AttachField, Avatar, Bar, Button, Card, CardHead, Chip, ClientMark, Empty, Field, Light, Ring, Segmented, fieldClass, tone } from "./kit";
 
 export const modeText: Record<ApprovalMode, string> = {
-  A: "A · Client approves the plan and every post",
-  B: "B · Client approves the plan only",
-  C: "C · Internal approval only",
+  A: "Client approves the plan and every post",
+  B: "Client approves the plan only",
+  C: "We approve internally",
 };
 
-// ─── Clients list ───
+// ─── List ───
 export function ClientsList() {
   const { state, go, addClient } = useStore();
   const [filter, setFilter] = useState<"all" | "Onboarding" | "Live" | "attention">("all");
   const [adding, setAdding] = useState(false);
   const [name, setName] = useState("");
-  const freelancer = isFreelancer(state);
-  const clients = myClients(state);
+  const clients = state.clients;
   const needs = (client: Client) => gate(client.checklist).light !== "green" || !client.freelancerId;
   const shown = clients.filter((client) => filter === "all" || (filter === "attention" ? needs(client) : client.stage === filter));
+  if (isFreelancer(state)) return <Shell title="Clients"><Empty title="Your clients are in Marketing" /></Shell>;
 
   return (
-    <Shell
-      title={freelancer ? "My clients" : "Clients"}
-      sub={freelancer ? "The accounts you work on." : `${clients.filter((c) => c.stage === "Live").length} live · ${clients.filter((c) => c.stage === "Onboarding").length} onboarding`}
-      actions={!freelancer && <Button kind="primary" onClick={() => setAdding(true)}><Plus size={15} />New client</Button>}
-    >
-      {!freelancer && (
-        <div className="mb-4">
-          <Segmented value={filter} onChange={setFilter} options={[
-            { value: "all", label: "All", count: clients.length },
-            { value: "Onboarding", label: "Onboarding", count: clients.filter((c) => c.stage === "Onboarding").length },
-            { value: "Live", label: "Live", count: clients.filter((c) => c.stage === "Live").length },
-            { value: "attention", label: "Needs attention", count: clients.filter(needs).length },
-          ]} />
-        </div>
-      )}
+    <Shell title="Clients" sub={`${clients.filter((c) => c.stage === "Live").length} live · ${clients.filter((c) => c.stage === "Onboarding").length} onboarding`} actions={<Button kind="primary" onClick={() => setAdding(true)}><Plus size={15} />New client</Button>}>
+      <div className="mb-4">
+        <Segmented value={filter} onChange={setFilter} options={[
+          { value: "all", label: "All", count: clients.length },
+          { value: "Onboarding", label: "Onboarding", count: clients.filter((c) => c.stage === "Onboarding").length },
+          { value: "Live", label: "Live", count: clients.filter((c) => c.stage === "Live").length },
+          { value: "attention", label: "Needs attention", count: clients.filter(needs).length },
+        ]} />
+      </div>
       {adding && (
         <Card className="mb-4">
-          <form onSubmit={(event) => { event.preventDefault(); if (!name.trim()) return; const id = addClient(name.trim()); setAdding(false); setName(""); go({ view: "client", clientId: id, tab: "checklist" }); }} className="flex flex-wrap items-end gap-3">
+          <form onSubmit={(event) => { event.preventDefault(); if (!name.trim()) return; const id = addClient(name.trim()); setAdding(false); setName(""); go({ view: "client", clientId: id, tab: "onboarding" }); }} className="flex flex-wrap items-end gap-3">
             <div className="min-w-[240px] flex-1"><Field label="Client name"><input autoFocus value={name} onChange={(event) => setName(event.target.value)} className={fieldClass} placeholder="Company name" /></Field></div>
-            <Button kind="primary" type="submit">Create and open checklist</Button>
+            <Button kind="primary" type="submit">Create and start onboarding</Button>
             <Button type="button" kind="ghost" onClick={() => setAdding(false)}>Cancel</Button>
-            <p className="w-full text-[12px] text-[#8B867E]">Won a lead? Use Leads → Mark as won instead: it carries the package and fee across.</p>
           </form>
         </Card>
       )}
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
         {shown.map((client) => {
           const g = gate(client.checklist);
           const p = progress(client.checklist);
           const posts = state.posts.filter((post) => post.clientId === client.id && post.date.startsWith(state.month));
-          const ready = posts.filter((post) => stageOf(post.status) >= 3).length;
           const fl = personById(state, client.freelancerId);
-          const blocking = g.blocking.slice(0, 2);
           return (
-            <button key={client.id} onClick={() => go({ view: "client", clientId: client.id })} className="group flex min-w-0 flex-col rounded-2xl border border-[#E9E6E0] bg-white p-5 text-left transition hover:border-[#D2CCC2] hover:shadow-[0_8px_24px_rgba(30,36,48,.06)]">
-              <div className="flex items-start gap-3">
-                <ClientMark client={client} size={44} />
-                <div className="min-w-0 flex-1">
-                  <div className="truncate text-[16px] font-bold">{client.name}</div>
-                  <div className="truncate text-[12px] text-[#8B867E]">{client.sector}</div>
+            <button key={client.id} onClick={() => go({ view: "client", clientId: client.id })} className="group min-w-0 overflow-hidden rounded-2xl border border-[#E9E6E0] bg-white text-left transition hover:border-[#D2CCC2] hover:shadow-[0_8px_24px_rgba(30,36,48,.07)]">
+              <div className="h-2" style={{ background: client.color }} />
+              <div className="p-4">
+                <div className="flex items-center gap-3">
+                  <ClientMark client={client} size={44} />
+                  <div className="min-w-0 flex-1"><div className="truncate text-[16px] font-bold">{client.name}</div><div className="truncate text-[12px] text-[#8B867E]">{client.sector}</div></div>
+                  <Chip t={client.stage === "Live" ? "green" : "blue"}>{client.stage}</Chip>
                 </div>
-                <Chip t={client.stage === "Live" ? "green" : client.stage === "Onboarding" ? "blue" : "grey"}>{client.stage}</Chip>
-              </div>
-              {!freelancer && (
-                <div className="mt-4 rounded-xl p-3" style={{ background: tone[g.light].bg }}>
-                  <div className="flex items-center gap-2 text-[13px] font-bold" style={{ color: tone[g.light].ink }}>
-                    <Light light={g.light} size={8} /> {g.light === "green" ? "Ready for production" : g.label}
-                    <span className="ml-auto font-semibold text-[#55514B]">{p.percent}%</span>
-                  </div>
-                  {blocking.length > 0 && <div className="mt-1 truncate text-[12px] text-[#55514B]">{blocking.map((item) => item.label.split(":")[0]).join(" · ")}</div>}
+                <div className="mt-3 grid grid-cols-4 gap-1.5">
+                  {Array.from({ length: 4 }, (_, index) => posts[index] ? <PostArt key={posts[index].id} post={posts[index]} client={client} rounded="rounded-lg" /> : <span key={index} className="aspect-[4/5] rounded-lg bg-[#F6F5F2]" />)}
                 </div>
-              )}
-              <div className="mt-4">
-                <div className="mb-1.5 flex justify-between text-[12px] font-semibold text-[#55514B]"><span>{monthName(state.month).split(" ")[0]} content approved</span><span>{ready} / {client.agreedPosts}</span></div>
-                <Bar value={(ready / client.agreedPosts) * 100} color={tone.green.dot} />
-              </div>
-              <div className="mt-4 flex items-center gap-2 border-t border-[#F0EEE9] pt-3 text-[12px] text-[#6B6760]">
-                {fl ? <><Avatar name={fl.name} color={fl.color} size={22} />{fl.name}</> : <Chip t="red">No freelancer</Chip>}
-                <span className="ml-auto">{client.package} · Mode {client.approvalMode}</span>
-                <ArrowRight size={15} className="text-[#B5B0A8] transition group-hover:translate-x-0.5" />
+                <div className="mt-3 flex items-center gap-2 text-[12px] font-semibold" style={{ color: tone[g.light].ink }}>
+                  <Light light={g.light} size={7} />{g.light === "green" ? "Onboarded" : `Onboarding ${p.percent}%`}
+                  <span className="ml-auto flex items-center gap-1.5 text-[#55514B]">{fl ? <><Avatar name={fl.name} color={fl.color} size={20} />{fl.name}</> : <Chip t="red">No freelancer</Chip>}</span>
+                </div>
               </div>
             </button>
           );
@@ -99,41 +78,41 @@ export function ClientsList() {
   );
 }
 
-// ─── Client profile ───
-export function ClientProfile({ clientId, tab, sub, postId }: { clientId: string; tab?: string; sub?: string; postId?: string }) {
+// ─── Profile ───
+export function ClientProfile({ clientId, tab }: { clientId: string; tab?: string }) {
   const { state, go } = useStore();
   const client = state.clients.find((item) => item.id === clientId);
-  const freelancer = isFreelancer(state);
   const owner = isOwner(state);
-  if (!client || (freelancer && client.freelancerId !== state.me)) return <Shell title="Client not found"><Empty title="This client is not available to you." /></Shell>;
+  if (!client || isFreelancer(state)) return <Shell title="Client"><Empty title="This client is not available to you." /></Shell>;
 
-  const tabs = freelancer
-    ? [{ value: "marketing", label: "Marketing" }, { value: "reporting", label: "Reporting" }]
-    : [
-        { value: "overview", label: "Overview" },
-        { value: "checklist", label: "Checklist", count: missing(client.checklist).length },
-        { value: "marketing", label: "Marketing" },
-        { value: "reporting", label: "Reporting" },
-        { value: "files", label: "Files & links" },
-        ...(owner ? [{ value: "finance", label: "Finance" }] : []),
-      ];
-  const current = tabs.some((item) => item.value === tab) ? tab! : tabs[0].value;
-  const g = gate(client.checklist);
-  const fl = personById(state, client.freelancerId);
+  const tabs = [
+    { value: "overview", label: "Overview" },
+    { value: "onboarding", label: "Onboarding", count: missing(client.checklist).filter((item) => !item.soft).length },
+    { value: "access", label: "Access" },
+    { value: "reporting", label: "Reporting" },
+    { value: "files", label: "Files & links" },
+    ...(owner ? [{ value: "finance", label: "Finance" }] : []),
+  ];
+  const current = tabs.some((item) => item.value === tab) ? tab! : "overview";
+  const links: [string, string, ReactNode][] = [["Drive", client.links.drive, <FolderOpen key="d" size={15} />], ["Canva", client.links.canva, <Sparkles key="c" size={15} />], ["Publer", client.links.publer, <Link2 key="p" size={15} />]];
 
   return (
-    <Shell
-      title={<span className="flex items-center gap-3"><ClientMark client={client} size={44} />{client.name}</span>}
-      sub={
-        <span className="flex flex-wrap items-center gap-2">
-          <Chip t={client.stage === "Live" ? "green" : "blue"}>{client.stage}</Chip>
-          <Chip>{client.package}{client.addOns.length ? ` + ${client.addOns.join(", ")}` : ""}</Chip>
-          <Chip t="purple">Approval mode {client.approvalMode}</Chip>
-          {!freelancer && <span className="flex items-center gap-1.5 text-[13px] font-semibold" style={{ color: tone[g.light].ink }}><Light light={g.light} size={8} />{g.light === "green" ? "Ready for production" : g.label}</span>}
-          {fl && <span className="flex items-center gap-1.5 text-[13px]"><Avatar name={fl.name} color={fl.color} size={20} />{fl.name}</span>}
-        </span>
-      }
-    >
+    <Shell title={client.name} sub={client.sector}>
+      <div className="-mt-2 mb-5 overflow-hidden rounded-2xl border border-[#E9E6E0] bg-white">
+        <div className="h-20" style={{ background: `linear-gradient(120deg, ${client.color}, ${client.color}99 60%, #1E2430)` }} />
+        <div className="flex flex-wrap items-end gap-4 px-5 pb-4">
+          <div className="-mt-9 rounded-2xl bg-white p-1 shadow-sm"><ClientMark client={client} size={64} /></div>
+          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2 pt-2">
+            <Chip t={client.stage === "Live" ? "green" : "blue"}>{client.stage}</Chip>
+            <Chip>{client.package}{client.addOns.length ? ` + ${client.addOns.join(", ")}` : ""}</Chip>
+            <Chip t="purple">{modeText[client.approvalMode]}</Chip>
+          </div>
+          <div className="flex flex-wrap items-center gap-2 pt-2">
+            {links.filter(([, url]) => url).map(([label, url, icon]) => <a key={label} href={url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 rounded-xl border border-[#E2DED7] px-3 py-2 text-[12px] font-semibold hover:border-[#C9C3B8]">{icon}{label}</a>)}
+            <Button kind="primary" onClick={() => go({ view: "marketing", clientId: client.id })}>Open marketing <ArrowRight size={15} /></Button>
+          </div>
+        </div>
+      </div>
       <div className="mb-5 flex gap-1 overflow-x-auto border-b border-[#E9E6E0]">
         {tabs.map((item) => (
           <button key={item.value} onClick={() => go({ view: "client", clientId, tab: item.value })} className={`-mb-px shrink-0 border-b-2 px-4 py-2.5 text-[14px] font-semibold ${current === item.value ? "border-[#1E2430] text-[#1E2430]" : "border-transparent text-[#8B867E] hover:text-[#1E2430]"}`}>
@@ -143,218 +122,332 @@ export function ClientProfile({ clientId, tab, sub, postId }: { clientId: string
         ))}
       </div>
       {current === "overview" && <Overview client={client} />}
-      {current === "checklist" && <ClientChecklist client={client} />}
-      {current === "marketing" && <ClientMarketing client={client} sub={sub} postId={postId} />}
-      {current === "reporting" && <ClientReporting client={client} />}
-      {current === "files" && <FilesAndLinks client={client} />}
+      {current === "onboarding" && <Onboarding client={client} />}
+      {current === "access" && <Access client={client} />}
+      {current === "reporting" && <Reporting client={client} />}
+      {current === "files" && <Files client={client} />}
       {current === "finance" && owner && <ClientFinance client={client} />}
     </Shell>
   );
 }
 
-function ClientChecklist({ client }: { client: Client }) {
-  const { updateCheck } = useStore();
+// ─── Overview: the client on one screen ───
+function Row({ label, value, editing, children }: { label: string; value: ReactNode; editing: boolean; children?: ReactNode }) {
   return (
-    <div className="space-y-4">
-      <GateBanner items={client.checklist} />
-      <ChecklistView items={client.checklist} onChange={(id, patch) => updateCheck(client.id, id, patch)} copyGroup="Questionnaire" />
+    <div className="grid grid-cols-[130px_1fr] items-center gap-3 border-b border-[#F3F1ED] py-2.5 last:border-0">
+      <span className="text-[12px] font-semibold text-[#8B867E]">{label}</span>
+      {editing && children ? children : <span className="min-w-0 truncate text-[14px] font-semibold">{value || <span className="font-normal italic text-[#B5B0A8]">To add</span>}</span>}
     </div>
   );
 }
 
 function Overview({ client }: { client: Client }) {
-  const { state, go, updateClient, assignFreelancer, setHours } = useStore();
+  const { state, go, updateClient, assignFreelancer } = useStore();
+  const [editing, setEditing] = useState(false);
   const owner = isOwner(state);
   const g = gate(client.checklist);
-  const posts = state.posts.filter((post) => post.clientId === client.id && post.date.startsWith(state.month));
-  const counts = stages.map((_, index) => posts.filter((post) => stageOf(post.status) === index).length);
-  const plan = client.planApproval[state.month];
-  const hours = client.hours[state.month] ?? { owner: 0, ops: 0, freelancer: 0 };
-  const myTurn = posts.filter((post) => turnOf(state, post).who === state.me);
+  const p = progress(client.checklist);
+  const posts = state.posts.filter((post) => post.clientId === client.id && post.date.startsWith(state.month)).sort((a, b) => a.date.localeCompare(b.date));
+  const approved = posts.filter((post) => ["Ready to schedule", "Scheduled", "Published"].includes(post.status)).length;
+  const lastMonth = shiftMonth(state.month, -1);
+  const report = state.reports.find((item) => item.clientId === client.id && item.month === lastMonth);
+  const fl = personById(state, client.freelancerId);
   const set = (patch: Partial<Client>) => updateClient(client.id, patch);
+  const input = (value: string, onChange: (value: string) => void) => <input value={value} onChange={(event) => onChange(event.target.value)} className="w-full rounded-lg border border-[#E2DED7] px-2.5 py-1.5 text-[14px] outline-none focus:border-[#2F6FDB]" />;
+  const select = "rounded-lg border border-[#E2DED7] bg-white px-2.5 py-1.5 text-[14px]";
 
   return (
-    <div className="grid gap-5 xl:grid-cols-[1.2fr_.8fr]">
-      <div className="space-y-5">
+    <div className="space-y-5">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <button onClick={() => go({ view: "client", clientId: client.id, tab: "onboarding" })} className="flex items-center gap-3 rounded-2xl border border-[#E9E6E0] bg-white p-4 text-left">
+          <Ring value={p.percent} size={48} color={tone[g.light].dot} />
+          <span><span className="block text-[12px] font-semibold text-[#8B867E]">Onboarding</span><span className="text-[14px] font-bold">{g.light === "green" ? "Complete" : `${g.blocking.length} to do`}</span></span>
+        </button>
+        <button onClick={() => go({ view: "marketing", clientId: client.id })} className="rounded-2xl border border-[#E9E6E0] bg-white p-4 text-left">
+          <span className="block text-[12px] font-semibold text-[#8B867E]">{monthName(state.month).split(" ")[0]} posts approved</span>
+          <span className="text-[22px] font-extrabold">{approved}<span className="text-[14px] text-[#8B867E]"> / {client.agreedPosts}</span></span>
+          <Bar value={(approved / client.agreedPosts) * 100} color={tone.green.dot} />
+        </button>
+        <div className="rounded-2xl border border-[#E9E6E0] bg-white p-4">
+          <span className="block text-[12px] font-semibold text-[#8B867E]">Freelancer</span>
+          {fl ? <span className="mt-1 flex items-center gap-2 text-[14px] font-bold"><Avatar name={fl.name} color={fl.color} size={28} />{fl.name}</span> : <span className="mt-1 block text-[14px] font-bold text-[#B83232]">Not assigned</span>}
+        </div>
+        <button onClick={() => go({ view: "client", clientId: client.id, tab: "reporting" })} className="rounded-2xl border border-[#E9E6E0] bg-white p-4 text-left">
+          <span className="block text-[12px] font-semibold text-[#8B867E]">{monthName(lastMonth).split(" ")[0]} report</span>
+          <span className={`mt-1 block text-[14px] font-bold ${report?.sentAt ? "text-[#17804A]" : client.startDate.slice(0, 7) > lastMonth ? "text-[#8B867E]" : "text-[#B83232]"}`}>{report?.sentAt ? `✓ Sent ${shortDate(report.sentAt)}` : client.startDate.slice(0, 7) > lastMonth ? "Not due yet" : "Not sent yet"}</span>
+        </button>
+      </div>
+
+      <Card>
+        <CardHead title={`${monthName(state.month)} posts`} sub={`${posts.length} of ${client.agreedPosts} agreed posts planned`} right={<Button size="sm" onClick={() => go({ view: "marketing", clientId: client.id })}>Open marketing <ArrowRight size={13} /></Button>} />
+        {posts.length === 0 ? <Empty title="No posts planned yet">Approve ideas in Marketing to fill the month.</Empty> : (
+          <div className="-mx-1 flex gap-3 overflow-x-auto px-1 pb-1">
+            {posts.map((post) => (
+              <button key={post.id} onClick={() => go({ view: "marketing", clientId: client.id, postId: post.id })} className="w-[132px] shrink-0 text-left">
+                <PostArt post={post} client={client} />
+                <div className="mt-1.5 line-clamp-2 text-[12px] font-semibold leading-snug">{post.title}</div>
+                <div className="text-[11px] text-[#8B867E]">{shortDate(post.date)} · {post.status}</div>
+              </button>
+            ))}
+          </div>
+        )}
+      </Card>
+
+      <div className="grid gap-5 lg:grid-cols-2">
         <Card>
-          <CardHead title="What is still missing" sub="Essential items block production. Info items do not." right={<Button size="sm" onClick={() => go({ view: "client", clientId: client.id, tab: "checklist" })}>Open checklist</Button>} />
-          {g.blocking.length === 0 ? (
-            <div className="flex items-center gap-2 rounded-xl bg-[#E7F6EE] px-4 py-3 text-[14px] font-semibold text-[#17804A]"><Light light="green" size={9} />Ready for production. {missing(client.checklist).length ? `${missing(client.checklist).length} info item${missing(client.checklist).length === 1 ? "" : "s"} still open.` : "Everything is in."}</div>
-          ) : (
-            <ul className="space-y-1.5">
-              {g.blocking.map((item) => (
-                <li key={item.id} className="flex flex-wrap items-center gap-2.5 rounded-xl bg-[#F8F7F4] px-3.5 py-2.5 text-[13px]">
-                  <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: item.status === "Requested" ? tone.amber.dot : tone.red.dot }} />
-                  <span className="min-w-0 flex-1 font-semibold">{item.label}</span>
-                  <span className="text-[12px] text-[#6B6760]">{item.group}</span>
-                  <Chip t={item.status === "Requested" ? "amber" : "red"}>{item.owner === "client" ? (item.status === "Requested" ? "Asked client" : "Not asked") : item.status === "Requested" ? "In progress" : "To do"}</Chip>
-                  <span className="w-16 text-right text-[12px] font-semibold text-[#55514B]">{nameOf(state, item.owner)}</span>
-                </li>
-              ))}
-            </ul>
+          <CardHead title="People" right={<Button size="sm" kind={editing ? "primary" : "secondary"} onClick={() => setEditing(!editing)}>{editing ? <><Check size={13} />Done</> : <><Pencil size={13} />Edit</>}</Button>} />
+          <Row label="Main contact" value={client.mainContact.name} editing={editing}>{input(client.mainContact.name, (value) => set({ mainContact: { ...client.mainContact, name: value } }))}</Row>
+          <Row label="Email" value={client.mainContact.email} editing={editing}>{input(client.mainContact.email, (value) => set({ mainContact: { ...client.mainContact, email: value } }))}</Row>
+          <Row label="Approver" value={client.approver.name} editing={editing}>{input(client.approver.name, (value) => set({ approver: { ...client.approver, name: value } }))}</Row>
+          <Row label="Billing contact" value={client.billingContact} editing={editing}>{input(client.billingContact, (value) => set({ billingContact: value }))}</Row>
+          <Row label="Technical expert" value={client.expertReviewer} editing={editing}>{input(client.expertReviewer, (value) => set({ expertReviewer: value }))}</Row>
+          <Row label="We talk on" value={client.channel} editing={editing}><select value={client.channel} onChange={(event) => set({ channel: event.target.value as Client["channel"] })} className={select}><option>Email</option><option>Slack</option><option>Google Chat</option></select></Row>
+          <Row label="Freelancer" value={fl?.name} editing={editing}>
+            <select value={client.freelancerId ?? ""} onChange={(event) => assignFreelancer(client.id, event.target.value)} className={select}>
+              <option value="">Not assigned</option>
+              {state.freelancers.filter((person) => person.status !== "Offboarded").map((person) => <option key={person.id} value={person.id}>{person.name}{canBeAssigned(person) ? "" : " · NDA/contract missing"}</option>)}
+            </select>
+          </Row>
+        </Card>
+        <Card>
+          <CardHead title="Agreement" sub={editing ? "Editing" : undefined} />
+          <Row label="Package" value={client.package} editing={editing}><select value={client.package} onChange={(event) => set({ package: event.target.value as Client["package"], agreedPosts: event.target.value === "Growth" ? 12 : 8 })} className={select}><option>Essential</option><option>Growth</option></select></Row>
+          <Row label="Posts a month" value={client.agreedPosts} editing={editing}><input type="number" min={1} value={client.agreedPosts} onChange={(event) => set({ agreedPosts: Number(event.target.value) })} className="w-24 rounded-lg border border-[#E2DED7] px-2.5 py-1.5 text-[14px]" /></Row>
+          <Row label="Add-ons" value={client.addOns.join(", ")} editing={editing}>{input(client.addOns.join(", "), (value) => set({ addOns: value.split(",").map((part) => part.trim()).filter(Boolean) }))}</Row>
+          <Row label="Approval" value={modeText[client.approvalMode]} editing={editing}><select value={client.approvalMode} onChange={(event) => set({ approvalMode: event.target.value as ApprovalMode })} className={select}>{(Object.keys(modeText) as ApprovalMode[]).map((mode) => <option key={mode} value={mode}>{mode} · {modeText[mode]}</option>)}</select></Row>
+          <Row label="Stage" value={client.stage} editing={editing}><select value={client.stage} onChange={(event) => set({ stage: event.target.value as Client["stage"] })} className={select}><option>Onboarding</option><option>Live</option><option>Paused</option></select></Row>
+          <Row label="Client since" value={shortDate(client.startDate)} editing={false} />
+          {owner && <Row label="Monthly fee" value={money(client.fee + client.addOnFee, state.settings.currency)} editing={false} />}
+          {g.blocking.length > 0 && (
+            <button onClick={() => go({ view: "client", clientId: client.id, tab: "onboarding" })} className="mt-3 flex w-full items-center gap-2 rounded-xl bg-[#FDECEC] px-3 py-2.5 text-left text-[13px] font-semibold text-[#B83232]">
+              <ShieldAlert size={15} className="shrink-0" /><span className="truncate">Still missing: {g.blocking.slice(0, 2).map((item) => item.label.split(":")[0]).join(", ")}{g.blocking.length > 2 ? ` +${g.blocking.length - 2}` : ""}</span>
+              <ArrowRight size={14} className="ml-auto shrink-0" />
+            </button>
           )}
         </Card>
+      </div>
+    </div>
+  );
+}
 
-        <Card>
-          <CardHead title={`${monthName(state.month)} content`} sub={`${posts.length} of ${client.agreedPosts} agreed posts started`} right={<Button size="sm" onClick={() => go({ view: "client", clientId: client.id, tab: "marketing", sub: "content" })}>Open content</Button>} />
-          <div className="grid grid-cols-5 gap-2">
-            {stages.map((stage, index) => (
-              <div key={stage} className="rounded-xl bg-[#F8F7F4] p-3 text-center">
-                <div className="text-[22px] font-extrabold">{counts[index]}</div>
-                <div className="text-[12px] font-semibold text-[#6B6760]">{stage}</div>
+function Onboarding({ client }: { client: Client }) {
+  const { toggleCheck, updateCheck } = useStore();
+  return (
+    <div className="space-y-4">
+      <GateBanner items={client.checklist} />
+      <PhaseChecklist items={client.checklist} onToggle={(id) => toggleCheck(client.id, id)} onUpdate={(id, patch) => updateCheck(client.id, id, patch)} copyGroup="2 · Questionnaire" />
+    </div>
+  );
+}
+
+// ─── Access ───
+const platforms = ["LinkedIn page", "Instagram", "Facebook", "Meta Business", "TikTok", "Publer", "Canva", "Newsletter tool", "Google Drive", "Website", "Other"];
+
+function Access({ client }: { client: Client }) {
+  const { addAccess, updateAccess, removeAccess } = useStore();
+  const [draft, setDraft] = useState<Omit<AccessItem, "id">>({ platform: "LinkedIn page", account: "", ownedBy: "Client", people: "", status: "Requested", date: todayIso(), vaultRef: "" });
+  const statusColors = (status: AccessItem["status"]) => (status === "Active" ? tone.green : status === "Requested" ? tone.amber : tone.grey);
+  return (
+    <div className="space-y-4">
+      <div className="flex items-start gap-3 rounded-2xl bg-[#FFF3D9] p-4 text-[13px] text-[#6B4A06]">
+        <KeyRound size={18} className="mt-0.5 shrink-0" />
+        <span><b>Never store passwords here.</b> Use platform roles (page admin, Meta Business partner, Publer editor) and keep any password in the agency vault. Record who has access and since when, and remove it the day work ends.</span>
+      </div>
+      {client.access.length === 0 ? <Empty title="No accounts recorded yet">Add each platform as access is granted.</Empty> : (
+        <div className="grid gap-3 md:grid-cols-2">
+          {client.access.map((item) => (
+            <div key={item.id} className="min-w-0 rounded-2xl border border-[#E9E6E0] bg-white p-4" style={{ borderLeft: `4px solid ${statusColors(item.status).dot}` }}>
+              <div className="flex items-start gap-3">
+                <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[#F6F5F2] text-[14px] font-extrabold text-[#55514B]">{item.platform[0]}</span>
+                <div className="min-w-0 flex-1">
+                  <div className="text-[14px] font-bold">{item.platform}</div>
+                  <div className="truncate text-[13px] text-[#55514B]">{item.account}</div>
+                </div>
+                <select value={item.status} onChange={(event) => updateAccess(client.id, item.id, { status: event.target.value as AccessItem["status"], date: todayIso() })} aria-label="Access status" className="rounded-lg border-0 px-2 py-1 text-[12px] font-bold" style={{ background: statusColors(item.status).bg, color: statusColors(item.status).ink }}>
+                  <option>Requested</option><option>Active</option><option>Removed</option>
+                </select>
+              </div>
+              <div className="mt-3 space-y-1 text-[12px] text-[#55514B]">
+                <div><b>Who has access:</b> {item.people || "—"}</div>
+                <div><b>Owned by:</b> {item.ownedBy} · <b>since</b> {shortDate(item.date)}</div>
+                {item.vaultRef && <div><b>Vault:</b> {item.vaultRef}</div>}
+              </div>
+              <button onClick={() => removeAccess(client.id, item.id)} className="mt-2 text-[12px] font-semibold text-[#B83232]">Remove record</button>
+            </div>
+          ))}
+        </div>
+      )}
+      <Card>
+        <CardHead title="Add an account" />
+        <form onSubmit={(event) => { event.preventDefault(); if (!draft.account.trim()) return; addAccess(client.id, draft); setDraft({ ...draft, account: "", people: "", vaultRef: "" }); }} className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <Field label="Platform"><select value={draft.platform} onChange={(event) => setDraft({ ...draft, platform: event.target.value })} className={fieldClass}>{platforms.map((item) => <option key={item}>{item}</option>)}</select></Field>
+          <Field label="Account / handle"><input value={draft.account} onChange={(event) => setDraft({ ...draft, account: event.target.value })} placeholder="@handle or page name" className={fieldClass} /></Field>
+          <Field label="Who has access"><input value={draft.people} onChange={(event) => setDraft({ ...draft, people: event.target.value })} placeholder="Niamh (admin), Velinda (editor)" className={fieldClass} /></Field>
+          <Field label="Owned by"><select value={draft.ownedBy} onChange={(event) => setDraft({ ...draft, ownedBy: event.target.value as AccessItem["ownedBy"] })} className={fieldClass}><option>Client</option><option>Agency</option></select></Field>
+          <Field label="Status"><select value={draft.status} onChange={(event) => setDraft({ ...draft, status: event.target.value as AccessItem["status"] })} className={fieldClass}><option>Requested</option><option>Active</option></select></Field>
+          <Field label="Vault reference (no password)"><input value={draft.vaultRef} onChange={(event) => setDraft({ ...draft, vaultRef: event.target.value })} placeholder="e.g. 1Password · Client X" className={fieldClass} /></Field>
+          <div className="sm:col-span-2 lg:col-span-3"><Button kind="primary" type="submit"><Plus size={14} />Add account</Button></div>
+        </form>
+      </Card>
+    </div>
+  );
+}
+
+// ─── Reporting: one row per month, attach and tick ───
+function Reporting({ client }: { client: Client }) {
+  const { state, attachReport, updateReport } = useStore();
+  const owner = isOwner(state);
+  const months = Array.from({ length: 6 }, (_, index) => shiftMonth(state.month, -index)).filter((month) => month >= client.startDate.slice(0, 7));
+  const tick = (done: boolean) => (done ? <Check size={14} className="text-[#1D9E5A]" /> : <span className="h-3.5 w-3.5 rounded-full border-2 border-[#CFCAC2]" />);
+  return (
+    <div className="space-y-3">
+      <p className="text-[13px] text-[#6B6760]">Each month: the freelancer&apos;s report comes in, we send the client their report{owner ? " and the finance statement" : ""}. Attach the file or link and tick it off.</p>
+      {months.map((month) => {
+        const report = state.reports.find((item) => item.clientId === client.id && item.month === month);
+        const posts = state.posts.filter((post) => post.clientId === client.id && post.date.startsWith(month));
+        const delivered = Math.max(posts.filter((post) => post.status === "Published").length, Number(report?.numbers?.postsPublished) || 0);
+        const sent = Boolean(report?.sentAt);
+        const steps = [Boolean(report?.freelancerReport || report?.numbers), sent, ...(owner ? [Boolean(report?.financeSentAt)] : [])];
+        const doneCount = steps.filter(Boolean).length;
+        const complete = doneCount === steps.length;
+        return (
+          <div key={month} className="min-w-0 rounded-2xl border border-[#E9E6E0] bg-white p-4">
+            <div className="flex flex-wrap items-center gap-3">
+              <span className={`grid h-9 w-9 place-items-center rounded-xl ${complete ? "bg-[#1D9E5A] text-white" : "bg-[#F1F0ED] text-[#55514B]"}`}>{complete ? <Check size={17} /> : <FileText size={16} />}</span>
+              <div className="flex-1"><div className="text-[15px] font-bold">{monthName(month)}</div><div className="text-[12px] text-[#8B867E]">{delivered} of {client.agreedPosts} posts delivered{month === state.month ? " so far" : ""}</div></div>
+              <Chip t={complete ? "green" : "grey"}>{doneCount}/{steps.length} done</Chip>
+            </div>
+            <div className={`mt-3 grid gap-3 ${owner ? "md:grid-cols-3" : "md:grid-cols-2"}`}>
+              <div className="rounded-xl bg-[#F8F7F4] p-3">
+                <div className="mb-2 flex items-center gap-1.5 text-[12px] font-bold">{tick(Boolean(report?.freelancerReport || report?.numbers))}Freelancer&apos;s report</div>
+                <AttachField value={report?.freelancerReport} onChange={(file) => attachReport(client.id, month, "freelancerReport", file)} compact />
+              </div>
+              <div className="rounded-xl bg-[#F8F7F4] p-3">
+                <div className="mb-2 flex items-center gap-1.5 text-[12px] font-bold">{tick(sent)}Client report {sent && <span className="font-semibold text-[#17804A]">· sent {shortDate(report!.sentAt)}</span>}</div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <AttachField value={report?.clientReport} onChange={(file) => attachReport(client.id, month, "clientReport", file)} compact />
+                  <button onClick={() => updateReport(client.id, month, { sentAt: sent ? "" : todayIso(), approved: true, checked: true })} className={`rounded-lg px-2.5 py-1 text-[12px] font-bold ${sent ? "bg-[#E7F6EE] text-[#17804A]" : "bg-[#1E2430] text-white"}`}>{sent ? "Undo sent" : "Mark sent"}</button>
+                </div>
+              </div>
+              {owner && (
+                <div className="rounded-xl bg-[#F8F7F4] p-3">
+                  <div className="mb-2 flex items-center gap-1.5 text-[12px] font-bold">{tick(Boolean(report?.financeSentAt))}Finance statement</div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <AttachField value={report?.financeReport} onChange={(file) => attachReport(client.id, month, "financeReport", file)} compact />
+                    <button onClick={() => updateReport(client.id, month, { financeSentAt: report?.financeSentAt ? "" : todayIso() })} className={`rounded-lg px-2.5 py-1 text-[12px] font-bold ${report?.financeSentAt ? "bg-[#E7F6EE] text-[#17804A]" : "bg-[#1E2430] text-white"}`}>{report?.financeSentAt ? "Undo sent" : "Mark sent"}</button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ─── Files & links ───
+const categories: ClientFile["category"][] = ["Brand", "Contract", "Photos", "Report", "Other"];
+
+function Files({ client }: { client: Client }) {
+  const { state, addFile, removeFile, updateClient } = useStore();
+  const [category, setCategory] = useState<ClientFile["category"]>("Brand");
+  const setLink = (key: keyof Client["links"], value: string) => updateClient(client.id, { links: { ...client.links, [key]: value } });
+  return (
+    <div className="grid gap-5 xl:grid-cols-[1.2fr_.8fr]">
+      <Card>
+        <CardHead title="Files" sub="Contracts, brand files, photo folders. Upload or paste a link." right={
+          <span className="flex items-center gap-2">
+            <select value={category} onChange={(event) => setCategory(event.target.value as ClientFile["category"])} aria-label="Category" className="rounded-xl border border-[#E2DED7] bg-white px-2.5 py-1.5 text-[12px] font-semibold">{categories.map((item) => <option key={item}>{item}</option>)}</select>
+            <AttachField onChange={(file) => file && addFile(client.id, { ...file, category })} label="Upload file" />
+          </span>
+        } />
+        {client.files.length === 0 ? <Empty title="No files yet" /> : (
+          <div className="space-y-4">
+            {categories.filter((item) => client.files.some((file) => file.category === item)).map((item) => (
+              <div key={item}>
+                <div className="mb-1.5 text-[12px] font-bold uppercase tracking-wide text-[#8B867E]">{item}</div>
+                <ul className="divide-y divide-[#F3F1ED] rounded-xl border border-[#F0EEE9]">
+                  {client.files.filter((file) => file.category === item).map((file) => (
+                    <li key={file.id} className="flex items-center gap-3 px-3 py-2.5">
+                      <FileText size={16} className="shrink-0 text-[#8B867E]" />
+                      <a href={file.url} target="_blank" rel="noreferrer" download={file.url.startsWith("data:") ? file.name : undefined} className="min-w-0 flex-1 truncate text-[13px] font-semibold hover:text-[#1F5BC4]">{file.name}</a>
+                      <span className="hidden text-[12px] text-[#9A958D] sm:inline">{nameOf(state, file.addedBy)} · {shortDate(file.addedAt)}</span>
+                      <button onClick={() => removeFile(client.id, file.id)} aria-label={`Remove ${file.name}`} className="text-[#B5B0A8] hover:text-[#B83232]"><Trash2 size={14} /></button>
+                    </li>
+                  ))}
+                </ul>
               </div>
             ))}
           </div>
-          {posts.length < client.agreedPosts && <p className="mt-3 text-[13px] font-semibold text-[#B83232]">{client.agreedPosts - posts.length} posts not started yet. Approve ideas to fill the gaps.</p>}
-          {client.approvalMode !== "C" && (
-            <div className="mt-3 flex items-center gap-2 text-[13px]">
-              <span className="font-semibold">Month plan:</span>
-              <Chip t={plan?.status === "Approved" ? "green" : plan?.status === "Sent" ? "amber" : "red"} dot>{plan?.status === "Approved" ? `Approved by client · ${plan.via}` : plan?.status === "Sent" ? "Sent, waiting for client" : "Not sent"}</Chip>
-            </div>
-          )}
-          {myTurn.length > 0 && <p className="mt-3 text-[13px] text-[#1F5BC4]">{myTurn.length} post{myTurn.length === 1 ? " is" : "s are"} waiting on you.</p>}
-        </Card>
-
-        {owner || me(state).role === "ops" ? (
-          <Card>
-            <CardHead title="Hours this month" sub="Light tracking: total hours on this account by role." />
-            <div className="grid grid-cols-3 gap-3">
-              {(["owner", "ops", "freelancer"] as const).map((role) => (
-                <Field key={role} label={role === "owner" ? "Partners" : role === "ops" ? "Operations" : "Freelancer"}>
-                  <input type="number" min={0} step={0.5} value={hours[role]} onChange={(event) => setHours(client.id, state.month, role, Number(event.target.value))} className={fieldClass} />
-                </Field>
-              ))}
-            </div>
-          </Card>
-        ) : null}
-      </div>
-
-      <div className="space-y-5">
-        <Card>
-          <CardHead title="The deal" />
-          <div className="grid gap-3 sm:grid-cols-2">
-            <Field label="Package"><select value={client.package} onChange={(event) => set({ package: event.target.value as Client["package"], agreedPosts: event.target.value === "Growth" ? 12 : 8 })} className={fieldClass}><option>Essential</option><option>Growth</option></select></Field>
-            <Field label="Posts agreed per month"><input type="number" min={1} value={client.agreedPosts} onChange={(event) => set({ agreedPosts: Number(event.target.value) })} className={fieldClass} /></Field>
-            <Field label="Add-ons"><input value={client.addOns.join(", ")} onChange={(event) => set({ addOns: event.target.value.split(",").map((value) => value.trim()).filter(Boolean) })} placeholder="Extra newsletter, brand setup…" className={fieldClass} /></Field>
-            <Field label="Stage"><select value={client.stage} onChange={(event) => set({ stage: event.target.value as Client["stage"] })} className={fieldClass}><option>Onboarding</option><option>Live</option><option>Paused</option></select></Field>
-          </div>
-          <div className="mt-3"><Field label="Approval mode"><select value={client.approvalMode} onChange={(event) => set({ approvalMode: event.target.value as ApprovalMode })} className={fieldClass}>{(Object.keys(modeText) as ApprovalMode[]).map((mode) => <option key={mode} value={mode}>{modeText[mode]}</option>)}</select></Field></div>
-        </Card>
-
-        <Card>
-          <CardHead title="People" />
-          <div className="grid gap-3 sm:grid-cols-2">
-            <Field label="Main contact"><input value={client.mainContact.name} onChange={(event) => set({ mainContact: { ...client.mainContact, name: event.target.value } })} className={fieldClass} /></Field>
-            <Field label="Contact email"><input value={client.mainContact.email} onChange={(event) => set({ mainContact: { ...client.mainContact, email: event.target.value } })} className={fieldClass} /></Field>
-            <Field label="The one named approver"><input value={client.approver.name} onChange={(event) => set({ approver: { ...client.approver, name: event.target.value } })} className={fieldClass} /></Field>
-            <Field label="Billing contact"><input value={client.billingContact} onChange={(event) => set({ billingContact: event.target.value })} className={fieldClass} /></Field>
-            <Field label="Expert who checks technical copy" hint="An engineer or specialist on the client's side."><input value={client.expertReviewer} onChange={(event) => set({ expertReviewer: event.target.value })} className={fieldClass} /></Field>
-            <Field label="Where we talk"><select value={client.channel} onChange={(event) => set({ channel: event.target.value as Client["channel"] })} className={fieldClass}><option>Email</option><option>Slack</option><option>Google Chat</option></select></Field>
-          </div>
-          <div className="mt-4 grid gap-3 border-t border-[#F0EEE9] pt-4 sm:grid-cols-2">
-            <Field label="Freelancer" hint="Only freelancers with NDA and contract signed can be assigned.">
-              <select value={client.freelancerId ?? ""} onChange={(event) => assignFreelancer(client.id, event.target.value)} className={fieldClass}>
-                <option value="">Not assigned</option>
-                {state.freelancers.filter((person) => person.status !== "Offboarded").map((person) => <option key={person.id} value={person.id}>{person.name}{canBeAssigned(person) ? "" : " · NDA/contract missing"}</option>)}
-              </select>
-            </Field>
-            <Field label="Operations"><select value={client.opsId} onChange={(event) => set({ opsId: event.target.value })} className={fieldClass}>{state.people.map((person) => <option key={person.id} value={person.id}>{person.name}</option>)}</select></Field>
-          </div>
-        </Card>
-      </div>
-    </div>
-  );
-}
-
-function LinkRow({ label, value, onChange, placeholder }: { label: string; value: string; onChange: (value: string) => void; placeholder: string }) {
-  return (
-    <div className="flex flex-wrap items-center gap-3 border-b border-[#F5F3EF] py-3 last:border-0">
-      <span className="w-40 text-[13px] font-semibold">{label}</span>
-      <input value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} aria-label={label} className="min-w-[220px] flex-1 rounded-xl border border-[#E2DED7] px-3 py-2 text-[13px] outline-none focus:border-[#2F6FDB]" />
-      {/^https?:\/\//.test(value) ? <a href={value} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 rounded-xl bg-[#EEF2FA] px-3 py-2 text-[12px] font-semibold text-[#1F5BC4]">Open <ExternalLink size={12} /></a> : <span className="w-[66px]" />}
-    </div>
-  );
-}
-
-function FilesAndLinks({ client }: { client: Client }) {
-  const { state, updateClient, updateCheck } = useStore();
-  const setLink = (key: keyof Client["links"], value: string) => updateClient(client.id, { links: { ...client.links, [key]: value } });
-  const brandItems = client.checklist.filter((item) => item.group === "Brand assets");
-  const designs = state.posts.filter((post) => post.clientId === client.id && (post.designLink || post.driveLink));
-  return (
-    <div className="grid gap-5 xl:grid-cols-2">
-      <Card>
-        <CardHead title="Workspace links" sub="Everything for this client, one click away." />
-        <LinkRow label="Drive folder" value={client.links.drive} onChange={(value) => setLink("drive", value)} placeholder="https://drive.google.com/…" />
-        <LinkRow label="Canva folder" value={client.links.canva} onChange={(value) => setLink("canva", value)} placeholder="https://www.canva.com/…" />
-        <LinkRow label="Brand kit" value={client.links.brandKit} onChange={(value) => setLink("brandKit", value)} placeholder="Canva brand kit or guidelines PDF" />
-        <LinkRow label="Publer workspace" value={client.links.publer} onChange={(value) => setLink("publer", value)} placeholder="https://app.publer.com/…" />
-        <LinkRow label={`${client.channel} channel`} value={client.links.chat} onChange={(value) => setLink("chat", value)} placeholder="Link to the channel or email thread" />
+        )}
       </Card>
       <Card>
-        <CardHead title="Brand assets" sub="From the checklist. Paste the link to each one." />
-        {brandItems.map((item) => (
-          <div key={item.id} className="flex flex-wrap items-center gap-3 border-b border-[#F5F3EF] py-3 last:border-0">
-            <span className="h-2 w-2 rounded-full" style={{ background: item.status === "Received" ? tone.green.dot : item.status === "Requested" ? tone.amber.dot : tone.red.dot }} />
-            <span className="w-48 text-[13px] font-semibold">{item.label.split(",")[0]}</span>
-            <input value={item.note} onChange={(event) => updateCheck(client.id, item.id, { note: event.target.value, status: event.target.value.trim() ? "Received" : item.status })} placeholder="Link" aria-label={item.label} className="min-w-[180px] flex-1 rounded-xl border border-[#E2DED7] px-3 py-2 text-[13px] outline-none focus:border-[#2F6FDB]" />
+        <CardHead title="Workspace links" />
+        {([["drive", "Drive folder"], ["canva", "Canva folder"], ["brandKit", "Brand kit"], ["publer", "Publer"], ["chat", `${client.channel} channel`]] as [keyof Client["links"], string][]).map(([key, label]) => (
+          <div key={key} className="flex items-center gap-2 border-b border-[#F3F1ED] py-2.5 last:border-0">
+            <span className="w-28 shrink-0 text-[13px] font-semibold">{label}</span>
+            <input value={client.links[key]} onChange={(event) => setLink(key, event.target.value)} placeholder="https://…" aria-label={label} className="min-w-0 flex-1 rounded-lg border border-[#E2DED7] px-2.5 py-1.5 text-[13px] outline-none focus:border-[#2F6FDB]" />
+            {/^https?:/.test(client.links[key]) && <a href={client.links[key]} target="_blank" rel="noreferrer" aria-label={`Open ${label}`} className="text-[#1F5BC4]"><ExternalLink size={15} /></a>}
           </div>
         ))}
       </Card>
-      <Card className="xl:col-span-2">
-        <CardHead title="Editable design files" sub="Canva / Adobe and Drive links attached to posts." />
-        {designs.length === 0 ? <Empty title="No design links yet">They appear here when a freelancer attaches a Canva or Drive link to a post.</Empty> : (
-          <ul className="divide-y divide-[#F5F3EF]">
-            {designs.map((post) => (
-              <li key={post.id} className="flex flex-wrap items-center gap-3 py-2.5 text-[13px]">
-                <span className="flex-1 font-semibold">{post.title}</span>
-                {post.designLink && <a href={post.designLink} target="_blank" rel="noreferrer" className="font-semibold text-[#1F5BC4]">Editable design ↗</a>}
-                {post.driveLink && <a href={post.driveLink} target="_blank" rel="noreferrer" className="font-semibold text-[#1F5BC4]">Final files ↗</a>}
-              </li>
-            ))}
-          </ul>
-        )}
-      </Card>
     </div>
   );
 }
 
+// ─── Finance (owners) ───
 function ClientFinance({ client }: { client: Client }) {
-  const { state, updateClient, setInvoice, payFreelancer } = useStore();
+  const { state, updateClient, setInvoice, payFreelancer, addCost, removeCost } = useStore();
+  const [cost, setCost] = useState({ label: "", amount: "", recurring: false });
+  const cur = state.settings.currency;
   const invoice = state.invoices.find((item) => item.clientId === client.id && item.month === state.month);
   const paidOut = state.payouts.some((item) => item.clientId === client.id && item.month === state.month);
+  const costs = client.costs.filter((item) => (item.recurring ? item.month <= state.month : item.month === state.month));
+  const extra = costs.reduce((sum, item) => sum + item.amount, 0);
   const income = client.fee + client.addOnFee;
-  const margin = income - client.freelancerFee;
-  const cur = state.settings.currency;
+  const freelance = client.freelancerId ? client.freelancerFee : 0;
+  const margin = income - freelance - extra;
   return (
-    <div className="grid gap-5 xl:grid-cols-2">
-      <Card>
-        <CardHead title="Fee and cost" sub="Owners only. Changes here update Finance straight away. Clients and freelancers never see this." />
-        <div className="grid gap-3 sm:grid-cols-3">
-          <Field label={`Monthly fee · ${cur}`}><input type="number" min={0} value={client.fee} onChange={(event) => updateClient(client.id, { fee: Number(event.target.value) })} className={fieldClass} /></Field>
-          <Field label={`Add-ons · ${cur}`}><input type="number" min={0} value={client.addOnFee} onChange={(event) => updateClient(client.id, { addOnFee: Number(event.target.value) })} className={fieldClass} /></Field>
-          <Field label={`Freelancer · ${cur}`}><input type="number" min={0} value={client.freelancerFee} onChange={(event) => updateClient(client.id, { freelancerFee: Number(event.target.value) })} className={fieldClass} /></Field>
-        </div>
-        <div className="mt-4 grid grid-cols-3 gap-2">
-          {[["Income", money(income, cur)], ["Freelancer", money(client.freelancerFee, cur)], ["Margin", money(margin, cur)]].map(([label, value]) => (
-            <div key={label} className="rounded-xl bg-[#F8F7F4] p-3"><div className="text-[12px] font-semibold text-[#6B6760]">{label}</div><div className="text-[20px] font-extrabold">{value}</div></div>
-          ))}
-        </div>
-      </Card>
-      <Card>
-        <CardHead title={`${monthName(state.month)}`} sub="Freelancers are paid after the client pays." />
-        <div className="space-y-3">
-          <div className="flex flex-wrap items-center gap-3 rounded-xl bg-[#F8F7F4] p-3.5">
-            <span className="flex-1 text-[14px] font-semibold">Client invoice</span>
-            <Segmented size="sm" value={invoice?.status ?? "Not sent"} onChange={(status) => setInvoice(client.id, status)} options={[{ value: "Not sent", label: "Not sent" }, { value: "Sent", label: "Sent" }, { value: "Paid", label: "Paid" }]} />
+    <div className="space-y-5">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        {[["Income", money(income, cur), "#EAF1FD", "#1F5BC4"], ["Freelancer", money(freelance, cur), "#FFF3D9", "#94600A"], ["Other costs", money(extra, cur), "#FFF3D9", "#94600A"], ["Margin", money(margin, cur), "#E7F6EE", "#17804A"]].map(([label, value, bg, ink]) => (
+          <div key={label} className="rounded-2xl p-4" style={{ background: bg }}><div className="text-[12px] font-bold" style={{ color: ink }}>{label}</div><div className="mt-1 text-[24px] font-extrabold" style={{ color: ink }}>{value}</div></div>
+        ))}
+      </div>
+      <div className="grid gap-5 xl:grid-cols-2">
+        <Card>
+          <CardHead title="Agreed amounts" sub="Changes update Finance straight away. Clients and freelancers never see this." />
+          <div className="grid gap-3 sm:grid-cols-3">
+            <Field label={`Monthly fee · ${cur}`}><input type="number" min={0} value={client.fee} onChange={(event) => updateClient(client.id, { fee: Number(event.target.value) })} className={fieldClass} /></Field>
+            <Field label={`Add-ons · ${cur}`}><input type="number" min={0} value={client.addOnFee} onChange={(event) => updateClient(client.id, { addOnFee: Number(event.target.value) })} className={fieldClass} /></Field>
+            <Field label={`Freelancer · ${cur}`}><input type="number" min={0} value={client.freelancerFee} onChange={(event) => updateClient(client.id, { freelancerFee: Number(event.target.value) })} className={fieldClass} /></Field>
           </div>
-          <div className="flex flex-wrap items-center gap-3 rounded-xl bg-[#F8F7F4] p-3.5">
-            <span className="flex-1 text-[14px] font-semibold">Pay {nameOf(state, client.freelancerId)} · {money(client.freelancerFee, cur)}</span>
-            {!client.freelancerId ? <Chip>No freelancer</Chip> : paidOut ? <Chip t="green" dot>Paid</Chip> : invoice?.status === "Paid" ? <Button size="sm" kind="good" onClick={() => payFreelancer(client.id)}>Mark paid</Button> : <Chip t="amber">Waiting for client payment</Chip>}
+          <div className="mt-4 space-y-2">
+            <div className="flex flex-wrap items-center gap-3 rounded-xl bg-[#F8F7F4] p-3"><span className="flex-1 text-[13px] font-semibold">{monthName(state.month)} invoice</span><Segmented size="sm" value={invoice?.status ?? "Not sent"} onChange={(status) => setInvoice(client.id, status)} options={[{ value: "Not sent", label: "Not sent" }, { value: "Sent", label: "Sent" }, { value: "Paid", label: "Paid" }]} /></div>
+            <div className="flex flex-wrap items-center gap-3 rounded-xl bg-[#F8F7F4] p-3"><span className="flex-1 text-[13px] font-semibold">Pay {nameOf(state, client.freelancerId)}</span>{!client.freelancerId ? <Chip>No freelancer</Chip> : paidOut ? <Chip t="green" dot>Paid</Chip> : invoice?.status === "Paid" ? <Button size="sm" kind="good" onClick={() => payFreelancer(client.id)}>Mark paid</Button> : <Chip t="amber">After the client pays</Chip>}</div>
           </div>
-        </div>
-      </Card>
+        </Card>
+        <Card>
+          <CardHead title="Costs on this client" sub="Stock, ads, printing, extra freelance work… They also show in Finance." />
+          <ul className="space-y-1.5">
+            {costs.map((item) => (
+              <li key={item.id} className="flex items-center gap-2 rounded-xl bg-[#F8F7F4] px-3 py-2 text-[13px]">
+                <span className="flex-1 font-semibold">{item.label}{item.recurring && <span className="ml-1.5 text-[11px] font-normal text-[#8B867E]">monthly</span>}</span>
+                <b>{money(item.amount, cur)}</b>
+                <button onClick={() => removeCost(client.id, item.id)} aria-label={`Remove ${item.label}`} className="text-[#B5B0A8] hover:text-[#B83232]"><Trash2 size={14} /></button>
+              </li>
+            ))}
+            {costs.length === 0 && <li className="text-[13px] text-[#8B867E]">No costs this month.</li>}
+          </ul>
+          <form onSubmit={(event) => { event.preventDefault(); const amount = Number(cost.amount); if (!cost.label.trim() || !(amount > 0)) return; addCost(client.id, { label: cost.label.trim(), amount, recurring: cost.recurring }); setCost({ label: "", amount: "", recurring: false }); }} className="mt-3 flex flex-wrap items-center gap-2">
+            <input value={cost.label} onChange={(event) => setCost({ ...cost, label: event.target.value })} placeholder="What for" aria-label="Cost description" className="min-w-[140px] flex-1 rounded-xl border border-[#E2DED7] px-3 py-2 text-[13px]" />
+            <input type="number" min={0} value={cost.amount} onChange={(event) => setCost({ ...cost, amount: event.target.value })} placeholder={cur} aria-label="Amount" className="w-24 rounded-xl border border-[#E2DED7] px-3 py-2 text-[13px]" />
+            <label className="flex items-center gap-1.5 text-[12px] font-semibold"><input type="checkbox" checked={cost.recurring} onChange={(event) => setCost({ ...cost, recurring: event.target.checked })} />Monthly</label>
+            <Button type="submit" kind="primary" size="sm"><Plus size={13} />Add cost</Button>
+          </form>
+        </Card>
+      </div>
     </div>
   );
 }
-

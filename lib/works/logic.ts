@@ -1,4 +1,4 @@
-import type { CheckItem, Client, Freelancer, Idea, Person, Post, PostStatus, Route, State } from "./types";
+import type { CheckItem, Client, Freelancer, Person, Post, PostStatus, State } from "./types";
 import { freelancerGateLabels } from "./seed";
 
 // ─── Dates ───
@@ -89,102 +89,6 @@ export function turnOf(state: State, post: Post): Turn {
   }
 }
 
-export const nextStatus: Partial<Record<PostStatus, PostStatus>> = {
-  "Copy in progress": "Copy review",
-  "Copy review": "Design in progress",
-  "Design in progress": "Design review",
-  "Ready to schedule": "Scheduled",
-  Scheduled: "Published",
-};
-
-// ─── The one queue: everything waiting on someone ───
-export type QueueItem = {
-  id: string;
-  who: string;
-  severity: 0 | 1 | 2; // 2 = overdue
-  kind: "Review" | "Fix" | "Client" | "Schedule" | "Checklist" | "Report" | "Invoice" | "Lead" | "Freelancer" | "Plan" | "Ideas";
-  verb: string;
-  detail: string;
-  clientId?: string;
-  route: Route;
-};
-
-export function buildQueue(state: State): QueueItem[] {
-  const items: QueueItem[] = [];
-  const { settings } = state;
-  const lastMonth = shiftMonth(state.month, -1);
-  const dayOfMonth = Number(todayIso().slice(8, 10));
-
-  for (const post of state.posts) {
-    const client = state.clients.find((item) => item.id === post.clientId);
-    if (!client) continue;
-    const turn = turnOf(state, post);
-    if (!turn.who || turn.tone === "done") continue;
-    const waited = daysSince(post.waitingSince);
-    const route: Route = { view: "client", clientId: client.id, tab: "marketing", sub: "content", postId: post.id };
-    const overdue = (turn.tone === "review" && waited >= settings.escalationDays) || (turn.tone === "client" && waited >= settings.clientApprovalDays);
-    items.push({
-      id: `post-${post.id}`,
-      who: turn.who,
-      severity: overdue ? 2 : turn.tone === "review" || turn.tone === "client" ? 1 : 0,
-      kind: turn.tone === "review" ? "Review" : turn.tone === "client" ? "Client" : post.status === "Ready to schedule" ? "Schedule" : turn.verb.startsWith("Fix") ? "Fix" : "Review",
-      verb: turn.verb,
-      detail: `${post.title}${waited > 0 && turn.tone !== "freelancer" ? ` · waiting ${waited} day${waited === 1 ? "" : "s"}` : ""}`,
-      clientId: client.id,
-      route,
-    });
-    // Escalation: nothing reviewed after X days also lands with María.
-    if (turn.tone === "review" && waited >= settings.escalationDays && turn.who !== "maria") {
-      items.push({ id: `esc-${post.id}`, who: "maria", severity: 2, kind: "Review", verb: "Escalated: not reviewed", detail: `${post.title} · ${waited} days with ${nameOf(state, turn.who)}`, clientId: client.id, route });
-    }
-  }
-
-  for (const client of state.clients) {
-    const route: Route = { view: "client", clientId: client.id, tab: "checklist" };
-    const g = gate(client.checklist);
-    if (g.light !== "green") {
-      items.push({ id: `gate-${client.id}`, who: client.stage === "Onboarding" ? client.ownerId === "gareth" ? "maria" : client.ownerId : client.opsId, severity: g.light === "red" ? 1 : 0, kind: "Checklist", verb: g.light === "red" ? "Checklist: not asked yet" : "Checklist: chase", detail: g.blocking.slice(0, 2).map((item) => item.label.split(":")[0]).join(" · ") + (g.blocking.length > 2 ? ` · +${g.blocking.length - 2}` : ""), clientId: client.id, route });
-    }
-    if (!client.freelancerId && client.stage !== "Paused") {
-      items.push({ id: `fl-${client.id}`, who: "maria", severity: 1, kind: "Freelancer", verb: "Assign a freelancer", detail: "Nobody is producing this account", clientId: client.id, route: { view: "client", clientId: client.id, tab: "overview" } });
-    }
-    // Monthly plan: ideas need deciding before the plan date.
-    const undecided = state.ideas.filter((idea) => idea.clientId === client.id && idea.decision === "New").length;
-    if (undecided > 0) {
-      items.push({ id: `ideas-${client.id}`, who: reviewerFor(state, client), severity: dayOfMonth > settings.dates.plan ? 1 : 0, kind: "Ideas", verb: `Decide ${undecided} idea${undecided === 1 ? "" : "s"}`, detail: "Approve, maybe or reject", clientId: client.id, route: { view: "client", clientId: client.id, tab: "marketing", sub: "ideas" } });
-    }
-    const plan = client.planApproval[state.month];
-    if (client.approvalMode !== "C" && client.stage === "Live" && plan?.status !== "Approved" && dayOfMonth > settings.dates.plan) {
-      items.push({ id: `plan-${client.id}`, who: client.opsId, severity: 1, kind: "Plan", verb: plan?.status === "Sent" ? "Chase plan approval" : "Send the month's plan", detail: `Plan was due by the ${settings.dates.plan}th`, clientId: client.id, route: { view: "client", clientId: client.id, tab: "marketing", sub: "ideas" } });
-    }
-    // Month-end report for last month.
-    if (client.stage === "Live" && client.startDate.slice(0, 7) <= lastMonth) {
-      const report = state.reports.find((item) => item.clientId === client.id && item.month === lastMonth);
-      const reportRoute: Route = { view: "client", clientId: client.id, tab: "reporting" };
-      if (!report?.numbers) items.push({ id: `nums-${client.id}`, who: client.freelancerId ?? client.opsId, severity: dayOfMonth > 5 ? 2 : 1, kind: "Report", verb: `Hand in ${monthName(lastMonth).split(" ")[0]} numbers`, detail: "Metrics, screenshots and observations", clientId: client.id, route: reportRoute });
-      else if (!report.checked) items.push({ id: `check-${client.id}`, who: client.opsId, severity: 1, kind: "Report", verb: "Check the numbers", detail: `${monthName(lastMonth).split(" ")[0]} report`, clientId: client.id, route: reportRoute });
-      else if (!report.approved) items.push({ id: `appr-${client.id}`, who: "maria", severity: 1, kind: "Report", verb: "Approve report", detail: `${monthName(lastMonth).split(" ")[0]} report`, clientId: client.id, route: reportRoute });
-      else if (!report.sentAt) items.push({ id: `send-${client.id}`, who: client.opsId, severity: dayOfMonth > 7 ? 2 : 1, kind: "Report", verb: "Send report to client", detail: `${monthName(lastMonth).split(" ")[0]} report is approved`, clientId: client.id, route: reportRoute });
-    }
-  }
-
-  for (const invoice of state.invoices.filter((item) => item.month === state.month)) {
-    const client = state.clients.find((item) => item.id === invoice.clientId);
-    if (!client || invoice.status === "Paid") continue;
-    items.push({ id: `inv-${client.id}`, who: "maria", severity: invoice.status === "Not sent" ? 1 : daysSince(invoice.date) > 14 ? 2 : 0, kind: "Invoice", verb: invoice.status === "Not sent" ? "Send invoice" : "Chase payment", detail: invoice.status === "Sent" ? `Sent ${ago(invoice.date)}` : monthName(state.month), clientId: client.id, route: { view: "finance" } });
-  }
-
-  for (const lead of state.leads.filter((item) => !["Won", "Lost"].includes(item.stage) && item.followUp && item.followUp <= todayIso())) {
-    items.push({ id: `lead-${lead.id}`, who: lead.ownerId, severity: lead.followUp < todayIso() ? 2 : 1, kind: "Lead", verb: "Follow up", detail: `${lead.company} · ${lead.stage}`, route: { view: "leads", leadId: lead.id } });
-  }
-
-  for (const person of state.freelancers.filter((item) => item.status === "Trial")) {
-    const open = missing(person.checklist).filter((item) => !item.soft).length;
-    if (open) items.push({ id: `flc-${person.id}`, who: "niamh", severity: 0, kind: "Freelancer", verb: "Finish freelancer setup", detail: `${person.name} · ${open} items, NDA first`, route: { view: "freelancers", freelancerId: person.id } });
-  }
-
-  return items.sort((a, b) => b.severity - a.severity);
-}
 
 // ─── Ideas: split one document into cards ───
 const formatWords: [RegExp, string][] = [
@@ -269,9 +173,3 @@ export async function docxText(file: File): Promise<string> {
   throw new Error("Could not read this Word file. Copy the text and paste it instead.");
 }
 
-export const ideaColors: Record<Idea["decision"], { bg: string; ink: string; ring: string }> = {
-  New: { bg: "#FFFFFF", ink: "#3A3F47", ring: "#E3E0DA" },
-  Approved: { bg: "#E6F5EA", ink: "#1D7A3A", ring: "#9FD7B0" },
-  Maybe: { bg: "#FFF4D6", ink: "#8A5A00", ring: "#F2CF73" },
-  Rejected: { bg: "#F3F2EF", ink: "#8C8780", ring: "#E3E0DA" },
-};

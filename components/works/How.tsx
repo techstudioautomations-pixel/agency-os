@@ -80,8 +80,8 @@ const notifications = [
   ["Changes requested", "Freelancer", "Email + in app"],
   ["Approved", "Freelancer, and whoever schedules", "Email + in app"],
   ["Client approval due in 1 day", "Operations for that client", "In app"],
-  ["Nothing reviewed after the agreed days", "Reviewer, then María", "In app, Today queue"],
-  ["Month-end numbers missing", "Freelancer, then operations", "In app, Today queue"],
+  ["Nothing reviewed after the agreed days", "Reviewer, then María", "In app"],
+  ["Monthly report not handed in", "Freelancer, then operations", "In app"],
   ["Lead marked as won", "María and operations", "Email + in app"],
 ];
 
@@ -154,12 +154,12 @@ export function How() {
 
         <Flow
           title="Month-end report"
-          sub="Nothing is sent until each step is ticked. The Reports page shows all clients at once."
+          sub="Each client gets a row on the Reports page. Attach the file, tick it sent, and the month is closed."
           nodes={[
-            { icon: <FileBarChart2 size={17} />, title: "Numbers in", who: "Freelancer, by the 5th", color: "#2F6FDB", rule: "Followers, reach, engagement, best post, observations and a screenshots link." },
-            { icon: <ClipboardCheck size={17} />, title: "Checked", who: "Operations", color: "#E08A1E", rule: "Delivered vs agreed and the revision log are filled in automatically." },
-            { icon: <ShieldCheck size={17} />, title: "Approved", who: "María", color: "#7C5CD6", rule: "Essential: one-page snapshot. Growth: fuller, with recommendations." },
-            { icon: <Send size={17} />, title: "Sent", who: "Operations", color: "#1D9E5A", rule: "Download the report or attach the bigger Canva report, then mark it sent." },
+            { icon: <FileBarChart2 size={17} />, title: "Freelancer report in", who: "Freelancer, by the 5th", color: "#2F6FDB", rule: "Uploaded in Marketing → Results as a file or link, with key numbers if available." },
+            { icon: <ClipboardCheck size={17} />, title: "Client report built", who: "Operations", color: "#E08A1E", rule: "From the freelancer report. A starter report can be downloaded from Reports." },
+            { icon: <Send size={17} />, title: "Client report sent", who: "Operations", color: "#1D9E5A", rule: "Attach the final report and tick it sent." },
+            { icon: <ShieldCheck size={17} />, title: "Finance statement sent", who: "María", color: "#7C5CD6", rule: "Owners only: download, attach and tick per client in Finance." },
           ]}
         />
 

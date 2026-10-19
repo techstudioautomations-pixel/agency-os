@@ -3,7 +3,7 @@
 import { StoreProvider, useStore } from "@/lib/works/store";
 import { Today } from "@/components/works/Today";
 import { ClientProfile, ClientsList } from "@/components/works/Clients";
-import { Content } from "@/components/works/Content";
+import { MarketingPage } from "@/components/works/Marketing";
 import { ReportsPage } from "@/components/works/Reports";
 import { Leads } from "@/components/works/Leads";
 import { Freelancers } from "@/components/works/Freelancers";
@@ -17,9 +17,9 @@ function Screen() {
     case "clients":
       return <ClientsList />;
     case "client":
-      return <ClientProfile clientId={route.clientId} tab={route.tab} sub={route.sub} postId={route.postId} />;
-    case "content":
-      return <Content />;
+      return <ClientProfile clientId={route.clientId} tab={route.tab} />;
+    case "marketing":
+      return <MarketingPage clientId={route.clientId} tab={route.tab} postId={route.postId} />;
     case "reports":
       return <ReportsPage />;
     case "leads":

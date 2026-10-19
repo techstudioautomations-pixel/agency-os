@@ -5,7 +5,7 @@ import { clientChecklistTemplate, makeChecklist, seedState } from "./seed";
 import { canBeAssigned, nameOf, reviewerFor, todayIso } from "./logic";
 import type { CheckItem, Client, Idea, Lead, MonthReport, Notice, Post, ReportNumbers, RevisionCategory, Route, State } from "./types";
 
-const KEY = "theworks-os-v1";
+const KEY = "theworks-os-v2";
 const uid = (prefix: string) => `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
 const stamp = () => new Date().toISOString();
 
@@ -13,6 +13,7 @@ const stamp = () => new Date().toISOString();
 export function routeToHash(route: Route) {
   const parts: string[] = [route.view];
   if (route.view === "client") parts.push(route.clientId, route.tab ?? "", route.sub ?? "", route.postId ?? "");
+  if (route.view === "marketing") parts.push(route.clientId ?? "all", route.tab ?? "", route.postId ?? "");
   if (route.view === "leads" && route.leadId) parts.push(route.leadId);
   if (route.view === "freelancers" && route.freelancerId) parts.push(route.freelancerId);
   return `#/${parts.join("/").replace(/\/+$/, "")}`;
@@ -22,12 +23,13 @@ export function hashToRoute(hash: string): Route {
   switch (view) {
     case "client":
       return a ? { view, clientId: a, tab: b || undefined, sub: c || undefined, postId: d || undefined } : { view: "clients" };
+    case "marketing":
+      return { view, clientId: a || undefined, tab: b || undefined, postId: c || undefined };
     case "leads":
       return { view, leadId: a || undefined };
     case "freelancers":
       return { view, freelancerId: a || undefined };
     case "clients":
-    case "content":
     case "reports":
     case "finance":
     case "how":
@@ -61,7 +63,7 @@ function useStoreValue() {
       const saved = window.localStorage.getItem(KEY);
       if (saved) {
         const parsed = JSON.parse(saved) as State;
-        if (parsed.version === 1) setState(parsed);
+        if (parsed.version === 2) setState(parsed);
       }
     } catch {
       /* private mode or corrupt data: start from the sample */
@@ -115,12 +117,57 @@ function useStoreValue() {
       return { post, client };
     };
     const log = (d: Draft, post: Post, text: string) => post.history.unshift({ at: stamp(), by: d.me, text });
-    const postRoute = (post: Post): Route => ({ view: "client", clientId: post.clientId, tab: "marketing", sub: "content", postId: post.id });
+    const postRoute = (post: Post): Route => ({ view: "marketing", clientId: post.clientId, postId: post.id });
 
     return {
       setMe: (id: string) => update((d) => { d.me = id; }),
       setMonth: (month: string) => update((d) => { d.month = month; }),
       reset: () => { window.localStorage.removeItem(KEY); setState(seedState()); go({ view: "today" }); ping("Sample data restored"); },
+
+      // Access, files and costs on a client
+      addAccess: (clientId: string, item: Omit<State["clients"][number]["access"][number], "id">) => update((d) => { d.clients.find((c) => c.id === clientId)!.access.push({ ...item, id: uid("acc") }); }),
+      updateAccess: (clientId: string, id: string, patch: Partial<State["clients"][number]["access"][number]>) => update((d) => { Object.assign(d.clients.find((c) => c.id === clientId)!.access.find((item) => item.id === id)!, patch); }),
+      removeAccess: (clientId: string, id: string) => update((d) => { const client = d.clients.find((c) => c.id === clientId)!; client.access = client.access.filter((item) => item.id !== id); }),
+      addFile: (clientId: string, file: { name: string; url: string; category: State["clients"][number]["files"][number]["category"] }) => {
+        update((d) => { d.clients.find((c) => c.id === clientId)!.files.unshift({ ...file, id: uid("file"), addedAt: todayIso(), addedBy: d.me }); });
+        ping("Added");
+      },
+      removeFile: (clientId: string, id: string) => update((d) => { const client = d.clients.find((c) => c.id === clientId)!; client.files = client.files.filter((item) => item.id !== id); }),
+      addCost: (clientId: string, cost: { label: string; amount: number; recurring: boolean }) => {
+        update((d) => { d.clients.find((c) => c.id === clientId)!.costs.push({ ...cost, id: uid("cost"), month: d.month }); });
+        ping("Cost added. It also shows in Finance.");
+      },
+      removeCost: (clientId: string, id: string) => update((d) => { const client = d.clients.find((c) => c.id === clientId)!; client.costs = client.costs.filter((item) => item.id !== id); }),
+      toggleCheck: (clientId: string, itemId: string) =>
+        update((d) => {
+          const item = d.clients.find((c) => c.id === clientId)!.checklist.find((entry) => entry.id === itemId)!;
+          item.status = item.status === "Received" ? "Not asked" : "Received";
+          item.date = item.status === "Received" ? todayIso() : "";
+        }),
+      toggleFreelancerCheck: (freelancerId: string, itemId: string) =>
+        update((d) => {
+          const item = d.freelancers.find((f) => f.id === freelancerId)!.checklist.find((entry) => entry.id === itemId)!;
+          item.status = item.status === "Received" ? "Not asked" : "Received";
+          item.date = item.status === "Received" ? todayIso() : "";
+        }),
+      attachReport: (clientId: string, month: string, slot: "freelancerReport" | "clientReport" | "financeReport", file: { name: string; url: string } | undefined) => {
+        update((d) => {
+          let report = d.reports.find((item) => item.clientId === clientId && item.month === month);
+          if (!report) { report = { id: `${clientId}-${month}`, clientId, month, checked: false, summary: "", recommendations: "", approved: false, sentAt: "", reportLink: "" }; d.reports.push(report); }
+          report[slot] = file ? { ...file, addedAt: todayIso(), addedBy: d.me } : undefined;
+          const client = d.clients.find((c) => c.id === clientId)!;
+          if (slot === "freelancerReport" && file) notify(d, client.opsId, `${client.name}: the freelancer's monthly report is in`, { view: "client", clientId, tab: "reporting" });
+        });
+        if (file) ping("Report attached");
+      },
+      movePost: (id: string, date: string) => {
+        update((d) => {
+          const post = d.posts.find((item) => item.id === id)!;
+          post.date = date;
+          post.history.unshift({ at: stamp(), by: d.me, text: `Moved to ${date}` });
+        });
+        ping("Date changed");
+      },
 
       // Clients
       addClient: (name: string) => {
@@ -133,9 +180,9 @@ function useStoreValue() {
             id, name, color: "#5A6B7D", sector: "Construction", package: "Essential", addOns: [], stage: "Onboarding", approvalMode: d.settings.defaultApprovalMode,
             mainContact: { name: "", email: "", phone: "" }, approver: { name: "", email: "" }, billingContact: "", channel: "Email", expertReviewer: "", ownerId: "maria", opsId: "niamh",
             freelancerFee: 0, fee: 0, addOnFee: 0, agreedPosts: 8, platforms: ["LinkedIn"], startDate: todayIso(), links: { drive: "", canva: "", publer: "", chat: "", brandKit: "" }, checklist,
-            strategy: { offer: "", services: "", personas: [], pillars: [], tone: "", avoid: "", claims: "", approved: false }, hours: {}, planApproval: {},
+            strategy: { offer: "", services: "", personas: [], pillars: [], tone: "", avoid: "", claims: "", approved: false }, hours: {}, planApproval: {}, access: [], files: [], costs: [],
           });
-          notify(d, "niamh", `New client to set up: ${name}`, { view: "client", clientId: id, tab: "checklist" });
+          notify(d, "niamh", `New client to set up: ${name}`, { view: "client", clientId: id, tab: "onboarding" });
         });
         ping(`${name} created with the onboarding checklist`);
         return id;
@@ -160,7 +207,7 @@ function useStoreValue() {
           client.freelancerId = freelancerId || undefined;
           const item = client.checklist.find((entry) => entry.label === "Freelancer assigned");
           if (item) { item.status = freelancerId ? "Received" : "Not asked"; item.date = freelancerId ? todayIso() : ""; }
-          if (freelancerId) notify(d, freelancerId, `You have been assigned to ${client.name}`, { view: "client", clientId, tab: "marketing" });
+          if (freelancerId) notify(d, freelancerId, `You have been assigned to ${client.name}`, { view: "marketing", clientId });
         });
         ping(blocked ? "Blocked: NDA and contract must be signed first" : freelancerId ? "Freelancer assigned and notified" : "Freelancer removed");
       },
@@ -169,8 +216,8 @@ function useStoreValue() {
       addIdeas: (clientId: string, items: Pick<Idea, "title" | "notes" | "format">[], source: string) => {
         update((d) => {
           const client = d.clients.find((c) => c.id === clientId)!;
-          d.ideas.unshift(...items.map((item) => ({ ...item, id: uid("idea"), clientId, decision: "New" as const, comment: "", createdBy: d.me, createdAt: todayIso(), source })));
-          notify(d, reviewerFor(d, client), `${items.length} new idea${items.length === 1 ? "" : "s"} for ${client.name} to decide`, { view: "client", clientId, tab: "marketing", sub: "ideas" }, ["In app", "Email", "Slack"]);
+          d.ideas.unshift(...items.map((item) => ({ ...item, id: uid("idea"), clientId, decision: "New" as const, comment: "", createdBy: d.me, createdAt: todayIso(), source, month: d.month })));
+          notify(d, reviewerFor(d, client), `${items.length} new idea${items.length === 1 ? "" : "s"} for ${client.name} to decide`, { view: "marketing", clientId, tab: "ideas" }, ["In app", "Email", "Slack"]);
         });
         ping(`${items.length} idea card${items.length === 1 ? "" : "s"} added`);
       },
@@ -199,12 +246,14 @@ function useStoreValue() {
         }),
 
       // Posts
-      addPost: (clientId: string, title: string) => {
+      addPost: (clientId: string, title: string, date?: string) => {
+        const id = uid("post");
         update((d) => {
           const client = d.clients.find((c) => c.id === clientId)!;
-          d.posts.push({ id: uid("post"), clientId, title, format: "Single image", platforms: [client.platforms[0] ?? "LinkedIn"], date: `${d.month}-${String(d.settings.dates.schedule).padStart(2, "0")}`, status: "Copy in progress", copy: "", captions: {}, files: [], art: title, designLink: "", driveLink: "", version: 1, comments: [], history: [{ at: stamp(), by: d.me, text: "Post created" }], needsExpert: false, expertOk: false, waitingSince: todayIso() });
+          d.posts.push({ id, clientId, title, format: "Single image", platforms: [client.platforms[0] ?? "LinkedIn"], date: date ?? `${d.month}-${String(d.settings.dates.schedule).padStart(2, "0")}`, status: "Copy in progress", copy: "", captions: {}, files: [], art: title, designLink: "", driveLink: "", version: 1, comments: [], history: [{ at: stamp(), by: d.me, text: "Post created" }], needsExpert: false, expertOk: false, waitingSince: todayIso() });
         });
         ping("Post added");
+        return id;
       },
       updatePost: (id: string, patch: Partial<Post>) => update((d) => { Object.assign(d.posts.find((item) => item.id === id)!, patch); }),
       submitPost: (id: string) => {
@@ -354,13 +403,13 @@ function useStoreValue() {
             approvalMode: d.settings.defaultApprovalMode, mainContact: { name: lead.contact, email: lead.email, phone: "" }, approver: { name: "", email: "" }, billingContact: "", channel: "Email", expertReviewer: "",
             ownerId: "maria", opsId: "niamh", freelancerFee: 0, fee: lead.value, addOnFee: 0, agreedPosts: lead.package === "Growth" ? 12 : 8, platforms: ["LinkedIn"], startDate: todayIso(),
             links: { drive: "", canva: "", publer: "", chat: "", brandKit: "" }, checklist,
-            strategy: { offer: "", services: "", personas: [], pillars: [], tone: "", avoid: "", claims: "", approved: false }, hours: {}, planApproval: {},
+            strategy: { offer: "", services: "", personas: [], pillars: [], tone: "", avoid: "", claims: "", approved: false }, hours: {}, planApproval: {}, access: [], files: [], costs: [],
           });
           d.invoices.push({ clientId, month: d.month, status: "Not sent", date: "" });
           lead.stage = "Won";
           lead.clientId = clientId;
-          notify(d, "maria", `${lead.company} is won. Over to you for onboarding.`, { view: "client", clientId, tab: "checklist" });
-          notify(d, "niamh", `New client to set up: ${lead.company}`, { view: "client", clientId, tab: "checklist" });
+          notify(d, "maria", `${lead.company} is won. Over to you for onboarding.`, { view: "client", clientId, tab: "onboarding" });
+          notify(d, "niamh", `New client to set up: ${lead.company}`, { view: "client", clientId, tab: "onboarding" });
         });
         ping("Client created. María and operations have been notified.");
         return clientId;

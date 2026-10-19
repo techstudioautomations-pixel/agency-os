@@ -9,6 +9,7 @@ import { Shell } from "./Shell";
 import { Avatar, Button, Card, Chip, Field, fieldClass } from "./kit";
 
 const columns: LeadStage[] = ["New", "Contacted", "Discovery call", "Proposal sent"];
+const stageColor: Record<string, string> = { New: "#5A6B7D", Contacted: "#2F6FDB", "Discovery call": "#7C5CD6", "Proposal sent": "#E08A1E" };
 
 export function Leads({ leadId }: { leadId?: string }) {
   const store = useStore();
@@ -38,17 +39,17 @@ export function Leads({ leadId }: { leadId?: string }) {
         {columns.map((stage) => {
           const list = open.filter((lead) => lead.stage === stage);
           return (
-            <div key={stage} onDragOver={(event) => event.preventDefault()} onDrop={() => { if (dragged) store.updateLead(dragged, { stage }); setDragged(""); }} className="min-w-[230px] rounded-2xl bg-[#EFEDE8] p-2.5 lg:min-w-0">
-              <div className="mb-2.5 flex items-center justify-between px-1.5 pt-1">
-                <span className="text-[13px] font-bold">{stage}</span>
-                <span className="text-[12px] font-semibold text-[#6B6760]">{money(list.reduce((sum, lead) => sum + lead.value, 0), cur)}</span>
+            <div key={stage} onDragOver={(event) => event.preventDefault()} onDrop={() => { if (dragged) store.updateLead(dragged, { stage }); setDragged(""); }} className="min-w-[230px] rounded-2xl p-2.5 lg:min-w-0" style={{ background: `${stageColor[stage]}14` }}>
+              <div className="mb-2.5 flex items-center justify-between rounded-xl px-3 py-2 text-white" style={{ background: stageColor[stage] }}>
+                <span className="text-[13px] font-bold">{stage} <span className="opacity-75">· {list.length}</span></span>
+                <span className="text-[12px] font-bold">{money(list.reduce((sum, lead) => sum + lead.value, 0), cur)}</span>
               </div>
               <div className="space-y-2.5">
                 {list.map((lead) => {
                   const late = lead.followUp && lead.followUp < todayIso();
                   const today = lead.followUp === todayIso();
                   return (
-                    <button key={lead.id} draggable onDragStart={() => setDragged(lead.id)} onClick={() => go({ view: "leads", leadId: lead.id })} className={`w-full rounded-xl border bg-white p-3 text-left transition hover:shadow-md ${selected?.id === lead.id ? "border-[#1E2430]" : "border-transparent"}`}>
+                    <button key={lead.id} draggable onDragStart={() => setDragged(lead.id)} onClick={() => go({ view: "leads", leadId: lead.id })} style={{ borderLeft: `4px solid ${stageColor[stage]}` }} className={`w-full rounded-xl border bg-white p-3 text-left shadow-sm transition hover:shadow-md ${selected?.id === lead.id ? "border-[#1E2430]" : "border-transparent"}`}>
                       <div className="text-[14px] font-bold leading-snug">{lead.company}</div>
                       <div className="mt-1 text-[12px] text-[#8B867E]">{lead.sector || "Sector to add"} · {lead.package}</div>
                       <div className="mt-2.5 flex items-center gap-2 text-[12px]">
@@ -74,7 +75,7 @@ export function Leads({ leadId }: { leadId?: string }) {
             {won.map((lead) => (
               <li key={lead.id} className="flex items-center gap-2 rounded-xl bg-[#E7F6EE] px-3 py-2.5 text-[13px]">
                 <b className="flex-1">{lead.company}</b>
-                {lead.clientId && <button onClick={() => go({ view: "client", clientId: lead.clientId!, tab: "checklist" })} className="inline-flex items-center gap-1 font-semibold text-[#17804A]">Onboarding <ArrowRight size={13} /></button>}
+                {lead.clientId && <button onClick={() => go({ view: "client", clientId: lead.clientId!, tab: "onboarding" })} className="inline-flex items-center gap-1 font-semibold text-[#17804A]">Onboarding <ArrowRight size={13} /></button>}
               </li>
             ))}
             {won.length === 0 && <li className="text-[13px] text-[#8B867E]">None yet this period.</li>}
@@ -107,7 +108,7 @@ function LeadPanel({ lead, onClose }: { lead: Lead; onClose: () => void }) {
           <div className="mt-1 flex items-center gap-2 text-[13px] text-[#6B6760]">{owner && <Avatar name={owner.name} color={owner.color} size={20} />}Owner: {nameOf(state, lead.ownerId)} · {lead.stage}</div>
         </div>
         {lead.stage !== "Won" && (
-          <Button kind="good" onClick={() => { const id = store.winLead(lead.id); go({ view: "client", clientId: id, tab: "checklist" }); }}><Trophy size={15} />Mark as won</Button>
+          <Button kind="good" onClick={() => { const id = store.winLead(lead.id); go({ view: "client", clientId: id, tab: "onboarding" }); }}><Trophy size={15} />Mark as won</Button>
         )}
         {lead.stage !== "Lost" && lead.stage !== "Won" && <Button kind="danger" onClick={() => set({ stage: "Lost", followUp: "" })}>Lost</Button>}
         <button onClick={onClose} aria-label="Close" className="rounded-lg p-2 text-[#8B867E] hover:bg-[#F1F0ED]"><X size={18} /></button>

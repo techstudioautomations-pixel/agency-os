@@ -1,152 +1,81 @@
 "use client";
 
-import { useState } from "react";
-import { ArrowLeft, Check, Download, ExternalLink, FileText, Film, ShieldCheck, Trash2, UploadCloud } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Check, ChevronLeft, ChevronRight, Download, ExternalLink, Pencil, ShieldCheck, Trash2, UploadCloud, X } from "lucide-react";
 import { useStore } from "@/lib/works/store";
-import { ago, daysSince, isFreelancer, isOwner, nameOf, personById, reviewerFor, shortDate, stageOf, stages, turnOf } from "@/lib/works/logic";
+import { ago, isFreelancer, isOwner, nameOf, personById, reviewerFor, shortDate, stageOf, stages, turnOf } from "@/lib/works/logic";
 import type { Client, Post, PostFile, RevisionCategory } from "@/lib/works/types";
 import { buildZip, safeName } from "@/lib/zip";
-import { asset, Avatar, Button, Card, Chip, Field, Stepper, fieldClass, tone } from "./kit";
+import { PostArt } from "./PostArt";
+import { statusTone } from "./Marketing";
+import { asset, Avatar, Button, Chip, ClientMark, Field, fieldClass } from "./kit";
+import { Shell } from "./Shell";
 
-const platformsAll = ["LinkedIn", "Instagram", "Facebook", "TikTok", "Newsletter"];
+const channels = ["LinkedIn", "Instagram", "Facebook", "TikTok", "Newsletter"];
+const formats = ["Carousel", "Single image", "Reel", "Text post", "Newsletter"];
 const limits: Record<string, number> = { LinkedIn: 3000, Instagram: 2200, Facebook: 5000, TikTok: 2200, Newsletter: 20000 };
-const categories: RevisionCategory[] = ["Brand", "Copy", "Layout", "Factual"];
-
+const categories: RevisionCategory[] = ["Copy", "Brand", "Layout", "Factual"];
 const kindOf = (file: File): PostFile["kind"] => (file.type.startsWith("image/") ? "image" : file.type === "application/pdf" ? "pdf" : file.type.startsWith("video/") ? "video" : "other");
 
-export function PostView({ post, client }: { post: Post; client: Client }) {
+export function PostReview({ post, client, backScope }: { post: Post; client: Client; backScope: string }) {
   const store = useStore();
   const { state, go } = store;
   const turn = turnOf(state, post);
-  const freelancer = isFreelancer(state);
-  const reviewer = reviewerFor(state, client);
-  const isReviewer = state.me === reviewer || isOwner(state);
-  const isFreelancerOnIt = state.me === client.freelancerId;
-  const canEditCopy = post.status === "Copy in progress" || (post.status === "Copy review" && isReviewer);
-  const canEditDesign = ["Copy in progress", "Design in progress", "Copy review", "Design review"].includes(post.status);
-  const changes = post.comments.filter((comment) => comment.kind === "change");
-  const openChanges = changes.filter((comment) => !comment.resolved);
-  const set = (patch: Partial<Post>) => store.updatePost(post.id, patch);
-  const back = () => go({ view: "client", clientId: client.id, tab: "marketing", sub: "content" });
+  const mine = turn.who === state.me;
+  const freelancerView = isFreelancer(state);
+  const canEdit = isOwner(state) || (state.me === client.freelancerId && ["Copy in progress", "Design in progress", "Ready to schedule"].includes(post.status)) || (!client.freelancerId && !freelancerView);
+  const [editing, setEditing] = useState(false);
+  const status = statusTone(post);
+  const queue = state.posts.filter((item) => item.id !== post.id && item.date.startsWith(state.month) && turnOf(state, item).who === state.me && (backScope === "all" || item.clientId === backScope)).sort((a, b) => a.date.localeCompare(b.date));
+  const steps = client.approvalMode === "A" ? stages : stages.filter((item) => item !== "Client");
   const stage = stageOf(post.status);
-  const waiting = turn.who ? daysSince(post.waitingSince) : 0;
+  const current = client.approvalMode === "A" ? stage : stage > 2 ? stage - 1 : stage;
 
   return (
-    <div className="space-y-4">
-      <button onClick={back} className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-[#6B6760] hover:text-[#1E2430]"><ArrowLeft size={15} />Back to {client.name} content</button>
-
-      <Card>
-        <div className="flex flex-wrap items-start gap-4">
-          <div className="min-w-[260px] flex-1">
-            <input value={post.title} onChange={(event) => set({ title: event.target.value })} aria-label="Post title" className="w-full bg-transparent text-[22px] font-extrabold leading-tight outline-none" />
-            <div className="mt-1 flex flex-wrap items-center gap-2 text-[13px] text-[#6B6760]">
-              <span>{post.format}</span>·<span>planned for {shortDate(post.date)}</span>·<span>version {post.version}</span>
-              {post.needsExpert && <Chip t={post.expertOk ? "green" : "purple"}><ShieldCheck size={12} />{post.expertOk ? "Expert confirmed" : "Expert check needed"}</Chip>}
+    <Shell
+      title={<span className="flex items-center gap-3"><ClientMark client={client} size={40} /><span className="min-w-0 truncate">{post.title}</span></span>}
+      sub={<span className="flex flex-wrap items-center gap-2"><Chip t={status.t}>{status.label}</Chip><span>{post.format} · {post.platforms.join(", ")} · goes out {shortDate(post.date)} · v{post.version}</span>{post.needsExpert && <Chip t={post.expertOk ? "green" : "purple"}><ShieldCheck size={12} />{post.expertOk ? "Expert confirmed" : "Expert check needed"}</Chip>}</span>}
+      actions={
+        <>
+          <Button kind="ghost" onClick={() => go({ view: "marketing", clientId: backScope, tab: "posts" })}><ArrowLeft size={15} />All posts</Button>
+          {queue[0] && <Button kind="primary" onClick={() => go({ view: "marketing", clientId: backScope, postId: queue[0].id })}>Next for you ({queue.length}) <ArrowRight size={15} /></Button>}
+        </>
+      }
+    >
+      <div className="mb-4 flex items-center gap-1">
+        {steps.map((step, index) => {
+          const done = post.status === "Published" || index < current;
+          const now = index === current && post.status !== "Published";
+          return (
+            <div key={step} className="flex min-w-0 flex-1 items-center gap-2">
+              <span className={`grid h-6 w-6 shrink-0 place-items-center rounded-full text-[11px] font-bold ${done ? "bg-[#1D9E5A] text-white" : now ? "bg-[#2F6FDB] text-white" : "bg-[#E7E4DE] text-[#8B867E]"}`}>{done ? <Check size={13} /> : index + 1}</span>
+              <span className={`text-[12px] font-semibold ${now ? "text-[#1F5BC4]" : "hidden sm:inline"} ${!now && done ? "text-[#17804A]" : !now ? "text-[#9A958D]" : ""}`}>{step}</span>
+              {index < steps.length - 1 && <span className="h-0.5 flex-1 rounded-full" style={{ background: done ? "#1D9E5A" : "#E7E4DE" }} />}
             </div>
-          </div>
-          <div className={`rounded-2xl px-4 py-3 ${turn.who === state.me ? "bg-[#EAF1FD]" : turn.tone === "done" ? "bg-[#E7F6EE]" : "bg-[#F6F5F2]"}`}>
-            <div className="text-[11px] font-bold uppercase tracking-wide text-[#8B867E]">{turn.who === state.me ? "Your turn" : turn.tone === "done" ? "Status" : "Waiting on"}</div>
-            <div className="mt-0.5 flex items-center gap-2 text-[15px] font-bold">
-              {turn.who && turn.who !== state.me && <Avatar name={nameOf(state, turn.who)} color={personById(state, turn.who)?.color} size={22} />}
-              {turn.who && turn.who !== state.me ? `${nameOf(state, turn.who)} · ` : ""}{turn.verb}
-            </div>
-            {waiting > 0 && turn.tone !== "freelancer" && <div className={`text-[12px] font-semibold ${waiting >= state.settings.escalationDays ? "text-[#B83232]" : "text-[#6B6760]"}`}>waiting {waiting} day{waiting === 1 ? "" : "s"}</div>}
-          </div>
-        </div>
-        <div className="mt-4"><Stepper steps={client.approvalMode === "A" ? stages : stages.filter((item) => item !== "Client")} current={client.approvalMode === "A" ? stage : stage > 2 ? stage - 1 : stage} done={post.status === "Published"} /></div>
-      </Card>
-
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,1.5fr)_minmax(320px,1fr)]">
-        <div className="space-y-4">
-          <CopyPanel post={post} editable={canEditCopy || isOwner(state)} onChange={set} />
-          <CreativePanel post={post} editable={canEditDesign || isOwner(state)} onChange={set} />
-        </div>
-        <div className="space-y-4">
-          <DecisionPanel post={post} client={client} isReviewer={isReviewer} isFreelancerOnIt={isFreelancerOnIt || (!freelancer && !client.freelancerId)} openChanges={openChanges.length} />
-          <Conversation post={post} />
-          {changes.length > 0 && (
-            <Card>
-              <h3 className="text-[15px] font-bold">Revision log</h3>
-              <div className="mt-2 flex flex-wrap gap-1.5">
-                {categories.map((category) => { const count = changes.filter((comment) => comment.category === category).length; return count ? <Chip key={category} t="amber">{category} · {count}</Chip> : null; })}
-              </div>
-              <p className="mt-2 text-[12px] text-[#6B6760]">Every change request is logged with its category, so month-end shows where revisions come from.</p>
-            </Card>
-          )}
-          <Card>
-            <h3 className="text-[15px] font-bold">History</h3>
-            <ul className="mt-2 max-h-56 space-y-2 overflow-y-auto">
-              {post.history.map((event, index) => (
-                <li key={index} className="flex gap-2 text-[12px]"><span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-[#A8A39B]" /><span><b>{event.text}</b><span className="text-[#8B867E]"> · {nameOf(state, event.by)} · {ago(event.at)}</span></span></li>
-              ))}
-              {post.history.length === 0 && <li className="text-[12px] text-[#8B867E]">No history yet.</li>}
-            </ul>
-          </Card>
-        </div>
+          );
+        })}
       </div>
-    </div>
+
+      <div className="grid gap-5 xl:grid-cols-[minmax(0,1.1fr)_minmax(380px,.9fr)]">
+        <div className="min-w-0">
+          {editing ? <PostEditor post={post} onDone={() => setEditing(false)} /> : <PostPreviewPanel post={post} client={client} canEdit={canEdit} onEdit={() => setEditing(true)} />}
+        </div>
+        <Conversation post={post} client={client} mine={mine} />
+      </div>
+    </Shell>
   );
 }
 
-function CopyPanel({ post, editable, onChange }: { post: Post; editable: boolean; onChange: (patch: Partial<Post>) => void }) {
-  const { ping } = useStore();
-  const [tab, setTab] = useState("main");
-  const togglePlatform = (platform: string) => onChange({ platforms: post.platforms.includes(platform) ? post.platforms.filter((item) => item !== platform) : [...post.platforms, platform] });
-  const custom = Object.keys(post.captions);
-  const value = tab === "main" ? post.copy : post.captions[tab] ?? "";
-  const limit = tab === "main" ? Math.min(...post.platforms.map((platform) => limits[platform] ?? 3000)) : limits[tab] ?? 3000;
-  const write = (text: string) => (tab === "main" ? onChange({ copy: text }) : onChange({ captions: { ...post.captions, [tab]: text } }));
-  return (
-    <Card>
-      <div className="mb-3 flex flex-wrap items-center gap-2">
-        <h3 className="mr-auto text-[16px] font-bold">1 · Copy</h3>
-        {platformsAll.map((platform) => (
-          <button key={platform} disabled={!editable} onClick={() => togglePlatform(platform)} aria-pressed={post.platforms.includes(platform)} className={`rounded-full px-3 py-1 text-[12px] font-semibold ${post.platforms.includes(platform) ? "bg-[#1E2430] text-white" : "bg-[#F1F0ED] text-[#6B6760]"}`}>{platform}</button>
-        ))}
-      </div>
-      <div className="mb-2 flex flex-wrap items-center gap-1.5">
-        <button onClick={() => setTab("main")} className={`rounded-lg px-3 py-1.5 text-[12px] font-semibold ${tab === "main" ? "bg-[#EAF1FD] text-[#1F5BC4]" : "text-[#6B6760] hover:bg-[#F6F5F2]"}`}>Main caption</button>
-        {custom.map((platform) => <button key={platform} onClick={() => setTab(platform)} className={`rounded-lg px-3 py-1.5 text-[12px] font-semibold ${tab === platform ? "bg-[#EAF1FD] text-[#1F5BC4]" : "text-[#6B6760] hover:bg-[#F6F5F2]"}`}>{platform} version</button>)}
-        {editable && post.platforms.filter((platform) => !custom.includes(platform)).length > 0 && (
-          <select value="" onChange={(event) => { if (!event.target.value) return; onChange({ captions: { ...post.captions, [event.target.value]: post.copy } }); setTab(event.target.value); }} aria-label="Add a version for a platform" className="rounded-lg border border-dashed border-[#D6D1C8] bg-white px-2 py-1.5 text-[12px] font-semibold text-[#6B6760]">
-            <option value="">+ Different wording for…</option>
-            {post.platforms.filter((platform) => !custom.includes(platform)).map((platform) => <option key={platform}>{platform}</option>)}
-          </select>
-        )}
-      </div>
-      <textarea value={value} readOnly={!editable} onChange={(event) => write(event.target.value)} rows={6} aria-label="Caption" placeholder="Write the caption here." className={`${fieldClass} leading-relaxed ${!editable ? "bg-[#FBFAF8]" : ""}`} />
-      <div className="mt-1.5 flex items-center justify-between text-[12px]">
-        <span className={value.length > limit ? "font-bold text-[#B83232]" : "text-[#8B867E]"}>{value.length.toLocaleString()} / {limit.toLocaleString()} characters</span>
-        <span className="flex gap-3">
-          {tab !== "main" && editable && <button onClick={() => { const next = { ...post.captions }; delete next[tab]; onChange({ captions: next }); setTab("main"); }} className="font-semibold text-[#B83232]">Remove version</button>}
-          <button onClick={async () => { try { await navigator.clipboard.writeText(value); ping("Caption copied"); } catch { ping("Copy was blocked"); } }} className="font-semibold text-[#1F5BC4]">Copy</button>
-        </span>
-      </div>
-      {!editable && <p className="mt-2 text-[12px] text-[#8B867E]">Copy is locked once it is approved. The reviewer can send it back if it needs changing.</p>}
-    </Card>
-  );
-}
-
-function CreativePanel({ post, editable, onChange }: { post: Post; editable: boolean; onChange: (patch: Partial<Post>) => void }) {
+// ─── Left: the post as it will look ───
+function PostPreviewPanel({ post, client, canEdit, onEdit }: { post: Post; client: Client; canEdit: boolean; onEdit: () => void }) {
   const { ping } = useStore();
   const [slide, setSlide] = useState(0);
+  const [channel, setChannel] = useState(post.platforms[0] ?? "LinkedIn");
   const [busy, setBusy] = useState(false);
-  const visual = post.files.filter((file) => file.kind !== "other");
-  const current = visual[Math.min(slide, visual.length - 1)];
-
-  function add(list: FileList | null) {
-    if (!list) return;
-    Array.from(list).forEach((file) => {
-      const base = { id: `f-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, name: file.name, kind: kindOf(file) };
-      if (file.size < 1_500_000) {
-        const reader = new FileReader();
-        reader.onload = () => onChange({ files: [...postFilesRef.current, { ...base, src: String(reader.result) }] });
-        reader.readAsDataURL(file);
-      } else onChange({ files: [...postFilesRef.current, { ...base, src: URL.createObjectURL(file) }] });
-    });
-    ping("Files added");
-  }
-  const postFilesRef = { current: post.files };
+  const visuals = post.files.filter((file) => file.kind === "image" || file.kind === "video");
+  const pdf = post.files.find((file) => file.kind === "pdf");
+  const caption = post.captions[channel] ?? post.copy;
+  const count = Math.max(1, visuals.length);
 
   async function downloadAll() {
     setBusy(true);
@@ -155,7 +84,7 @@ function CreativePanel({ post, editable, onChange }: { post: Post; editable: boo
       const url = URL.createObjectURL(buildZip(entries));
       const a = document.createElement("a");
       a.href = url;
-      a.download = `${safeName(post.title)}.zip`;
+      a.download = `${safeName(client.name)}-${safeName(post.title)}.zip`;
       a.click();
       window.setTimeout(() => URL.revokeObjectURL(url), 1500);
     } catch {
@@ -166,201 +95,300 @@ function CreativePanel({ post, editable, onChange }: { post: Post; editable: boo
   }
 
   return (
-    <Card>
-      <div className="mb-3 flex flex-wrap items-center gap-2">
-        <h3 className="mr-auto text-[16px] font-bold">2 · Creative</h3>
-        {post.files.length > 0 && <Button size="sm" onClick={downloadAll} disabled={busy}><Download size={13} />{busy ? "Preparing…" : post.files.length > 1 ? `Download all (${post.files.length})` : "Download"}</Button>}
-      </div>
-      {current ? (
-        <div className="relative grid min-h-[320px] place-items-center overflow-hidden rounded-xl bg-[#F1F0ED]">
-          {current.kind === "image" && /* eslint-disable-next-line @next/next/no-img-element */ <img src={asset(current.src)} alt={current.name} className="max-h-[520px] w-auto object-contain" />}
-          {current.kind === "video" && <video src={asset(current.src)} controls className="max-h-[520px]" />}
-          {current.kind === "pdf" && <iframe src={asset(current.src)} title={current.name} className="h-[520px] w-full bg-white" />}
-          {visual.length > 1 && <span className="absolute bottom-3 right-3 rounded-full bg-black/70 px-2.5 py-1 text-[12px] font-semibold text-white">{Math.min(slide, visual.length - 1) + 1} / {visual.length}</span>}
+    <div className="overflow-hidden rounded-2xl border border-[#E9E6E0] bg-white">
+      <div className="flex flex-wrap items-center gap-2 border-b border-[#F0EEE9] px-4 py-3">
+        <div className="flex gap-1">
+          {post.platforms.map((item) => <button key={item} onClick={() => setChannel(item)} className={`rounded-lg px-3 py-1.5 text-[12px] font-bold ${channel === item ? "bg-[#1E2430] text-white" : "text-[#6B6760] hover:bg-[#F1F0ED]"}`}>{item}</button>)}
         </div>
-      ) : (
-        <div className="grid min-h-[160px] place-items-center rounded-xl bg-[#F6F5F2] text-center text-[13px] text-[#8B867E]">{post.status.startsWith("Copy") ? "Design starts after the copy is approved." : "No artwork uploaded yet."}</div>
-      )}
-      {post.files.length > 0 && (
-        <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
-          {post.files.map((file) => {
-            const index = visual.indexOf(file);
-            return (
-              <div key={file.id} className={`relative shrink-0 overflow-hidden rounded-lg border-2 ${current?.id === file.id ? "border-[#2F6FDB]" : "border-transparent"}`}>
-                <button onClick={() => index >= 0 && setSlide(index)} className="grid h-16 w-16 place-items-center bg-[#F1F0ED]" aria-label={`Show ${file.name}`}>
+        <span className="ml-auto flex flex-wrap gap-1.5">
+          {post.files.length > 0 && <Button size="sm" onClick={downloadAll} disabled={busy}><Download size={13} />{busy ? "Preparing…" : post.files.length > 1 ? `Download all (${post.files.length})` : "Download"}</Button>}
+          {post.designLink && <a href={post.designLink} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 rounded-xl border border-[#E2DED7] px-3 py-1.5 text-[12px] font-semibold hover:border-[#C9C3B8]">Canva <ExternalLink size={12} /></a>}
+          {canEdit && <Button size="sm" kind="primary" onClick={onEdit}><Pencil size={13} />Edit post</Button>}
+        </span>
+      </div>
+
+      <div className="grid gap-0 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+        <div className="bg-[#F1F0ED] p-4 sm:p-6">
+          <div className="relative mx-auto max-w-[420px]">
+            <PostArt post={post} client={client} index={slide} rounded="rounded-2xl" className="shadow-[0_12px_32px_rgba(30,36,48,.15)]" />
+            {count > 1 && (
+              <>
+                <button onClick={() => setSlide((slide - 1 + count) % count)} aria-label="Previous slide" className="absolute left-2 top-1/2 grid h-9 w-9 -translate-y-1/2 place-items-center rounded-full bg-white/95 shadow"><ChevronLeft size={18} /></button>
+                <button onClick={() => setSlide((slide + 1) % count)} aria-label="Next slide" className="absolute right-2 top-1/2 grid h-9 w-9 -translate-y-1/2 place-items-center rounded-full bg-white/95 shadow"><ChevronRight size={18} /></button>
+              </>
+            )}
+          </div>
+          {visuals.length > 1 && (
+            <div className="mx-auto mt-3 flex max-w-[420px] gap-2 overflow-x-auto pb-1">
+              {visuals.map((file, index) => (
+                <button key={file.id} onClick={() => setSlide(index)} className={`w-14 shrink-0 overflow-hidden rounded-lg border-2 ${index === slide ? "border-[#2F6FDB]" : "border-transparent opacity-70"}`} aria-label={`Slide ${index + 1}`}>
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  {file.kind === "image" ? <img src={asset(file.src)} alt="" className="h-full w-full object-cover" /> : file.kind === "video" ? <Film size={18} /> : <FileText size={18} />}
+                  {file.kind === "image" ? <img src={asset(file.src)} alt="" className="aspect-[4/5] w-full object-cover" /> : <span className="grid aspect-[4/5] place-items-center bg-[#1E2430] text-[10px] font-bold text-white">Video</span>}
                 </button>
-                {editable && <button onClick={() => onChange({ files: post.files.filter((item) => item.id !== file.id) })} aria-label={`Remove ${file.name}`} className="absolute right-0.5 top-0.5 rounded bg-white/90 p-0.5 text-[#B83232]"><Trash2 size={11} /></button>}
-              </div>
-            );
-          })}
+              ))}
+            </div>
+          )}
+          {pdf && <a href={asset(pdf.src)} target="_blank" rel="noreferrer" className="mx-auto mt-3 flex max-w-[420px] items-center justify-center gap-1.5 rounded-xl bg-white px-3 py-2 text-[12px] font-semibold text-[#1F5BC4]">Open PDF carousel: {pdf.name} <ExternalLink size={12} /></a>}
+          {!post.files.length && <p className="mx-auto mt-3 max-w-[420px] text-center text-[12px] text-[#8B867E]">{post.status.startsWith("Copy") ? "Preview design. The artwork is made after the copy is approved." : "No artwork uploaded yet. This is a preview."}</p>}
         </div>
-      )}
-      {editable && (
-        <label className="mt-3 flex cursor-pointer items-center justify-center gap-2 rounded-xl border-2 border-dashed border-[#D3DDEC] bg-[#F7FAFF] p-4 text-[13px] font-semibold text-[#1F5BC4] hover:bg-[#EEF4FF]">
-          <UploadCloud size={18} /> Upload artwork: images in slide order, a PDF carousel or a video
-          <input type="file" multiple accept="image/*,video/*,application/pdf" className="sr-only" onChange={(event) => { add(event.target.files); event.target.value = ""; }} />
-        </label>
-      )}
-      <div className="mt-4 grid gap-3 sm:grid-cols-2">
-        <Field label="Editable design (Canva / Adobe)"><div className="flex gap-2"><input value={post.designLink} onChange={(event) => onChange({ designLink: event.target.value })} placeholder="https://www.canva.com/design/…" className={fieldClass} />{/^https?:/.test(post.designLink) && <a href={post.designLink} target="_blank" rel="noreferrer" className="mt-1 grid w-11 place-items-center rounded-xl bg-[#EEF2FA] text-[#1F5BC4]" aria-label="Open design"><ExternalLink size={14} /></a>}</div></Field>
-        <Field label="Final files in the client's Drive"><div className="flex gap-2"><input value={post.driveLink} onChange={(event) => onChange({ driveLink: event.target.value })} placeholder="https://drive.google.com/…" className={fieldClass} />{/^https?:/.test(post.driveLink) && <a href={post.driveLink} target="_blank" rel="noreferrer" className="mt-1 grid w-11 place-items-center rounded-xl bg-[#EEF2FA] text-[#1F5BC4]" aria-label="Open Drive"><ExternalLink size={14} /></a>}</div></Field>
-      </div>
-    </Card>
-  );
-}
 
-function DecisionPanel({ post, client, isReviewer, isFreelancerOnIt, openChanges }: { post: Post; client: Client; isReviewer: boolean; isFreelancerOnIt: boolean; openChanges: number }) {
-  const store = useStore();
-  const { state } = store;
-  const [asking, setAsking] = useState(false);
-  const [category, setCategory] = useState<RevisionCategory>("Copy");
-  const [body, setBody] = useState("");
-  const [via, setVia] = useState("Email");
-  const [note, setNote] = useState("");
-  const [date, setDate] = useState(post.date);
-  const [schedVia, setSchedVia] = useState("Publer");
-  const [url, setUrl] = useState("");
-  const working = post.status === "Copy in progress" || post.status === "Design in progress";
-  const reviewing = post.status === "Copy review" || post.status === "Design review";
-  const due = new Date(`${post.waitingSince}T12:00:00`);
-  due.setDate(due.getDate() + state.settings.clientApprovalDays);
-
-  const changeForm = (fromClient: boolean) => (
-    <div className="mt-3 space-y-2 rounded-xl bg-[#FFF6EC] p-3">
-      <div className="flex flex-wrap gap-1.5">
-        {categories.map((item) => <button key={item} onClick={() => setCategory(item)} className={`rounded-lg px-2.5 py-1 text-[12px] font-semibold ${category === item ? "bg-[#E8862A] text-white" : "bg-white text-[#94600A]"}`}>{item}</button>)}
-      </div>
-      <textarea autoFocus value={body} onChange={(event) => setBody(event.target.value)} rows={3} placeholder={fromClient ? "What did the client ask for?" : "What needs to change? Be specific: the freelancer ticks each request off."} className="w-full rounded-lg border border-[#F2D7B5] bg-white px-3 py-2 text-[13px] outline-none" />
-      <div className="flex gap-2">
-        <Button kind="warn" size="sm" onClick={() => { if (!body.trim()) { store.ping("Describe the change first"); return; } store.requestChanges(post.id, body.trim(), category); setBody(""); setAsking(false); }}>Send to {nameOf(state, client.freelancerId)}</Button>
-        <Button size="sm" kind="ghost" onClick={() => setAsking(false)}>Cancel</Button>
+        <div className="flex flex-col p-5">
+          <div className="flex items-center gap-2.5">
+            <ClientMark client={client} size={34} />
+            <div className="leading-tight"><div className="text-[14px] font-bold">{client.name}</div><div className="text-[12px] text-[#8B867E]">{channel} · {shortDate(post.date)}</div></div>
+          </div>
+          <p className={`mt-4 flex-1 whitespace-pre-wrap text-[14px] leading-relaxed ${caption ? "" : "italic text-[#A8A39B]"}`}>{caption || "No caption yet."}</p>
+          <div className="mt-4 flex items-center justify-between border-t border-[#F0EEE9] pt-3 text-[12px]">
+            <span className={caption.length > (limits[channel] ?? 3000) ? "font-bold text-[#B83232]" : "text-[#8B867E]"}>{caption.length} / {(limits[channel] ?? 3000).toLocaleString()} characters{post.captions[channel] ? ` · ${channel} version` : ""}</span>
+            {caption && <button onClick={async () => { try { await navigator.clipboard.writeText(caption); ping("Caption copied"); } catch { ping("Copy was blocked"); } }} className="font-semibold text-[#1F5BC4]">Copy caption</button>}
+          </div>
+          {post.driveLink && <a href={post.driveLink} target="_blank" rel="noreferrer" className="mt-2 inline-flex items-center gap-1 text-[12px] font-semibold text-[#1F5BC4]">Final files in Drive <ExternalLink size={12} /></a>}
+        </div>
       </div>
     </div>
   );
+}
 
-  let content: React.ReactNode;
-  if (working) {
-    content = isFreelancerOnIt ? (
-      <>
-        <p className="text-[13px] text-[#55514B]">{post.status === "Copy in progress" ? "Write the caption, then submit it. Design starts once the copy is approved." : "Upload the artwork and the editable Canva link, then submit."}</p>
-        {openChanges > 0 && <p className="mt-2 rounded-lg bg-[#FFF3D9] px-3 py-2 text-[13px] font-semibold text-[#94600A]">{openChanges} requested change{openChanges === 1 ? "" : "s"} below. Tick each one off as you fix it.</p>}
-        <Button kind="primary" className="mt-3 w-full" onClick={() => { if (openChanges && !window.confirm(`${openChanges} change request${openChanges === 1 ? " is" : "s are"} not ticked off. Submit anyway?`)) return; store.submitPost(post.id); }}>
-          Submit {post.status === "Copy in progress" ? "copy" : "design"} for review
-        </Button>
-        <p className="mt-2 text-[12px] text-[#8B867E]">{nameOf(state, reviewerFor(state, client))} is notified by email and in the OS.</p>
-      </>
-    ) : (
-      <p className="text-[13px] text-[#55514B]">{nameOf(state, client.freelancerId)} is working on the {post.status.startsWith("Copy") ? "copy" : "design"}.</p>
-    );
-  } else if (reviewing) {
-    const expertBlock = post.status === "Design review" && post.needsExpert && !post.expertOk;
-    content = isReviewer ? (
-      <>
-        <p className="text-[13px] text-[#55514B]">Check the {post.status === "Copy review" ? "caption" : "artwork and caption"}. Approve it, or send it back with clear changes.</p>
-        {post.needsExpert && (
-          <label className={`mt-3 flex items-start gap-2 rounded-xl p-3 text-[13px] ${post.expertOk ? "bg-[#E7F6EE]" : "bg-[#F1ECFC]"}`}>
-            <input type="checkbox" checked={post.expertOk} onChange={(event) => store.updatePost(post.id, { expertOk: event.target.checked })} className="mt-0.5 h-4 w-4" />
-            <span><b>Technical claims confirmed</b> by {client.expertReviewer || "the client's expert"}. Needed before design approval.</span>
-          </label>
-        )}
-        <div className="mt-3 grid grid-cols-2 gap-2">
-          <Button kind="good" disabled={expertBlock} onClick={() => store.approvePost(post.id)}><Check size={15} />Approve {post.status === "Copy review" ? "copy" : "design"}</Button>
-          <Button kind="warn" onClick={() => { setCategory(post.status === "Copy review" ? "Copy" : "Layout"); setAsking(true); }}>Request changes</Button>
-        </div>
-        {asking && changeForm(false)}
-        <p className="mt-2 text-[12px] text-[#8B867E]">{post.status === "Design review" ? (client.approvalMode === "A" ? "After approval it goes to the client (mode A)." : "After approval it is ready to schedule.") : "After approval, design starts."}</p>
-      </>
-    ) : (
-      <p className="text-[13px] text-[#55514B]">Submitted {ago(post.waitingSince)}. Waiting for {nameOf(state, reviewerFor(state, client))}. You will be notified.</p>
-    );
-  } else if (post.status === "Client approval") {
-    content = !isFreelancer(state) ? (
-      <>
-        <p className="text-[13px] text-[#55514B]">Send it to {client.approver.name || "the client's approver"} and log their answer here. One consolidated round per batch.</p>
-        <p className={`mt-1 text-[12px] font-semibold ${due.toISOString().slice(0, 10) < new Date().toISOString().slice(0, 10) ? "text-[#B83232]" : "text-[#6B6760]"}`}>Answer due {shortDate(due.toISOString())} ({state.settings.clientApprovalDays} working days)</p>
-        <div className="mt-3 grid gap-2 sm:grid-cols-2">
-          <Field label="How they answered"><select value={via} onChange={(event) => setVia(event.target.value)} className={fieldClass}>{["Email", "Canva comment", "Drive comment", "Call", "WhatsApp"].map((item) => <option key={item}>{item}</option>)}</select></Field>
-          <Field label="Note (optional)"><input value={note} onChange={(event) => setNote(event.target.value)} className={fieldClass} placeholder="e.g. 'Happy, go ahead'" /></Field>
-        </div>
-        <div className="mt-3 grid grid-cols-2 gap-2">
-          <Button kind="good" onClick={() => store.logClientApproval(post.id, via, note)}><Check size={15} />Client approved</Button>
-          <Button kind="warn" onClick={() => { setCategory("Copy"); setAsking(true); }}>Client wants changes</Button>
-        </div>
-        {asking && changeForm(true)}
-      </>
-    ) : (
-      <p className="text-[13px] text-[#55514B]">With the client since {shortDate(post.waitingSince)}. Operations logs the answer.</p>
-    );
-  } else if (post.status === "Ready to schedule") {
-    content = (
-      <>
-        <p className="text-[13px] text-[#55514B]">Fully approved{post.clientDecision ? ` (client, ${post.clientDecision.via})` : ""}. Schedule it and put the final files in the client&apos;s Drive.</p>
-        <div className="mt-3 grid gap-2 sm:grid-cols-2">
-          <Field label="Publish date"><input type="date" value={date} onChange={(event) => setDate(event.target.value)} className={fieldClass} /></Field>
-          <Field label="Scheduled in"><select value={schedVia} onChange={(event) => setSchedVia(event.target.value)} className={fieldClass}><option>Publer</option><option>Manually</option></select></Field>
-        </div>
-        {!post.driveLink && <p className="mt-2 text-[12px] font-semibold text-[#94600A]">Add the Drive link to the final files first (Creative panel).</p>}
-        <Button kind="primary" className="mt-3 w-full" disabled={!post.driveLink || !date} onClick={() => store.schedulePost(post.id, date, schedVia)}>Mark as scheduled</Button>
-      </>
-    );
-  } else if (post.status === "Scheduled") {
-    content = (
-      <>
-        <p className="text-[13px] text-[#55514B]">Scheduled for {shortDate(post.date)} in {post.scheduledVia ?? "Publer"}. After it goes out, add the live link.</p>
-        <div className="mt-3 flex gap-2"><input value={url} onChange={(event) => setUrl(event.target.value)} placeholder="https://… live post" aria-label="Live post link" className={fieldClass} /><Button kind="good" className="mt-1" disabled={!/^https?:/.test(url)} onClick={() => store.markLive(post.id, url)}>Live</Button></div>
-      </>
-    );
-  } else {
-    content = (
-      <div className="flex items-center gap-2 text-[14px] font-semibold text-[#17804A]"><Check size={16} />Published {post.liveUrl && <a href={post.liveUrl} target="_blank" rel="noreferrer" className="ml-auto inline-flex items-center gap-1 text-[#1F5BC4]">Open <ExternalLink size={13} /></a>}</div>
-    );
+// ─── Left, edit mode: everything the freelancer fills in, in one place ───
+function PostEditor({ post, onDone }: { post: Post; onDone: () => void }) {
+  const store = useStore();
+  const set = (patch: Partial<Post>) => store.updatePost(post.id, patch);
+  const filesRef = useRef(post.files);
+  filesRef.current = post.files;
+  const [captionTab, setCaptionTab] = useState("main");
+
+  function add(list: FileList | null) {
+    if (!list) return;
+    Array.from(list).forEach((file) => {
+      const base = { id: `f-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, name: file.name, kind: kindOf(file) };
+      if (file.size < 1_500_000) {
+        const reader = new FileReader();
+        reader.onload = () => { const next = [...filesRef.current, { ...base, src: String(reader.result) }]; filesRef.current = next; set({ files: next }); };
+        reader.readAsDataURL(file);
+      } else {
+        const next = [...filesRef.current, { ...base, src: URL.createObjectURL(file) }];
+        filesRef.current = next;
+        set({ files: next });
+      }
+    });
   }
+  const move = (index: number, delta: number) => {
+    const next = [...post.files];
+    const target = index + delta;
+    if (target < 0 || target >= next.length) return;
+    [next[index], next[target]] = [next[target], next[index]];
+    set({ files: next });
+  };
+  const toggleChannel = (item: string) => set({ platforms: post.platforms.includes(item) ? post.platforms.filter((value) => value !== item) : [...post.platforms, item] });
+  const value = captionTab === "main" ? post.copy : post.captions[captionTab] ?? "";
+  const write = (text: string) => (captionTab === "main" ? set({ copy: text }) : set({ captions: { ...post.captions, [captionTab]: text } }));
 
   return (
-    <Card className="border-[#1E2430]/15">
-      <h3 className="mb-2 text-[15px] font-bold">What happens now</h3>
-      {content}
-      {post.status === "Client approval" && isOwner(state) && <button onClick={() => store.moveBack(post.id)} className="mt-3 text-[12px] font-semibold text-[#8B867E] underline">Pull back to design</button>}
-    </Card>
+    <div className="space-y-4 rounded-2xl border-2 border-[#2F6FDB]/40 bg-white p-5">
+      <div className="flex items-center justify-between">
+        <h3 className="text-[16px] font-bold">Edit post</h3>
+        <Button kind="primary" size="sm" onClick={onDone}><Check size={14} />Done</Button>
+      </div>
+      <Field label="Title (internal)"><input value={post.title} onChange={(event) => set({ title: event.target.value, art: event.target.value })} className={fieldClass} /></Field>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Field label="Type of post"><select value={post.format} onChange={(event) => set({ format: event.target.value })} className={fieldClass}>{formats.map((item) => <option key={item}>{item}</option>)}</select></Field>
+        <Field label="Goes out on"><input type="date" value={post.date} onChange={(event) => set({ date: event.target.value })} className={fieldClass} /></Field>
+      </div>
+      <div>
+        <div className="mb-1.5 text-[12px] font-semibold text-[#55514B]">Channels</div>
+        <div className="flex flex-wrap gap-1.5">{channels.map((item) => <button key={item} onClick={() => toggleChannel(item)} aria-pressed={post.platforms.includes(item)} className={`rounded-full px-3 py-1.5 text-[12px] font-semibold ${post.platforms.includes(item) ? "bg-[#1E2430] text-white" : "bg-[#F1F0ED] text-[#6B6760]"}`}>{item}</button>)}</div>
+      </div>
+
+      <div>
+        <div className="mb-1.5 text-[12px] font-semibold text-[#55514B]">Artwork {post.format === "Carousel" ? "· slides in order" : ""}</div>
+        {post.files.length > 0 && (
+          <div className="mb-2 space-y-1.5">
+            {post.files.map((file, index) => (
+              <div key={file.id} className="flex items-center gap-2.5 rounded-xl bg-[#F6F5F2] p-1.5">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                {file.kind === "image" ? <img src={asset(file.src)} alt="" className="h-11 w-9 rounded-md object-cover" /> : <span className="grid h-11 w-9 place-items-center rounded-md bg-white text-[10px] font-bold uppercase">{file.kind}</span>}
+                <span className="min-w-0 flex-1 truncate text-[13px] font-semibold">{index + 1}. {file.name}</span>
+                <button onClick={() => move(index, -1)} disabled={index === 0} aria-label="Move up" className="rounded-lg p-1.5 disabled:opacity-30"><ArrowUp size={14} /></button>
+                <button onClick={() => move(index, 1)} disabled={index === post.files.length - 1} aria-label="Move down" className="rounded-lg p-1.5 disabled:opacity-30"><ArrowDown size={14} /></button>
+                <button onClick={() => set({ files: post.files.filter((item) => item.id !== file.id) })} aria-label={`Remove ${file.name}`} className="rounded-lg p-1.5 text-[#B83232]"><Trash2 size={14} /></button>
+              </div>
+            ))}
+          </div>
+        )}
+        <label className="flex cursor-pointer items-center justify-center gap-2 rounded-xl border-2 border-dashed border-[#C9D6EE] bg-[#F7FAFF] p-4 text-[13px] font-semibold text-[#1F5BC4] hover:bg-[#EEF4FF]">
+          <UploadCloud size={18} />Upload images, a PDF carousel or a video
+          <input type="file" multiple accept="image/*,video/*,application/pdf" className="sr-only" onChange={(event) => { add(event.target.files); event.target.value = ""; }} />
+        </label>
+      </div>
+
+      <div>
+        <div className="mb-1.5 flex flex-wrap items-center gap-1.5">
+          <span className="mr-1 text-[12px] font-semibold text-[#55514B]">Caption</span>
+          <button onClick={() => setCaptionTab("main")} className={`rounded-lg px-2.5 py-1 text-[12px] font-semibold ${captionTab === "main" ? "bg-[#EAF1FD] text-[#1F5BC4]" : "text-[#6B6760]"}`}>Same for all</button>
+          {post.platforms.map((item) => (
+            <button key={item} onClick={() => { if (post.captions[item] === undefined) set({ captions: { ...post.captions, [item]: post.copy } }); setCaptionTab(item); }} className={`rounded-lg px-2.5 py-1 text-[12px] font-semibold ${captionTab === item ? "bg-[#EAF1FD] text-[#1F5BC4]" : post.captions[item] !== undefined ? "text-[#1E2430]" : "text-[#A8A39B]"}`}>
+              {item}{post.captions[item] !== undefined ? " ✎" : ""}
+            </button>
+          ))}
+        </div>
+        <textarea value={value} onChange={(event) => write(event.target.value)} rows={7} className={`${fieldClass} leading-relaxed`} placeholder={captionTab === "main" ? "The caption used on every channel unless you write a channel version." : `Different wording for ${captionTab}.`} />
+        <div className="mt-1 flex justify-between text-[12px] text-[#8B867E]">
+          <span>{value.length} characters{captionTab !== "main" ? ` · limit ${(limits[captionTab] ?? 3000).toLocaleString()}` : ""}</span>
+          {captionTab !== "main" && <button onClick={() => { const next = { ...post.captions }; delete next[captionTab]; set({ captions: next }); setCaptionTab("main"); }} className="font-semibold text-[#B83232]">Use the main caption instead</button>}
+        </div>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Field label="Editable design link (Canva / Adobe)"><input value={post.designLink} onChange={(event) => set({ designLink: event.target.value })} placeholder="https://www.canva.com/design/…" className={fieldClass} /></Field>
+        <Field label="Final files in the client's Drive"><input value={post.driveLink} onChange={(event) => set({ driveLink: event.target.value })} placeholder="https://drive.google.com/…" className={fieldClass} /></Field>
+      </div>
+      <label className="flex items-center gap-2 text-[13px] font-semibold"><input type="checkbox" checked={post.needsExpert} onChange={(event) => set({ needsExpert: event.target.checked })} className="h-4 w-4" />Contains technical claims the client&apos;s expert must confirm</label>
+    </div>
   );
 }
 
-function Conversation({ post }: { post: Post }) {
+// ─── Right: one conversation, and the next action always at the bottom ───
+function Conversation({ post, client, mine }: { post: Post; client: Client; mine: boolean }) {
   const store = useStore();
   const { state } = store;
   const [text, setText] = useState("");
-  const names = [...state.people, ...state.freelancers].map((person) => person.name.split(" ")[0]);
+  const [changeMode, setChangeMode] = useState(false);
+  const [category, setCategory] = useState<RevisionCategory>(post.status === "Copy review" ? "Copy" : "Layout");
+  const [via, setVia] = useState("Email");
+  const [date, setDate] = useState(post.date);
+  const [url, setUrl] = useState("");
+  const end = useRef<HTMLDivElement>(null);
+  const reviewer = reviewerFor(state, client);
+  const isReviewer = state.me === reviewer || isOwner(state);
+  const isMaker = state.me === client.freelancerId || (!client.freelancerId && !isFreelancer(state));
+  const reviewing = post.status === "Copy review" || post.status === "Design review";
+  const working = post.status === "Copy in progress" || post.status === "Design in progress";
+  const openChanges = post.comments.filter((comment) => comment.kind === "change" && !comment.resolved).length;
+  const expertBlock = post.status === "Design review" && post.needsExpert && !post.expertOk;
+
+  type Line = { at: string; kind: "msg" | "event"; by: string; body: string; id?: string; change?: boolean; category?: string; resolved?: boolean };
+  const lines: Line[] = [
+    ...post.comments.map((comment) => ({ at: comment.at, kind: comment.kind === "system" ? ("event" as const) : ("msg" as const), by: comment.by, body: comment.body, id: comment.id, change: comment.kind === "change", category: comment.category, resolved: comment.resolved })),
+    ...post.history.map((event) => ({ at: event.at, kind: "event" as const, by: event.by, body: event.text })),
+  ].sort((a, b) => a.at.localeCompare(b.at));
+
+  useEffect(() => { end.current?.scrollIntoView({ block: "nearest" }); }, [lines.length]);
+
+  const send = () => {
+    const body = text.trim();
+    if (!body) return;
+    if (changeMode) { store.requestChanges(post.id, body, category); setChangeMode(false); }
+    else store.comment(post.id, body);
+    setText("");
+  };
+
+  let action: React.ReactNode = null;
+  if (reviewing && isReviewer) {
+    action = (
+      <div className="space-y-2">
+        {post.needsExpert && post.status === "Design review" && (
+          <label className={`flex items-start gap-2 rounded-xl p-2.5 text-[12px] ${post.expertOk ? "bg-[#E7F6EE]" : "bg-[#F1ECFC]"}`}>
+            <input type="checkbox" checked={post.expertOk} onChange={(event) => store.updatePost(post.id, { expertOk: event.target.checked })} className="mt-0.5 h-4 w-4" />
+            <span><b>Technical claims confirmed</b> by {client.expertReviewer || "the client's expert"}</span>
+          </label>
+        )}
+        <div className="grid grid-cols-2 gap-2">
+          <Button kind="good" disabled={expertBlock} onClick={() => store.approvePost(post.id)}><Check size={15} />Approve {post.status === "Copy review" ? "copy" : "design"}</Button>
+          <Button kind={changeMode ? "warn" : "secondary"} onClick={() => setChangeMode(!changeMode)}>Request changes</Button>
+        </div>
+      </div>
+    );
+  } else if (working && isMaker) {
+    action = (
+      <div className="space-y-2">
+        {openChanges > 0 && <p className="rounded-xl bg-[#FFF3D9] px-3 py-2 text-[12px] font-semibold text-[#94600A]">{openChanges} change{openChanges === 1 ? "" : "s"} to fix. Tick them in the chat as you go.</p>}
+        <Button kind="primary" className="w-full" onClick={() => { if (openChanges && !window.confirm("Some changes are not ticked off. Submit anyway?")) return; store.submitPost(post.id); }}>
+          Submit {post.status === "Copy in progress" ? "copy" : "design"} for review <ArrowRight size={15} />
+        </Button>
+        <p className="text-center text-[11px] text-[#8B867E]">{nameOf(state, reviewer)} is notified by email and here.</p>
+      </div>
+    );
+  } else if (post.status === "Client approval" && !isFreelancer(state)) {
+    action = (
+      <div className="space-y-2">
+        <div className="flex items-center gap-2 text-[12px]">
+          <span className="font-semibold">Client answered by</span>
+          <select value={via} onChange={(event) => setVia(event.target.value)} className="rounded-lg border border-[#E2DED7] bg-white px-2 py-1 text-[12px] font-semibold">{["Email", "Canva comment", "Drive comment", "Call", "WhatsApp"].map((item) => <option key={item}>{item}</option>)}</select>
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          <Button kind="good" onClick={() => store.logClientApproval(post.id, via, "")}><Check size={15} />Client approved</Button>
+          <Button kind={changeMode ? "warn" : "secondary"} onClick={() => { setCategory("Copy"); setChangeMode(!changeMode); }}>Client wants changes</Button>
+        </div>
+      </div>
+    );
+  } else if (post.status === "Ready to schedule" && (isMaker || !isFreelancer(state))) {
+    action = (
+      <div className="space-y-2">
+        <div className="flex gap-2"><input type="date" value={date} onChange={(event) => setDate(event.target.value)} aria-label="Publish date" className={`${fieldClass} !mt-0`} /></div>
+        {!post.driveLink && <p className="text-[12px] font-semibold text-[#94600A]">Add the Drive link to the final files first (Edit post).</p>}
+        <Button kind="primary" className="w-full" disabled={!post.driveLink || !date} onClick={() => store.schedulePost(post.id, date, "Publer")}>Scheduled in Publer</Button>
+      </div>
+    );
+  } else if (post.status === "Scheduled") {
+    action = (
+      <div className="flex gap-2">
+        <input value={url} onChange={(event) => setUrl(event.target.value)} placeholder="Live post link, once it is out" aria-label="Live post link" className={`${fieldClass} !mt-0`} />
+        <Button kind="good" disabled={!/^https?:/.test(url)} onClick={() => store.markLive(post.id, url)}>Live</Button>
+      </div>
+    );
+  }
+
+  const turn = turnOf(state, post);
   return (
-    <Card pad={false}>
-      <div className="border-b border-[#F0EEE9] px-5 py-3.5"><h3 className="text-[15px] font-bold">Comments</h3></div>
-      <div className="max-h-[420px] space-y-2.5 overflow-y-auto p-4">
-        {post.comments.map((comment) => {
-          const person = personById(state, comment.by);
-          const isChange = comment.kind === "change";
+    <div className="flex h-[min(78vh,760px)] min-h-[520px] min-w-0 flex-col overflow-hidden rounded-2xl border border-[#E9E6E0] bg-white">
+      <div className={`flex items-center gap-2.5 border-b px-4 py-3 ${mine ? "border-[#CFE0FB] bg-[#EAF1FD]" : "border-[#F0EEE9]"}`}>
+        {turn.who && !mine && <Avatar name={nameOf(state, turn.who)} color={personById(state, turn.who)?.color} size={26} />}
+        <div className="min-w-0 flex-1 leading-tight">
+          <div className="text-[11px] font-bold uppercase tracking-wide text-[#8B867E]">{mine ? "Your turn" : turn.who ? "Waiting on" : "Status"}</div>
+          <div className="truncate text-[14px] font-bold">{turn.who && !mine ? `${nameOf(state, turn.who)} · ` : ""}{turn.verb}</div>
+        </div>
+        {post.liveUrl && <a href={post.liveUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-[12px] font-semibold text-[#1F5BC4]">Live post <ExternalLink size={12} /></a>}
+      </div>
+
+      <div className="flex-1 space-y-2.5 overflow-y-auto bg-[#FBFAF8] px-4 py-4">
+        {lines.map((line, index) => {
+          if (line.kind === "event") return <div key={index} className="text-center text-[11px] text-[#9A958D]"><span className="rounded-full bg-white px-2.5 py-1">{line.body} · {nameOf(state, line.by)} · {ago(line.at)}</span></div>;
+          const own = line.by === state.me;
+          const person = personById(state, line.by);
           return (
-            <div key={comment.id} className="rounded-xl p-3" style={{ background: isChange ? (comment.resolved ? tone.green.bg : "#FFF6EC") : comment.kind === "system" ? "#F6F5F2" : "#F8F7F4" }}>
-              <div className="flex items-center gap-2 text-[12px]">
-                {comment.by === "client" ? <Chip t="blue">Client</Chip> : <Avatar name={person?.name ?? "?"} color={person?.color} size={20} />}
-                <b>{comment.by === "client" ? "" : person?.name}</b>
-                {isChange && <Chip t={comment.resolved ? "green" : "amber"}>{comment.resolved ? "Done" : `Change · ${comment.category}`}</Chip>}
-                <span className="ml-auto text-[#A8A39B]">{ago(comment.at)}</span>
+            <div key={index} className={`flex gap-2 ${own ? "flex-row-reverse" : ""}`}>
+              {line.by === "client" ? <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-[#E0A325] text-[11px] font-bold text-white">C</span> : <Avatar name={person?.name ?? "?"} color={person?.color} size={28} />}
+              <div className={`max-w-[80%] rounded-2xl px-3.5 py-2.5 ${line.change ? (line.resolved ? "bg-[#E7F6EE]" : "bg-[#FFF1E2] ring-1 ring-[#F5CFA3]") : own ? "bg-[#2F6FDB] text-white" : "bg-white ring-1 ring-[#ECE9E3]"}`}>
+                <div className={`mb-0.5 flex items-center gap-1.5 text-[11px] font-bold ${own && !line.change ? "text-white/80" : "text-[#6B6760]"}`}>
+                  {line.by === "client" ? "Client" : person?.name}
+                  {line.change && <span className={line.resolved ? "text-[#17804A]" : "text-[#C2620F]"}>{line.resolved ? "✓ fixed" : `change · ${line.category}`}</span>}
+                  <span className="font-normal opacity-70">{ago(line.at)}</span>
+                </div>
+                <p className="whitespace-pre-wrap text-[13px] leading-relaxed">{line.body}</p>
+                {line.change && line.id && <button onClick={() => store.resolveChange(post.id, line.id!)} className="mt-1 text-[12px] font-bold text-[#1F5BC4]">{line.resolved ? "Reopen" : "Mark as fixed"}</button>}
               </div>
-              <p className="mt-1.5 whitespace-pre-wrap text-[13px] leading-relaxed">{comment.body}</p>
-              {isChange && <button onClick={() => store.resolveChange(post.id, comment.id)} className="mt-1.5 text-[12px] font-semibold text-[#1F5BC4]">{comment.resolved ? "Reopen" : "Mark as fixed"}</button>}
             </div>
           );
         })}
-        {post.comments.length === 0 && <p className="text-[13px] text-[#8B867E]">No comments yet.</p>}
+        {lines.length === 0 && <p className="pt-10 text-center text-[13px] text-[#8B867E]">No messages yet. Questions, feedback and change requests go here.</p>}
+        <div ref={end} />
       </div>
-      <div className="border-t border-[#F0EEE9] p-4">
-        <textarea value={text} onChange={(event) => setText(event.target.value)} rows={2} placeholder="Write a comment. Type @Name to notify someone." aria-label="Comment" className="w-full rounded-xl border border-[#E2DED7] px-3 py-2 text-[13px] outline-none focus:border-[#2F6FDB]" />
-        <div className="mt-2 flex flex-wrap items-center gap-1">
-          {names.filter((name) => name !== state.people.concat(state.freelancers).find((p) => p.id === state.me)?.name.split(" ")[0]).slice(0, 6).map((name) => <button key={name} onClick={() => setText((value) => `${value}${value && !value.endsWith(" ") ? " " : ""}@${name} `)} className="rounded-md bg-[#F1F0ED] px-1.5 py-0.5 text-[11px] font-semibold text-[#55514B]">@{name}</button>)}
-          <Button size="sm" kind="primary" className="ml-auto" onClick={() => { if (!text.trim()) return; store.comment(post.id, text.trim()); setText(""); }}>Comment</Button>
+
+      <div className="space-y-2.5 border-t border-[#F0EEE9] p-3">
+        {action}
+        {changeMode && (
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="text-[12px] font-semibold text-[#C2620F]">What kind of change?</span>
+            {categories.map((item) => <button key={item} onClick={() => setCategory(item)} className={`rounded-lg px-2.5 py-1 text-[12px] font-semibold ${category === item ? "bg-[#E8862A] text-white" : "bg-[#FFF1E2] text-[#94600A]"}`}>{item}</button>)}
+            <button onClick={() => setChangeMode(false)} aria-label="Cancel change request" className="ml-auto text-[#8B867E]"><X size={15} /></button>
+          </div>
+        )}
+        <div className={`flex items-end gap-2 rounded-2xl border p-1.5 ${changeMode ? "border-[#F5CFA3] bg-[#FFF8F0]" : "border-[#E2DED7]"}`}>
+          <textarea value={text} onChange={(event) => setText(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); send(); } }} rows={2} placeholder={changeMode ? "Describe the change. The freelancer will tick it off." : "Message… (@name to notify someone)"} aria-label="Message" className="min-h-[44px] flex-1 resize-none bg-transparent px-2 py-1.5 text-[13px] outline-none" />
+          <Button kind={changeMode ? "warn" : "primary"} size="sm" onClick={send} disabled={!text.trim()}>{changeMode ? "Send changes" : "Send"}</Button>
         </div>
       </div>
-    </Card>
+    </div>
   );
 }
+

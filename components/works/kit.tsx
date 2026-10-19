@@ -155,3 +155,39 @@ export function Stepper({ steps, current, done = false }: { steps: string[]; cur
     </ol>
   );
 }
+
+/** Attach a file (kept if small) or paste a link. Shows the attachment once added. */
+export function AttachField({ value, onChange, label = "Attach", compact = false }: { value?: { name: string; url: string }; onChange: (file: { name: string; url: string } | undefined) => void; label?: string; compact?: boolean }) {
+  if (value)
+    return (
+      <span className="inline-flex max-w-full items-center gap-2 rounded-xl bg-[#E7F6EE] px-3 py-1.5 text-[12px] font-semibold text-[#17804A]">
+        <a href={value.url} target="_blank" rel="noreferrer" download={value.url.startsWith("data:") ? value.name : undefined} className="truncate hover:underline">{value.name}</a>
+        <button onClick={() => onChange(undefined)} aria-label={`Remove ${value.name}`} className="shrink-0 text-[#8B867E] hover:text-[#B83232]">×</button>
+      </span>
+    );
+  const pickFile = (file?: File) => {
+    if (!file) return;
+    if (file.size < 1_500_000) {
+      const reader = new FileReader();
+      reader.onload = () => onChange({ name: file.name, url: String(reader.result) });
+      reader.readAsDataURL(file);
+    } else onChange({ name: file.name, url: URL.createObjectURL(file) });
+  };
+  return (
+    <span className="inline-flex flex-wrap items-center gap-1.5">
+      <label className={`cursor-pointer rounded-xl border border-dashed border-[#C9C3B8] bg-white font-semibold text-[#3D4450] hover:border-[#2F6FDB] hover:text-[#1F5BC4] ${compact ? "px-2.5 py-1 text-[12px]" : "px-3 py-1.5 text-[12px]"}`}>
+        {label}
+        <input type="file" className="sr-only" onChange={(event) => { pickFile(event.target.files?.[0]); event.target.value = ""; }} />
+      </label>
+      <button
+        onClick={() => {
+          const url = window.prompt("Paste the link (Drive, Docs, Canva…)");
+          if (url && /^https?:\/\//.test(url.trim())) onChange({ name: url.replace(/^https?:\/\/(www\.)?/, "").slice(0, 40), url: url.trim() });
+        }}
+        className={`rounded-xl font-semibold text-[#1F5BC4] hover:bg-[#EEF2FA] ${compact ? "px-2 py-1 text-[12px]" : "px-2.5 py-1.5 text-[12px]"}`}
+      >
+        or link
+      </button>
+    </span>
+  );
+}
