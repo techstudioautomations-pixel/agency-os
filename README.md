@@ -36,3 +36,11 @@ The supplied client fees and named freelancer allocations are seeded into a publ
 
 
 The Operations area includes Garrett’s plain-language explainer, an editable client-stage board, repeatable onboarding/security/delivery/reporting SOPs, and a freelancer directory template with skill, rate, availability, NDA, payment method, and backup fields. Financials adds an expense and freelancer payout ledger with recurring/custom frequency, due dates, payment status, and Revolut reconciliation references. These records are browser-only in the public demo.
+
+## Content workflow in this local version
+
+Each marketing project now starts with a client profile containing strategy and Brand Kit fields. The content pipeline shows counts and the next owner for each stage. The existing Ideas & assets tab accepts individual ideas or bulk `.txt`, `.md`, `.csv`, and `.json` lists, presents imported drafts for review, and records the approver's yellow carousel, blue text, red irrelevant, or green created decision. Creating a post from an approved idea keeps the idea and links the resulting draft. Research sources, inspiration, and categorized industry accounts live beside the ideas. Industry account lists accept CSV with `name`, `url`, `category`, and `note` columns. Excel files should be exported as CSV first.
+
+The post detail allows a freelancer to save a new creative/caption version after feedback and submit it again. After approval, the freelancer or agency can record a manual or Publer schedule date and later mark the post published. Schedule and live URLs are optional. These are manual status records; no Publer API or publishing automation is connected.
+
+Weekly report creation accepts an attached source document. Text, Markdown, and CSV can suggest metrics and narrative in an editable draft; PDF and Word files remain attached references that require manual entry. Screenshots and images can be added to report sections. The app does not claim to extract figures or images from PDF/Word, and all imported values must be reviewed before saving. Report sharing to the client preview remains a separate internal decision. All changes are browser-only until a backend, authenticated roles, durable storage, and notifications are implemented.
