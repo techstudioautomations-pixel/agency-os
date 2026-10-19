@@ -5,7 +5,7 @@ import { clientChecklistTemplate, makeChecklist, seedState } from "./seed";
 import { canBeAssigned, nameOf, reviewerFor, todayIso } from "./logic";
 import type { CheckItem, Client, Idea, Lead, MonthReport, Notice, Post, ReportNumbers, RevisionCategory, Route, State } from "./types";
 
-const KEY = "theworks-os-v2";
+const KEY = "theworks-os-v3";
 const uid = (prefix: string) => `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
 const stamp = () => new Date().toISOString();
 
@@ -63,7 +63,7 @@ function useStoreValue() {
       const saved = window.localStorage.getItem(KEY);
       if (saved) {
         const parsed = JSON.parse(saved) as State;
-        if (parsed.version === 2) setState(parsed);
+        if (parsed.version === 3) setState(parsed);
       }
     } catch {
       /* private mode or corrupt data: start from the sample */

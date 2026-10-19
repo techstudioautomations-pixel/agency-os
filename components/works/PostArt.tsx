@@ -90,7 +90,10 @@ export function PostArt({ post, client, className = "", rounded = "rounded-xl", 
       <div className={base} style={{ background: variant === 1 ? shade(color, 0.88) : color }}>
         <div className="absolute -right-[18cqw] -top-[18cqw] h-[62cqw] w-[62cqw] rounded-full" style={{ border: `9cqw solid ${variant === 1 ? shade(color, 0.6) : shade(color, 0.18)}` }} />
         <div className={`relative flex h-full flex-col justify-between p-[7cqw] ${variant === 1 ? "" : "text-white"}`}>
-          <Logo client={client} dark={variant !== 1} />
+          <div className="flex items-start justify-between gap-[3cqw]">
+            <span className="pt-[1cqw] text-[3.3cqw] font-extrabold uppercase tracking-[.16em]" style={{ color: variant === 1 ? color : shade(color, 0.65) }}>{client.name} • {post.format}</span>
+            <Logo client={client} dark={variant !== 1} />
+          </div>
           <div>
             <div className={`${size} whitespace-pre-line font-extrabold leading-[1.04] tracking-tight`} style={variant === 1 ? { color: shade(color, -0.35) } : undefined}>{headline}</div>
             <div className="mt-[5cqw] flex items-center gap-[1.5cqw]">
@@ -109,7 +112,10 @@ export function PostArt({ post, client, className = "", rounded = "rounded-xl", 
       <div className="absolute inset-x-0 bottom-0 h-[42%]" style={{ background: `linear-gradient(135deg, ${color}, ${shade(color, -0.3)})` }} />
       <div className="absolute bottom-[30%] right-[7cqw] h-[26cqw] w-[26cqw] rounded-[5cqw] rotate-6" style={{ background: shade(color, 0.7) }} />
       <div className="relative flex h-full flex-col p-[7cqw]">
-        <Logo client={client} />
+        <div className="flex items-start justify-between gap-[3cqw]">
+          <span className="pt-[1cqw] text-[3.3cqw] font-extrabold uppercase tracking-[.16em]" style={{ color }}>{client.name} • {post.platforms[0] ?? "Post"}</span>
+          <Logo client={client} />
+        </div>
         <div className={`${size} mt-[7cqw] max-w-[88%] whitespace-pre-line font-extrabold leading-[1.05] tracking-tight text-[#1E2430]`}>{headline}</div>
         <div className="mt-auto text-[3.6cqw] font-bold uppercase tracking-[.12em] text-white/90">{post.format === "Newsletter" ? "Newsletter" : post.platforms[0] ?? ""}</div>
       </div>

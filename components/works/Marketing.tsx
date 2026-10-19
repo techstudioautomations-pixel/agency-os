@@ -95,10 +95,10 @@ export function PostTile({ post, showClient, scope }: { post: Post; showClient: 
     <button onClick={() => go({ view: "marketing", clientId: scope, postId: post.id })} className={`group flex min-w-0 flex-col overflow-hidden rounded-2xl border bg-white text-left transition hover:-translate-y-0.5 hover:shadow-[0_10px_28px_rgba(30,36,48,.10)] ${mine ? "border-[#2F6FDB] shadow-[0_0_0_2px_rgba(47,111,219,.18)]" : "border-[#E9E6E0]"}`}>
       <div className="relative">
         <PostArt post={post} client={client} rounded="rounded-none" />
-        {showClient && <span className="absolute left-2 top-2 flex items-center gap-1.5 rounded-full bg-white/95 py-0.5 pl-0.5 pr-2 text-[11px] font-bold shadow-sm"><ClientMark client={client} size={18} />{client.name}</span>}
         <span className="absolute bottom-2 left-2"><Chip t={status.t} className="shadow-sm">{status.label}</Chip></span>
       </div>
       <div className="flex flex-1 flex-col p-3">
+        {showClient && <div className="mb-1 flex items-center gap-1.5 text-[11px] font-bold text-[#55514B]"><ClientMark client={client} size={16} />{client.name}</div>}
         <div className="line-clamp-2 text-[13px] font-bold leading-snug">{post.title}</div>
         <div className="mt-1 flex items-center gap-1.5 text-[11px] text-[#8B867E]">
           <span>{post.format}</span>·<span>{post.platforms.join(", ")}</span>

@@ -24,7 +24,7 @@ function Strip({ title, sub, posts, empty, onAll }: { title: string; sub: string
         <div className="flex items-center gap-2 rounded-2xl border border-[#E9E6E0] bg-white px-5 py-4 text-[14px] font-semibold text-[#17804A]"><CheckCircle2 size={17} />{empty}</div>
       ) : (
         <div className="-mx-1 flex gap-3 overflow-x-auto px-1 pb-2">
-          {posts.slice(0, 8).map((post) => {
+          {posts.slice(0, 12).map((post) => {
             const client = state.clients.find((item) => item.id === post.clientId)!;
             const status = statusTone(post);
             const turn = turnOf(state, post);
@@ -32,9 +32,9 @@ function Strip({ title, sub, posts, empty, onAll }: { title: string; sub: string
               <button key={post.id} onClick={() => go({ view: "marketing", clientId: "all", postId: post.id })} className="w-[168px] shrink-0 overflow-hidden rounded-2xl border border-[#E9E6E0] bg-white text-left transition hover:-translate-y-0.5 hover:shadow-[0_10px_28px_rgba(30,36,48,.10)] sm:w-[188px]">
                 <div className="relative">
                   <PostArt post={post} client={client} rounded="rounded-none" />
-                  <span className="absolute left-2 top-2 flex items-center gap-1 rounded-full bg-white/95 py-0.5 pl-0.5 pr-2 text-[11px] font-bold shadow-sm"><ClientMark client={client} size={18} />{client.name}</span>
                 </div>
                 <div className="p-2.5">
+                  <div className="mb-1 flex items-center gap-1.5 text-[11px] font-bold text-[#55514B]"><ClientMark client={client} size={16} />{client.name}</div>
                   <div className="line-clamp-2 text-[12px] font-bold leading-snug">{post.title}</div>
                   <div className="mt-1.5"><Chip t={turn.who === state.me ? "blue" : status.t} className="!text-[11px]">{turn.who === state.me ? turn.verb : status.label}</Chip></div>
                 </div>

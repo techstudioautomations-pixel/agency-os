@@ -409,12 +409,27 @@ export const posts: Post[] = [
     id: "h2", clientId: "housebuild", title: "Timber span: 4 things decide it", format: "Carousel", platforms: ["Instagram", "LinkedIn"], pillarId: "pl1", status: "Design review", date: day(23), waitingSince: ago(1),
     copy: "Timber grade, joist size, spacing and load all affect the answer. Guidance only. Confirm with your engineer.",
     captions: { LinkedIn: "Architects ask us this every week: what actually decides a timber span? Four things. Here is how each one changes the answer. Guidance only. Confirm with your engineer." },
-    files: [img("f2", "/posts/timber-span-2.jpg"), img("f3", "/posts/timber-span-4.jpg"), img("f4", "/posts/timber-span-5.jpg")],
+    files: [img("f2", "/posts/housebuild-span-cover.jpg"), img("f2b", "/posts/housebuild-span-four-things.jpg"), img("f3", "/posts/timber-span-4.jpg"), img("f4", "/posts/timber-span-5.jpg")],
     designLink: "https://www.canva.com/", needsExpert: true, expertOk: false,
   }),
-  post({ id: "h3", clientId: "housebuild", title: "Every opening has a structural rule behind it", platforms: ["Instagram"], pillarId: "pl2", status: "Scheduled", date: day(22), copy: "Review openings guidance on HouseBuild.", files: [img("f5", "/posts/structure-image.jpg")], scheduledVia: "Publer", needsExpert: true, expertOk: true }),
+  post({ id: "h3", clientId: "housebuild", title: "Every opening has a structural rule behind it", platforms: ["Instagram"], pillarId: "pl2", status: "Scheduled", date: day(22), copy: "Every opening in a wall needs support above it. Review the openings guidance on HouseBuild before you cut.", files: [img("f5", "/posts/housebuild-openings.jpg")], scheduledVia: "Publer", needsExpert: true, expertOk: true }),
+  post({
+    id: "h5", clientId: "housebuild", title: "What will your build really cost?", format: "Carousel", platforms: ["Instagram", "LinkedIn"], pillarId: "pl1", status: "Client approval", date: day(26), waitingSince: ago(1),
+    copy: "Design fees, structural sign-off, BER, site surveys: the costs most self-builders forget. Our cost calculator lists them line by line so nothing surprises you.",
+    captions: { LinkedIn: "Most self-build budgets miss the professional fees: design, structural sign-off, BER and surveys. The HouseBuild cost calculator lists every line so clients see the real number up front." },
+    files: [img("f6", "/posts/housebuild-cost-calculator.jpg")], designLink: "https://www.canva.com/",
+  }),
+  post({ id: "h6", clientId: "housebuild", title: "Timber only performs to its grade if it's stored right", platforms: ["Instagram"], pillarId: "pl3", status: "Published", date: day(8), copy: "Off the ground, covered, ventilated. Storage and protection of materials on housebuild.com.", files: [img("f7", "/posts/housebuild-timber-storage.jpg")], liveUrl: "https://www.instagram.com/" }),
   post({ id: "h4", clientId: "housebuild", title: "5 site checks before winter", format: "Carousel", platforms: ["Instagram"], pillarId: "pl3", status: "Copy review", date: day(27), waitingSince: ago(0), copy: "A quick site walk-through can prevent costly surprises when the weather turns: drainage, covers, scaffolding ties, stored materials, access routes.", art: "Five site checks before winter" }),
 
+  post({
+    id: "m8", clientId: "marker", title: "Marker Group: one partner for delivery, compliance and safety", format: "Carousel", platforms: ["LinkedIn", "Instagram"], pillarId: "pl3", status: "Design review", date: day(28), waitingSince: ago(2),
+    copy: "One partner for project delivery, compliance and building safety. Project management, building control and certification, ESG, fire engineering and access, across the UK and Ireland since 2007.",
+    captions: { Instagram: "One partner. Multiple areas of expertise. Swipe to see what we do and where we work. Follow for practical updates on building safety, Gateway approvals and fire strategy." },
+    files: [img("mk1", "/posts/marker-01-hero.webp"), img("mk2", "/posts/marker-02-what-we-do.webp"), img("mk3", "/posts/marker-03-fire-access.webp"), img("mk4", "/posts/marker-04-where-we-work.png"), img("mk5", "/posts/marker-05-stay-informed.webp")],
+    designLink: "https://www.canva.com/", needsExpert: true, expertOk: false,
+    comments: [{ id: "mkc1", by: "chelsie", body: "Five slides: intro, services, fire & access, where we work, follow CTA. Copy is from their capability statement.", at: ago(2), kind: "comment" }],
+  }),
   post({ id: "m6", clientId: "marker", title: "Fire door signage: what each sign means", format: "Carousel", pillarId: "pl2", status: "Published", date: day(9), copy: "Five signs, five meanings. Save this for your next walk-round.", liveUrl: "https://www.linkedin.com/", art: "What each fire door sign means" }),
   post({ id: "m7", clientId: "marker", title: "A day on inspection with our team", format: "Reel", pillarId: "pl3", status: "Scheduled", date: day(17), copy: "From the first door to the final report.", scheduledVia: "Publer", art: "A day on inspection" }),
   post({ id: "b0", clientId: "buildregs", title: "Who signs off what under building control?", format: "Carousel", pillarId: "pl2", status: "Published", date: day(7), copy: "Owner, designer, builder, assigned certifier: who is responsible for what.", liveUrl: "https://www.linkedin.com/", art: "Who signs off what?" }),
@@ -476,7 +491,7 @@ export const leads: Lead[] = [
 
 export function seedState(): State {
   return {
-    version: 2,
+    version: 3,
     me: "maria",
     month: thisMonth,
     people,
