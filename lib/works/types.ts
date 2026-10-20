@@ -173,6 +173,13 @@ export type ClientSection = { id: string; label: string; color: string; blurb: s
 
 export type ClientAsset = {
   id: string;
+  /** Extra work can be given to a freelancer. It then shows up for them until it is made. */
+  assignedTo?: string;
+  /** Turn an assignment off without removing it. Treated as on when not set. */
+  active?: boolean;
+  due?: string;
+  /** What the freelancer needs to know to make it. */
+  brief?: string;
   /** The asset in Settings this was copied from. Custom assets have none. */
   assetId?: string;
   name: string;
@@ -255,6 +262,10 @@ export type Post = {
   id: string;
   clientId: string;
   ideaId?: string;
+  /** Extra work, such as a brochure. It does not count towards the monthly posts. */
+  extra?: boolean;
+  /** What kind of extra it is, for example "Brochure". */
+  extraType?: string;
   /** Who the freelancer chose to review it. Falls back to the usual reviewer. */
   reviewerId?: string;
   title: string;
@@ -290,6 +301,9 @@ export type Post = {
 export type PostDraft = {
   clientId: string;
   ideaId?: string;
+  extra?: boolean;
+  extraType?: string;
+  assetId?: string;
   title: string;
   format: string;
   platforms: string[];

@@ -7,7 +7,7 @@ const para = (value: string) => (value.trim() ? esc(value).replace(/\n/g, "<br>"
 export type MonthFacts = { published: number; agreed: number; revisions: Record<RevisionCategory, number>; posts: Post[] };
 
 export function monthFacts(client: Client, month: string, posts: Post[]): MonthFacts {
-  const list = posts.filter((post) => post.clientId === client.id && post.date.startsWith(month));
+  const list = posts.filter((post) => post.clientId === client.id && post.date.startsWith(month) && !post.extra);
   const revisions = { Brand: 0, Copy: 0, Layout: 0, Factual: 0 } as Record<RevisionCategory, number>;
   list.forEach((post) => post.comments.forEach((comment) => { if (comment.kind === "change" && comment.category) revisions[comment.category] += 1; }));
   return { published: list.filter((post) => post.status === "Published").length, agreed: client.agreedPosts, revisions, posts: list };

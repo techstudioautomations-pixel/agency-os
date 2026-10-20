@@ -13,6 +13,7 @@ import { MonthChecklist } from "./Monthly";
 import { ReviewMode } from "./ReviewMode";
 import { PackPane, packDocs, type DocKey } from "./StarterPack";
 import { Results } from "./Results";
+import { ExtraWork } from "./ExtraWork";
 import { researchFromFile, researchFromText, type Research } from "@/lib/works/research";
 import { AttachField, Avatar, Button, Card, CardHead, Chip, ClientMark, Empty, Field, Segmented, fieldClass, tone } from "./kit";
 
@@ -170,6 +171,7 @@ export function PostTile({ post, showClient, scope, onOpen }: { post: Post; show
       <div className="relative">
         <PostArt post={post} client={client} rounded="rounded-none" />
         <span className="absolute bottom-2 left-2"><Chip t={status.t} className="shadow-sm">{status.label}</Chip></span>
+        {post.extra && <span className="absolute right-2 top-2 rounded-full bg-[#1E2430] px-2.5 py-1 text-[11px] font-bold text-white shadow">{post.extraType ?? "Extra"}</span>}
       </div>
       <div className="flex flex-1 flex-col p-3">
         {showClient && <div className="mb-1 flex items-center gap-1.5 text-[11px] font-bold text-[#55514B]"><ClientMark client={client} size={16} />{client.name}</div>}
@@ -223,10 +225,11 @@ function PostBoard({ client, scope, initial }: { client?: Client; scope: string;
       <div className="flex flex-wrap items-center justify-between gap-3">
         <Segmented value={filter} onChange={setFilter} options={order.map((key) => ({ value: key, label: labels[key], count: posts.filter(groups[key]).length }))} />
         <div className="flex items-center gap-3 text-[13px]">
-          <span className="font-semibold text-[#55514B]">{posts.length} of {agreed} agreed posts planned</span>
+          <span className="font-semibold text-[#55514B]">{posts.filter((post) => !post.extra).length} of {agreed} agreed posts planned{posts.some((post) => post.extra) ? ` · ${posts.filter((post) => post.extra).length} extra` : ""}</span>
           <Button kind="primary" onClick={() => openPostWizard({ clientId: client?.id })}><Plus size={15} />Create post</Button>
         </div>
       </div>
+      {freelancer && <ExtraWork personId={state.me} compact />}
       {reviewing && <ReviewMode ids={reviewing.ids} start={reviewing.start} onClose={() => setReviewing(null)} />}
       {filter === order[0] && shown.length === 0 && (
         <div className="flex items-center gap-3 rounded-2xl border border-[#CFE8D9] bg-[#EAF6EF] px-5 py-4 text-[14px] font-semibold text-[#17804A]"><Check size={18} />{freelancer ? "Nothing needs you right now." : "Nothing is waiting for your approval."}</div>
@@ -268,7 +271,8 @@ function PlanCalendar({ client, scope }: { client?: Client; scope: string }) {
   const posts = state.posts.filter((post) => (client ? post.clientId === client.id : clients.some((c) => c.id === post.clientId)) && post.date.startsWith(state.month));
   const today = todayIso();
   const fromDay = state.month === today.slice(0, 7) ? Number(today.slice(8, 10)) + 1 : state.month < today.slice(0, 7) ? 99 : 1;
-  const missingCount = client ? Math.max(0, agreedFor(client, state.month) - posts.length) : 0;
+  const planned = posts.filter((post) => !post.extra).length;
+  const missingCount = client ? Math.max(0, agreedFor(client, state.month) - planned) : 0;
   const freeSlots = client ? suggestedDays(year, month, missingCount, fromDay).filter((day) => !posts.some((post) => post.date === `${state.month}-${String(day).padStart(2, "0")}`)) : [];
 
   return (

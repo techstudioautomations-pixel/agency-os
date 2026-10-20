@@ -4,16 +4,21 @@ import { useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, FilePlus2, Lightbulb, Maximize2, Send, Trash2, UploadCloud, X } from "lucide-react";
 import { useStore } from "@/lib/works/store";
-import { agreedFor, isMarketing, monthName, myClients, reviewerFor, shiftMonth } from "@/lib/works/logic";
+import { agreedFor, isMarketing, monthName, myClients, reviewerFor, shiftMonth, shortDate } from "@/lib/works/logic";
 import type { PostFile } from "@/lib/works/types";
 import { Button, ClientMark, Field, fieldClass } from "./kit";
 import { Lightbox } from "./Lightbox";
 import { CtaPicker } from "./CtaPicker";
 
-const formats = ["Carousel", "Single image", "Reel", "Text post", "Newsletter"] as const;
+const formats = ["Carousel", "Text post", "Single image", "Reel", "Document", "Newsletter"] as const;
+const formatLabel: Record<string, string> = { Reel: "Video / Reel", Document: "PDF / document", "Single image": "Image only", "Text post": "Text only" };
+type Format = (typeof formats)[number];
+/** Extra work can be made of anything, so it accepts any of these files. */
+const extraAttach = { accept: "image/*,video/*,application/pdf,.doc,.docx,.ppt,.pptx", multiple: true, label: "Upload the files", hint: "Images, a PDF, a video or documents." };
+const formatFor = (value: string): Format => ((formats as readonly string[]).includes(value) ? (value as Format) : value === "Video" ? "Reel" : "Document");
 const channels = ["LinkedIn", "Instagram", "Facebook", "TikTok", "Newsletter"];
 const steps = ["For", "From", "What", "Content", "Review"];
-const titles = ["What is this post for?", "Where does it come from?", "What kind of post is it?", "Add the words and the files", "Who reviews it?"];
+const titles = ["What is this for?", "Where does it come from?", "What kind of post is it?", "Add the words and the files", "Who reviews it?"];
 
 /** What can be attached for each kind of post. */
 const attach: Record<(typeof formats)[number], { accept: string; multiple: boolean; label: string; hint: string }> = {
@@ -22,6 +27,7 @@ const attach: Record<(typeof formats)[number], { accept: string; multiple: boole
   Reel: { accept: "video/*", multiple: false, label: "Upload the video", hint: "One video file." },
   "Text post": { accept: "image/*", multiple: false, label: "Add an image (optional)", hint: "A text post does not need one." },
   Newsletter: { accept: "application/pdf,image/*,.doc,.docx", multiple: true, label: "Upload the newsletter files", hint: "A PDF, a document or images." },
+  Document: { accept: "application/pdf,.doc,.docx,.ppt,.pptx,image/*", multiple: true, label: "Upload the PDF or files", hint: "A PDF, a document or images." },
 };
 
 const kindOf = (file: File): PostFile["kind"] => (file.type.startsWith("image/") ? "image" : file.type === "application/pdf" ? "pdf" : file.type.startsWith("video/") ? "video" : "other");
@@ -30,7 +36,7 @@ const pad = (value: number) => String(value).padStart(2, "0");
 export function NewPostWizard() {
   const { postWizard } = useStore();
   if (!postWizard.open || typeof document === "undefined") return null;
-  return createPortal(<Wizard key={`${postWizard.clientId ?? ""}-${postWizard.ideaId ?? ""}`} />, document.body);
+  return createPortal(<Wizard key={`${postWizard.clientId ?? ""}-${postWizard.ideaId ?? ""}-${postWizard.assetId ?? ""}`} />, document.body);
 }
 
 function Wizard() {
@@ -38,6 +44,7 @@ function Wizard() {
   const clients = myClients(state).filter(isMarketing);
   const idea = state.ideas.find((item) => item.id === postWizard.ideaId);
   const firstClient = idea?.clientId ?? postWizard.clientId ?? (clients.length === 1 ? clients[0].id : "");
+  const startAsset = postWizard.assetId ? state.clients.flatMap((item) => item.assets).find((item) => item.id === postWizard.assetId) : undefined;
 
   const [step, setStep] = useState(0);
   const [clientId, setClientId] = useState(firstClient);
@@ -45,8 +52,12 @@ function Wizard() {
   const [date, setDate] = useState(`${state.month}-${pad(state.settings.dates.schedule)}`);
   const [source, setSource] = useState<"idea" | "new">(idea ? "idea" : "new");
   const [ideaId, setIdeaId] = useState(idea?.id ?? "");
-  const [title, setTitle] = useState(idea?.title ?? "");
-  const [format, setFormat] = useState<(typeof formats)[number]>((formats as readonly string[]).includes(idea?.format ?? "") ? (idea!.format as (typeof formats)[number]) : "Carousel");
+  const [title, setTitle] = useState(idea?.title ?? startAsset?.name ?? "");
+  const [kind, setKind] = useState<"plan" | "extra">(startAsset ? "extra" : "plan");
+  const [planAsset, setPlanAsset] = useState("");
+  const [extraPick, setExtraPick] = useState(startAsset ? `asset:${startAsset.id}` : "");
+  const [extraName, setExtraName] = useState("");
+  const [format, setFormat] = useState<Format>(startAsset ? formatFor(startAsset.format) : formatFor(idea?.format ?? "Carousel"));
   const [platforms, setPlatforms] = useState<string[]>([]);
   const [copy, setCopy] = useState(idea?.angle ?? "");
   const [different, setDifferent] = useState(false);
@@ -60,12 +71,19 @@ function Wizard() {
 
   const client = clients.find((item) => item.id === clientId);
   const approved = state.ideas.filter((item) => item.clientId === clientId && item.decision === "Approved" && !item.postId);
-  const planned = client ? state.posts.filter((post) => post.clientId === client.id && post.date.startsWith(month)).length : 0;
+  const planned = client ? state.posts.filter((post) => post.clientId === client.id && post.date.startsWith(month) && !post.extra).length : 0;
+  const planAssets = client?.assets.filter((asset) => asset.source === "package") ?? [];
+  const clientExtras = client?.assets.filter((asset) => asset.kind === "extra" && asset.source !== "package") ?? [];
+  const libraryExtras = state.settings.assets.filter((asset) => asset.kind === "extra" && !client?.assets.some((entry) => entry.assetId === asset.id));
+  const pickedAsset = extraPick.startsWith("asset:") ? clientExtras.find((asset) => asset.id === extraPick.slice(6)) : undefined;
+  const pickedLibrary = extraPick.startsWith("lib:") ? libraryExtras.find((asset) => asset.id === extraPick.slice(4)) : undefined;
+  const extraType = kind === "extra" ? (pickedAsset?.name ?? pickedLibrary?.name ?? (extraName.trim() || "Extra")) : undefined;
+  const madeThisMonth = (assetId: string) => state.posts.filter((post) => post.assetId === assetId && post.date.startsWith(month)).length;
   const reviewers = state.people.filter((person) => person.role !== "freelancer");
   const defaultReviewer = client ? reviewerFor(state, client) : "";
   const channelList = client ? [...new Set([...client.platforms, ...channels])] : channels;
   const picked = platforms.length ? platforms : client?.platforms.slice(0, 1) ?? [];
-  const rule = attach[format];
+  const rule = kind === "extra" ? extraAttach : attach[format];
   const day = Number(date.slice(8, 10)) || 1;
   const useDifferent = picked.length > 1 && different;
   const tab = useDifferent ? (picked.includes(captionTab) ? captionTab : picked[0]) : "";
@@ -77,13 +95,19 @@ function Wizard() {
     setMonth(value);
     setDate(`${value}-${pad(Math.min(state.settings.dates.schedule, 28))}`);
   };
+  const chooseExtra = (value: string) => {
+    setExtraPick(value);
+    const asset = value.startsWith("asset:") ? clientExtras.find((entry) => entry.id === value.slice(6)) : value.startsWith("lib:") ? libraryExtras.find((entry) => entry.id === value.slice(4)) : undefined;
+    if (asset) { setFormat(formatFor(asset.format)); setTitle(asset.name); }
+    setFiles([]);
+  };
   const chooseIdea = (id: string) => {
     setIdeaId(id);
     const found = state.ideas.find((item) => item.id === id);
     if (found) {
       setTitle(found.title);
       if (!copy.trim() && found.angle) setCopy(found.angle);
-      if ((formats as readonly string[]).includes(found.format)) setFormat(found.format as (typeof formats)[number]);
+      setFormat(formatFor(found.format));
     }
   };
   const addFiles = (list: FileList | null) => {
@@ -105,15 +129,15 @@ function Wizard() {
   const move = (index: number, delta: number) => setFiles((current) => { const next = [...current]; const to = index + delta; if (to < 0 || to >= next.length) return current; [next[index], next[to]] = [next[to], next[index]]; return next; });
 
   const valid = [
-    Boolean(client) && Boolean(date),
-    source === "new" ? title.trim().length > 0 : Boolean(ideaId),
+    Boolean(client) && Boolean(date) && (kind === "plan" || (Boolean(extraPick) && (extraPick !== "other" || extraName.trim().length > 0))),
+    kind === "extra" || source === "new" ? title.trim().length > 0 : Boolean(ideaId),
     true,
     true,
     true,
   ];
   const finish = (send: boolean) => {
     if (!client) return;
-    const id = createPost({ clientId: client.id, ideaId: source === "idea" ? ideaId : undefined, title: title.trim() || "Untitled post", format, platforms: picked, date, copy: (useDifferent ? captionFor(picked[0]) : copy).trim(), captions: useDifferent ? Object.fromEntries(picked.map((channel) => [channel, captionFor(channel).trim()])) : {}, files, reviewerId: reviewerId || undefined, send });
+    const id = createPost({ clientId: client.id, ideaId: kind === "plan" && source === "idea" ? ideaId : undefined, extra: kind === "extra" || undefined, extraType, assetId: kind === "extra" ? pickedAsset?.id : planAsset || undefined, title: title.trim() || "Untitled post", format, platforms: picked, date, copy: (useDifferent ? captionFor(picked[0]) : copy).trim(), captions: useDifferent ? Object.fromEntries(picked.map((channel) => [channel, captionFor(channel).trim()])) : {}, files, reviewerId: reviewerId || undefined, send });
     closePostWizard();
     go({ view: "marketing", clientId: client.id, postId: id });
   };
@@ -133,7 +157,7 @@ function Wizard() {
         <div className="flex items-start gap-3 border-b border-[#F0EEE9] px-6 pb-4 pt-5">
           <div className="flex-1">
             <div className="text-[12px] font-bold uppercase tracking-[.12em] text-[#8B867E]">Create post</div>
-            <h2 className="mt-0.5 text-[22px] font-extrabold">{titles[step]}</h2>
+            <h2 className="mt-0.5 text-[22px] font-extrabold">{step === 1 && kind === "extra" ? "What is it called?" : titles[step]}</h2>
           </div>
           <button onClick={closePostWizard} aria-label="Close" className="rounded-xl p-2 text-[#8B867E] hover:bg-[#F1F0ED]"><X size={18} /></button>
         </div>
@@ -153,6 +177,37 @@ function Wizard() {
                 </select>
               </Field>
               <div className="grid gap-3 sm:grid-cols-2">
+                <button onClick={() => setKind("plan")} aria-pressed={kind === "plan"} className={`rounded-2xl border-2 p-3.5 text-left ${kind === "plan" ? "border-[#2F6FDB] bg-[#F4F8FF]" : "border-[#E9E6E0]"}`}>
+                  <div className="text-[14px] font-extrabold">One of the monthly posts</div>
+                  <div className="text-[12px] text-[#6B6760]">Part of what the client pays for each month.</div>
+                </button>
+                <button onClick={() => setKind("extra")} aria-pressed={kind === "extra"} className={`rounded-2xl border-2 p-3.5 text-left ${kind === "extra" ? "border-[#2F6FDB] bg-[#F4F8FF]" : "border-[#E9E6E0]"}`}>
+                  <div className="text-[14px] font-extrabold">Extra work</div>
+                  <div className="text-[12px] text-[#6B6760]">A brochure, video, e-book, lead magnet, flyer, exhibition material…</div>
+                </button>
+              </div>
+              {kind === "plan" && planAssets.length > 0 && (
+                <Field label="Counts towards" hint="Optional. It shows how much of each item is made this month.">
+                  <select value={planAsset} onChange={(event) => setPlanAsset(event.target.value)} className={fieldClass}>
+                    <option value="">Not sure yet</option>
+                    {planAssets.map((asset) => <option key={asset.id} value={asset.id}>{asset.name} · {madeThisMonth(asset.id)} of {asset.qty} this month</option>)}
+                  </select>
+                </Field>
+              )}
+              {kind === "extra" && (
+                <div className="space-y-3">
+                  <Field label="Which extra?">
+                    <select value={extraPick} onChange={(event) => chooseExtra(event.target.value)} className={fieldClass}>
+                      <option value="">Choose…</option>
+                      {clientExtras.length > 0 && <optgroup label={`On ${client?.name ?? "the account"}`}>{clientExtras.map((asset) => <option key={asset.id} value={`asset:${asset.id}`}>{asset.name}{asset.assignedTo === state.me ? " · assigned to you" : ""}{asset.due ? ` · due ${asset.due}` : ""}</option>)}</optgroup>}
+                      <optgroup label="Something new">{libraryExtras.map((asset) => <option key={asset.id} value={`lib:${asset.id}`}>{asset.name}</option>)}<option value="other">Something else…</option></optgroup>
+                    </select>
+                  </Field>
+                  {extraPick === "other" && <Field label="What is it?"><input value={extraName} onChange={(event) => { setExtraName(event.target.value); setTitle(event.target.value); }} placeholder="e.g. Tender document, contract summary" className={fieldClass} /></Field>}
+                  {pickedAsset?.brief && <p className="rounded-xl bg-[#FFF9EC] px-4 py-3 text-[13px] text-[#6B4A06]"><b>Brief:</b> {pickedAsset.brief}{pickedAsset.due ? ` Due ${shortDate(pickedAsset.due)}.` : ""}</p>}
+                </div>
+              )}
+              <div className="grid gap-3 sm:grid-cols-2">
                 <Field label="Month" hint="The post counts towards this month.">
                   <select value={month} onChange={(event) => chooseMonth(event.target.value)} className={fieldClass}>
                     {[0, 1, 2].map((delta) => <option key={delta} value={shiftMonth(state.month, delta)}>{monthName(shiftMonth(state.month, delta))}</option>)}
@@ -165,13 +220,19 @@ function Wizard() {
               {client && (
                 <div className="flex items-center gap-3 rounded-2xl bg-[#F8F7F4] p-4">
                   <ClientMark client={client} size={38} />
-                  <p className="text-[14px]"><b>{client.name}</b> has <b>{planned}</b> of <b>{agreedFor(client, month)}</b> posts planned for {monthName(month)}. This one will be number {planned + 1}.</p>
+                  {kind === "plan" ? <p className="text-[14px]"><b>{client.name}</b> has <b>{planned}</b> of <b>{agreedFor(client, month)}</b> posts planned for {monthName(month)}. This one will be number {planned + 1}.</p> : <p className="text-[14px]">Extra work does not count towards {client.name}&apos;s <b>{agreedFor(client, month)}</b> monthly posts.</p>}
                 </div>
               )}
             </div>
           )}
 
-          {step === 1 && (
+          {step === 1 && kind === "extra" && (
+            <div className="space-y-4">
+              <Field label="Name"><input autoFocus value={title} onChange={(event) => setTitle(event.target.value)} placeholder="e.g. Services brochure" className={fieldClass} /></Field>
+              <p className="text-[13px] text-[#6B6760]">Extra work does not start from the ideas deck.</p>
+            </div>
+          )}
+          {step === 1 && kind === "plan" && (
             <div className="space-y-4">
               <div className="grid gap-3 sm:grid-cols-2">
                 <button onClick={() => setSource("idea")} aria-pressed={source === "idea"} className={`rounded-2xl border-2 p-4 text-left ${source === "idea" ? "border-[#2F6FDB] bg-[#F4F8FF]" : "border-[#E9E6E0]"}`}>
@@ -206,8 +267,8 @@ function Wizard() {
           {step === 2 && (
             <div className="space-y-4">
               <Field label="Type of post">
-                <select value={format} onChange={(event) => { setFormat(event.target.value as (typeof formats)[number]); setFiles([]); }} className={fieldClass}>
-                  {formats.map((item) => <option key={item}>{item}</option>)}
+                <select value={format} onChange={(event) => { setFormat(event.target.value as Format); setFiles([]); }} className={fieldClass}>
+                  {formats.map((item) => <option key={item} value={item}>{formatLabel[item] ?? item}</option>)}
                 </select>
               </Field>
               <div>
@@ -289,8 +350,8 @@ function Wizard() {
               </Field>
               <ul className="space-y-1.5 rounded-2xl bg-[#F8F7F4] p-4 text-[13px]">
                 <li><b>{title || "Untitled post"}</b></li>
-                <li>{client?.name} · {format} · {picked.join(", ") || "no channel"}</li>
-                <li>Goes out {new Date(`${date}T12:00:00`).toLocaleDateString("en-IE", { weekday: "short", day: "numeric", month: "long" })} · counts for {monthName(month)}</li>
+                <li>{client?.name} · {kind === "extra" ? `Extra: ${extraType}` : formatLabel[format] ?? format} · {picked.join(", ") || "no channel"}</li>
+                <li>Goes out {new Date(`${date}T12:00:00`).toLocaleDateString("en-IE", { weekday: "short", day: "numeric", month: "long" })} {kind === "plan" ? ` · counts for ${monthName(month)}` : " · extra, not counted in the monthly posts"}</li>
                 <li>{useDifferent ? `Different captions for ${picked.join(" and ")}` : copy.trim() ? `${copy.trim().length} characters of caption` : "No caption yet"} · {files.length} file{files.length === 1 ? "" : "s"}</li>
               </ul>
               {files.length > 0 && (

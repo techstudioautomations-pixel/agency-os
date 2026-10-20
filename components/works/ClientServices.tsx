@@ -7,6 +7,7 @@ import { assetUsage, money, monthName, packageOf, shortDate } from "@/lib/works/
 import { packageAssets } from "@/lib/works/seed";
 import { clientColors, fileToLogo } from "@/lib/works/image";
 import type { Client, ClientAsset } from "@/lib/works/types";
+import { canBeAssigned, nameOf } from "@/lib/works/logic";
 import { PostArt } from "./PostArt";
 import { Bar, Button, Card, CardHead, Chip, ClientMark, Empty, Field, fieldClass, tone } from "./kit";
 
@@ -14,7 +15,9 @@ const formats = ["Single image", "Carousel", "Text post", "Video", "Newsletter",
 
 // ─── What the client gets ───
 export function ServicesCard({ client }: { client: Client }) {
-  const { state, updateClient, setClientAssets, addClientAsset } = useStore();
+  const { state, updateClient, setClientAssets, addClientAsset, updateClientAsset } = useStore();
+  const [assigning, setAssigning] = useState("");
+  const people = state.freelancers.filter((person) => person.status !== "Offboarded" && canBeAssigned(person));
   const { settings } = state;
   const [editing, setEditing] = useState(false);
   const [pick, setPick] = useState("");
@@ -59,7 +62,32 @@ export function ServicesCard({ client }: { client: Client }) {
                   <span className="flex flex-wrap items-center gap-2 text-[14px] font-semibold">{asset.name}{asset.source === "add-on" && <Chip t="purple" className="!py-0 !text-[10px]">add-on</Chip>}{asset.source === "custom" && <Chip className="!py-0 !text-[10px]">just this client</Chip>}</span>
                   <span className="text-[12px] text-[#8B867E]">{asset.format} · {asset.qty} a {asset.period}{asset.price !== undefined ? ` · ${money(asset.price, settings.currency)}` : ""}</span>
                 </span>
-                {!editing && monthly && (
+                {asset.kind === "extra" && asset.source !== "package" && !editing && (
+                  <span className="flex w-full flex-wrap items-center gap-2 text-[12px]">
+                    {asset.assignedTo ? (
+                      <>
+                        <Chip t={asset.active === false ? "grey" : "blue"}>{asset.active === false ? "Paused" : "Assigned"} to {nameOf(state, asset.assignedTo)}</Chip>
+                        {asset.due && <span className="text-[#6B6760]">Due {shortDate(asset.due)}</span>}
+                        <span className="text-[#6B6760]">{state.posts.filter((post) => post.assetId === asset.id && ["Ready to schedule", "Scheduled", "Published"].includes(post.status)).length} of {asset.qty} made</span>
+                      </>
+                    ) : <span className="text-[#8B867E]">Not assigned yet. The freelancer cannot see it.</span>}
+                    <button onClick={() => setAssigning(assigning === asset.id ? "" : asset.id)} className="ml-auto font-semibold text-[#1F5BC4]">{assigning === asset.id ? "Close" : asset.assignedTo ? "Change" : "Assign to a freelancer"}</button>
+                  </span>
+                )}
+                {assigning === asset.id && asset.kind === "extra" && asset.source !== "package" && (
+                  <span className="grid w-full gap-2 rounded-xl bg-[#F8F7F4] p-3 sm:grid-cols-2">
+                    <Field label="Freelancer">
+                      <select value={asset.assignedTo ?? ""} onChange={(event) => updateClientAsset(client.id, asset.id, { assignedTo: event.target.value || undefined, active: true })} className={fieldClass}>
+                        <option value="">Nobody yet</option>
+                        {people.map((person) => <option key={person.id} value={person.id}>{person.name}{person.id === client.freelancerId ? " (on this account)" : ""}</option>)}
+                      </select>
+                    </Field>
+                    <Field label="Due"><input type="date" value={asset.due ?? ""} onChange={(event) => updateClientAsset(client.id, asset.id, { due: event.target.value || undefined })} className={fieldClass} /></Field>
+                    <label className="sm:col-span-2"><span className="text-[12px] font-semibold text-[#55514B]">What they need to know</span><textarea value={asset.brief ?? ""} onChange={(event) => updateClientAsset(client.id, asset.id, { brief: event.target.value })} rows={2} placeholder="Size, pages, template, who it is for…" className={`${fieldClass} mt-1`} /></label>
+                    <label className="flex items-center gap-2 text-[13px] font-semibold sm:col-span-2"><input type="checkbox" checked={asset.active !== false} onChange={(event) => updateClientAsset(client.id, asset.id, { active: event.target.checked })} className="h-4 w-4" />Active: show it to the freelancer</label>
+                  </span>
+                )}
+                {!editing && monthly && !(asset.kind === "extra" && asset.source !== "package") && (
                   <span className="flex w-32 items-center gap-2"><Bar value={(used / asset.qty) * 100} color={used >= asset.qty ? tone.green.dot : "#2F6FDB"} /><b className="w-9 text-right text-[12px]">{used}/{asset.qty}</b></span>
                 )}
                 {editing && (

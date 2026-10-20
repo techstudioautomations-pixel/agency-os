@@ -203,6 +203,19 @@ export const isFirstMonth = (client: Client, month: string) => firstMonthOf(clie
 export const agreedFor = (client: Client, month: string) => (isFirstMonth(client, month) ? Math.min(client.setupPosts, client.agreedPosts) : client.agreedPosts);
 export const areaLabel = (client: Client) => (client.area === "marketing" ? "Marketing" : client.area === "web" ? "Web design" : client.areaName || "Custom");
 
+/** Extra work assigned to a person that is not made yet. */
+export function extrasFor(state: State, personId: string) {
+  const approved = ["Ready to schedule", "Scheduled", "Published"];
+  return state.clients
+    .filter((client) => client.stage !== "Paused")
+    .flatMap((client) =>
+      client.assets
+        .filter((asset) => asset.kind === "extra" && asset.assignedTo === personId && asset.active !== false)
+        .map((asset) => ({ client, asset, made: state.posts.filter((post) => post.assetId === asset.id && approved.includes(post.status)).length, started: state.posts.filter((post) => post.assetId === asset.id).length })),
+    )
+    .filter((item) => item.made < item.asset.qty);
+}
+
 export type MonthStep = { id: string; label: string; done: boolean; manual: boolean; hint?: string; go?: Route };
 export type MonthArea = { id: "ops" | "freelancer"; label: string; color: string; blurb: string; steps: MonthStep[] };
 
@@ -211,7 +224,7 @@ export function monthlyAreas(state: State, client: Client, month = state.month):
   const lastName = monthName(last).split(" ")[0];
   const target = agreedFor(client, month);
   const first = isFirstMonth(client, month);
-  const posts = state.posts.filter((post) => post.clientId === client.id && post.date.startsWith(month));
+  const posts = state.posts.filter((post) => post.clientId === client.id && post.date.startsWith(month) && !post.extra);
   const ideas = state.ideas.filter((idea) => idea.clientId === client.id && idea.month === month);
   const count = (list: string[]) => posts.filter((post) => list.includes(post.status)).length;
   const approved = count(["Ready to schedule", "Scheduled", "Published"]);

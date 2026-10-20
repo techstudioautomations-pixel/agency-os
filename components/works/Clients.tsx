@@ -149,7 +149,7 @@ function Overview({ client }: { client: Client }) {
   const owner = isOwner(state);
   const g = gate(client.checklist);
   const p = progress(client.checklist);
-  const posts = state.posts.filter((post) => post.clientId === client.id && post.date.startsWith(state.month));
+  const posts = state.posts.filter((post) => post.clientId === client.id && post.date.startsWith(state.month) && !post.extra);
   const approved = posts.filter((post) => ["Ready to schedule", "Scheduled", "Published"].includes(post.status)).length;
   const lastMonth = shiftMonth(state.month, -1);
   const report = state.reports.find((item) => item.clientId === client.id && item.month === lastMonth);
@@ -332,7 +332,7 @@ function Reporting({ client }: { client: Client }) {
       <p className="text-[13px] text-[#6B6760]">Each month: the freelancer&apos;s report comes in, we send the client their report{owner ? " and the finance statement" : ""}. Attach the file or link and tick it off.</p>
       {months.map((month) => {
         const report = state.reports.find((item) => item.clientId === client.id && item.month === month);
-        const posts = state.posts.filter((post) => post.clientId === client.id && post.date.startsWith(month));
+        const posts = state.posts.filter((post) => post.clientId === client.id && post.date.startsWith(month) && !post.extra);
         const delivered = Math.max(posts.filter((post) => post.status === "Published").length, Number(report?.numbers?.postsPublished) || 0);
         const sent = Boolean(report?.sentAt);
         const steps = [Boolean(report?.freelancerReport || report?.numbers), sent, ...(owner ? [Boolean(report?.financeSentAt)] : [])];

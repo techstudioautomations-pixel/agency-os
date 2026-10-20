@@ -6,6 +6,7 @@ import { useStore } from "@/lib/works/store";
 import { agreedFor, canBeAssigned, gate, inReview, isFreelancer, isMarketing, me, monthName, monthlyAreas, myClients, personById, progress, shiftMonth, todayIso, turnOf } from "@/lib/works/logic";
 import type { Post } from "@/lib/works/types";
 import { Shell } from "./Shell";
+import { ExtraWork } from "./ExtraWork";
 import { PostArt } from "./PostArt";
 import { statusTone } from "./Marketing";
 import { Avatar, Bar, Chip, ClientMark, Light, tone } from "./kit";
@@ -131,6 +132,7 @@ export function Today() {
   return (
     <Shell title={`${greeting}, ${person.name.split(" ")[0]}`} sub={dateLine}>
       <div className="space-y-8">
+        {freelancer && <ExtraWork personId={state.me} />}
         {freelancer ? <QuickActions /> : (
           <ReviewBlock
             title="In review now"
@@ -149,7 +151,7 @@ export function Today() {
           </div>
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
             {clients.map((client) => {
-              const posts = state.posts.filter((post) => post.clientId === client.id && post.date.startsWith(state.month)).sort((a, b) => a.date.localeCompare(b.date));
+              const posts = state.posts.filter((post) => post.clientId === client.id && post.date.startsWith(state.month) && !post.extra).sort((a, b) => a.date.localeCompare(b.date));
               const approved = posts.filter((post) => ["Ready to schedule", "Scheduled", "Published"].includes(post.status)).length;
               const g = gate(client.checklist);
               const setup = progress(client.checklist).percent;

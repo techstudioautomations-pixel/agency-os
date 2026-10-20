@@ -208,6 +208,12 @@ export const defaultAssets: AssetType[] = [
   { id: "case-study", name: "Case study or capability sheet", kind: "extra", format: "Document", sections: ["brand"] },
   { id: "pdf-guide", name: "PDF guide", kind: "extra", format: "Document", sections: ["brand"] },
   { id: "flyer", name: "Flyer", kind: "extra", format: "Document", sections: ["brand", "templates"] },
+  { id: "brochure", name: "Brochure", kind: "extra", format: "Document", sections: ["brand", "templates"] },
+  { id: "promo-video", name: "Video", kind: "extra", format: "Video", sections: ["brain", "brand"] },
+  { id: "reel", name: "Reel", kind: "extra", format: "Reel", sections: ["brain", "brand"] },
+  { id: "ebook", name: "E-book", kind: "extra", format: "Document", sections: ["brain", "brand"] },
+  { id: "lead-magnet", name: "Lead magnet", kind: "extra", format: "Document", sections: ["brain", "brand"] },
+  { id: "exhibition", name: "Exhibition material", kind: "extra", format: "Document", sections: ["brand", "templates"] },
 ];
 
 export const defaultPackages: PackageDef[] = [
@@ -719,6 +725,7 @@ clients.forEach((client, index) => {
   client.packageId = pkg?.id;
   client.package = pkg?.name ?? "Custom";
   client.assets = pkg ? packageAssets(pkg, defaultAssets, client.id) : [{ id: `${client.id}-a1`, name: "Product post", format: "Single image", kind: "piece", qty: 4, period: "month", source: "custom" }];
+  if (client.id === "buildregs") client.assets.push({ id: `${client.id}-x1`, assetId: "brochure", name: "Brochure", format: "Document", kind: "extra", qty: 1, period: "month", source: "add-on", assignedTo: "ryan", due: ahead(10), brief: "Sample: a 4-page A4 brochure on Buildreg's services, using the brand guide and the Canva brochure template." });
   const newsletter = client.id === "housebuild";
   if (newsletter) client.assets.push({ id: `${client.id}-a9`, assetId: "newsletter", name: "Email newsletter", format: "Newsletter", kind: "extra", qty: 1, period: "month", price: 250, source: "add-on" });
   const wanted = new Set(sectionDefs.filter((section) => section.always || client.assets.some((asset) => defaultAssets.find((entry) => entry.id === asset.assetId)?.sections.includes(section.id) ?? ["brain", "brand", "templates"].includes(section.id))).map((section) => section.id));

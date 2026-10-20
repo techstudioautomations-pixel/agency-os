@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { buildClientChecklist, defaultMonthLine, defaultMonthly, defaultPlaybook, defaultSections, newShare, piecesPerMonth, seedState } from "./seed";
+import { buildClientChecklist, defaultAssets, defaultMonthLine, defaultMonthly, defaultPlaybook, defaultSections, newShare, piecesPerMonth, seedState } from "./seed";
 import { canBeAssigned, monthlyAreas, monthName, nameOf, reviewerFor, todayIso } from "./logic";
 import type { CheckItem, Client, ClientAsset, ClientSection, ClientShare, Idea, Lead, MonthReport, NewClientDraft, Notice, Post, PostDraft, ReportNumbers, RevisionCategory, Route, SectionStep, State, ReportPeriod, WeekReport } from "./types";
 
@@ -28,7 +28,7 @@ function migrate(saved: State): State {
   return {
     ...saved,
     playbook: saved.playbook ?? defaultPlaybook(),
-    settings: { ...saved.settings, sections, monthly: saved.settings.monthly ?? defaultMonthly(), monthLine: saved.settings.monthLine ?? defaultMonthLine(saved.settings.dates) },
+    settings: { ...saved.settings, assets: [...saved.settings.assets, ...defaultAssets.filter((asset) => !saved.settings.assets.some((item) => item.id === asset.id))], sections, monthly: saved.settings.monthly ?? defaultMonthly(), monthLine: saved.settings.monthLine ?? defaultMonthLine(saved.settings.dates) },
     clients: saved.clients.map((client) => ({ ...client, area: client.area ?? "marketing", setupPosts: client.setupPosts ?? 2, monthDone: client.monthDone ?? {}, packNotes: client.packNotes ?? { brand: "", brain: "", templates: "" } })),
   };
 }
@@ -85,7 +85,7 @@ function useStoreValue() {
   const [toast, setToast] = useState("");
   const toastTimer = useRef<number | undefined>(undefined);
   const [wizard, setWizard] = useState<{ open: boolean; leadId?: string }>({ open: false });
-  const [postWizard, setPostWizard] = useState<{ open: boolean; clientId?: string; ideaId?: string }>({ open: false });
+  const [postWizard, setPostWizard] = useState<{ open: boolean; clientId?: string; ideaId?: string; assetId?: string }>({ open: false });
   const stateRef = useRef(state);
   stateRef.current = state;
 
@@ -275,6 +275,18 @@ function useStoreValue() {
           }
         });
       },
+      /** Changes one asset on one client, such as giving extra work to a freelancer. The freelancer is told when it is first assigned. */
+      updateClientAsset: (clientId: string, assetId: string, patch: Partial<ClientAsset>) => {
+        update((d) => {
+          const client = d.clients.find((c) => c.id === clientId)!;
+          const asset = client.assets.find((item) => item.id === assetId);
+          if (!asset) return;
+          const before = asset.assignedTo;
+          Object.assign(asset, patch);
+          if (patch.assignedTo && patch.assignedTo !== before) notify(d, patch.assignedTo, `New extra work for ${client.name}: ${asset.name}${asset.due ? ` · due ${asset.due}` : ""}`, { view: "marketing", clientId, tab: "posts" });
+        });
+        if (patch.assignedTo) ping("Assigned. The freelancer can see it now.");
+      },
       setClientAssets: (clientId: string, assets: ClientAsset[]) =>
         update((d) => {
           const client = d.clients.find((c) => c.id === clientId)!;
@@ -413,7 +425,7 @@ function useStoreValue() {
           const withArt = draft.files.length > 0;
           const status: Post["status"] = !draft.send ? "Copy in progress" : withArt ? "Design review" : "Copy review";
           const post: Post = {
-            id, clientId: client.id, ideaId: idea?.id, reviewerId: draft.reviewerId, title: draft.title, format: draft.format, platforms: draft.platforms.length ? draft.platforms : [client.platforms[0] ?? "LinkedIn"],
+            id, clientId: client.id, ideaId: idea?.id, extra: draft.extra, extraType: draft.extraType, assetId: draft.assetId, reviewerId: draft.reviewerId, title: draft.title, format: draft.format, platforms: draft.platforms.length ? draft.platforms : [client.platforms[0] ?? "LinkedIn"],
             date: draft.date, status, copy: draft.copy, captions: draft.captions, files: draft.files, art: draft.title, designLink: "", driveLink: "", version: 1,
             comments: idea?.notes ? [{ id: uid("c"), by: idea.createdBy, body: `From the idea: ${idea.notes}`, at: stamp(), kind: "system" }] : [],
             history: [{ at: stamp(), by: d.me, text: idea ? "Created from an idea" : "Post created" }],
@@ -661,7 +673,7 @@ function useStoreValue() {
     };
   }, [update, go, ping]);
 
-  return { state, ready, route, go, toast, ping, wizard, openWizard: (leadId?: string) => setWizard({ open: true, leadId }), closeWizard: () => setWizard({ open: false }), postWizard, openPostWizard: (opts: { clientId?: string; ideaId?: string } = {}) => setPostWizard({ open: true, ...opts }), closePostWizard: () => setPostWizard({ open: false }), ...actions };
+  return { state, ready, route, go, toast, ping, wizard, openWizard: (leadId?: string) => setWizard({ open: true, leadId }), closeWizard: () => setWizard({ open: false }), postWizard, openPostWizard: (opts: { clientId?: string; ideaId?: string; assetId?: string } = {}) => setPostWizard({ open: true, ...opts }), closePostWizard: () => setPostWizard({ open: false }), ...actions };
 }
 
 export function StoreProvider({ children }: { children: ReactNode }) {
