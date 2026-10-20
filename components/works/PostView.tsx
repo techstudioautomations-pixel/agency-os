@@ -24,8 +24,11 @@ export function PostReview({ post, client, backScope }: { post: Post; client: Cl
   const mine = turn.who === state.me;
   const freelancerView = isFreelancer(state);
   const canEdit = isOwner(state) || (state.me === client.freelancerId && ["Copy in progress", "Design in progress", "Ready to schedule"].includes(post.status)) || (!client.freelancerId && !freelancerView);
-  const [editing, setEditing] = useState(false);
+  const isMaker = state.me === client.freelancerId;
+  const [editing, setEditing] = useState(() => isMaker && post.status === "Copy in progress" && !post.copy.trim());
+  useEffect(() => { window.scrollTo(0, 0); }, [post.id]);
   const status = statusTone(post);
+  const openChanges = post.comments.filter((comment) => comment.kind === "change" && !comment.resolved);
   const queue = state.posts.filter((item) => item.id !== post.id && item.date.startsWith(state.month) && turnOf(state, item).who === state.me && (backScope === "all" || item.clientId === backScope)).sort((a, b) => a.date.localeCompare(b.date));
   const steps = client.approvalMode === "A" ? stages : stages.filter((item) => item !== "Client");
   const stage = stageOf(post.status);
@@ -55,6 +58,24 @@ export function PostReview({ post, client, backScope }: { post: Post; client: Cl
           );
         })}
       </div>
+
+      {isMaker && ["Copy in progress", "Design in progress", "Ready to schedule"].includes(post.status) && (
+        <div className="mb-4 rounded-2xl border border-[#BFD3F5] bg-[#F1F6FE] px-5 py-4">
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="min-w-0 flex-1">
+              <div className="text-[12px] font-bold uppercase tracking-wide text-[#1F5BC4]">Your turn</div>
+              <div className="text-[16px] font-extrabold">{post.status === "Ready to schedule" ? "Schedule it" : post.status === "Copy in progress" ? (openChanges.length ? "Fix the copy" : "Write the caption") : openChanges.length ? "Fix the design" : "Upload the artwork"}</div>
+              <div className="text-[13px] text-[#55514B]">{post.status === "Ready to schedule" ? "It is approved. Add the Drive link to the final files, pick the date and schedule it in the publishing tool, at the bottom." : post.status === "Copy in progress" ? "Write the caption, then send it for review at the bottom. The artwork comes after the copy is approved." : "Upload the artwork and the links, then send it for review at the bottom."}</div>
+            </div>
+            {!editing && canEdit && post.status !== "Ready to schedule" && <Button kind="primary" onClick={() => setEditing(true)}><Pencil size={15} />{post.status === "Copy in progress" ? "Write the caption" : "Upload artwork"}</Button>}
+          </div>
+          {openChanges.length > 0 && (
+            <ul className="mt-3 space-y-1.5">
+              {openChanges.map((change) => <li key={change.id} className="rounded-xl bg-white px-3 py-2 text-[13px]"><b className="text-[#C2620F]">{change.category}:</b> {change.body}</li>)}
+            </ul>
+          )}
+        </div>
+      )}
 
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1.1fr)_minmax(380px,.9fr)]">
         <div className="min-w-0">
@@ -210,6 +231,9 @@ function PostEditor({ post, onDone }: { post: Post; onDone: () => void }) {
         <div className="flex flex-wrap gap-1.5">{channels.map((item) => <button key={item} onClick={() => toggleChannel(item)} aria-pressed={post.platforms.includes(item)} className={`rounded-full px-3 py-1.5 text-[12px] font-semibold ${post.platforms.includes(item) ? "bg-[#1E2430] text-white" : "bg-[#F1F0ED] text-[#6B6760]"}`}>{item}</button>)}</div>
       </div>
 
+      {post.status.startsWith("Copy") ? (
+        <p className="rounded-xl bg-[#F8F7F4] px-4 py-3 text-[13px] text-[#6B6760]">Artwork and links are added after the copy is approved.</p>
+      ) : (
       <div>
         <div className="mb-1.5 text-[12px] font-semibold text-[#55514B]">Artwork {post.format === "Carousel" ? "· slides in order" : ""}</div>
         {post.files.length > 0 && (
@@ -231,6 +255,7 @@ function PostEditor({ post, onDone }: { post: Post; onDone: () => void }) {
           <input type="file" multiple accept="image/*,video/*,application/pdf" className="sr-only" onChange={(event) => { add(event.target.files); event.target.value = ""; }} />
         </label>
       </div>
+      )}
 
       <div>
         <div className="mb-1.5 flex flex-wrap items-center gap-1.5">
@@ -283,7 +308,7 @@ function Conversation({ post, client, mine }: { post: Post; client: Client; mine
     ...post.history.map((event) => ({ at: event.at, kind: "event" as const, by: event.by, body: event.text })),
   ].sort((a, b) => a.at.localeCompare(b.at));
 
-  useEffect(() => { end.current?.scrollIntoView({ block: "nearest" }); }, [lines.length]);
+  useEffect(() => { const box = end.current?.parentElement; if (box) box.scrollTop = box.scrollHeight; }, [lines.length]);
 
   const send = () => {
     const body = text.trim();
@@ -410,7 +435,7 @@ function QualityCard({ post }: { post: Post }) {
   const progress = qaProgress(post);
   const applicable = new Set(qaItemsFor(post).map((item) => item.id));
   const ticked = new Set(post.qa ?? []);
-  const [open, setOpen] = useState(post.status.endsWith("progress"));
+  const [open, setOpen] = useState(false);
   return (
     <section className="mt-4 overflow-hidden rounded-2xl border border-[#E9E6E0] bg-white">
       <button onClick={() => setOpen(!open)} aria-expanded={open} className="flex w-full items-center gap-3 px-4 py-3 text-left">

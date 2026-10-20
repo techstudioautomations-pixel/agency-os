@@ -126,9 +126,12 @@ export function splitIdeas(text: string): { title: string; notes: string; format
     .filter((block) => block.join("").trim().length > 3)
     .map((block) => {
       const [first, ...rest] = block;
-      const [titlePart, inlineNotes] = first.split(/\s[–—-]\s|:\s/, 2);
+      // Only a dash splits the title from a note. Colons stay in the title, as in "Myth: you can always remove a wall".
+      const [titlePart, inlineNotes] = first.split(/\s[–—-]\s/, 2);
       const title = (titlePart || first).replace(/^\*\*|\*\*$/g, "").trim().slice(0, 120);
-      const notes = [inlineNotes, ...rest].filter(Boolean).join("\n").trim();
+      // A dash followed by just a format ("– carousel") is the format, not a note.
+      const onlyFormat = inlineNotes !== undefined && inlineNotes.trim().split(/\s+/).length <= 3 && formatWords.some(([pattern]) => pattern.test(inlineNotes));
+      const notes = [onlyFormat ? "" : inlineNotes, ...rest].filter(Boolean).join("\n").trim();
       const format = formatWords.find(([pattern]) => pattern.test(`${first} ${notes}`))?.[1] ?? "Carousel";
       return { title, notes, format };
     });
@@ -275,7 +278,8 @@ export const qaGroups: { title: string; items: QaItem[] }[] = [
     ],
   },
 ];
-export const qaItemsFor = (post: Post) => qaGroups.flatMap((group) => group.items).filter((item) => (!item.technical || post.needsExpert) && (!item.carousel || post.format === "Carousel"));
+/** While the copy is being written only the "before you start" checks matter. The design checks come with the design. */
+export const qaItemsFor = (post: Post) => qaGroups.filter((group) => !post.status.startsWith("Copy") || group.title === "Before you start").flatMap((group) => group.items).filter((item) => (!item.technical || post.needsExpert) && (!item.carousel || post.format === "Carousel"));
 export const qaProgress = (post: Post) => {
   const items = qaItemsFor(post);
   const ticked = items.filter((item) => (post.qa ?? []).includes(item.id)).length;

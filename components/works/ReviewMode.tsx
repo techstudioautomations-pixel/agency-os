@@ -40,7 +40,7 @@ export function ReviewMode({ ids, start = 0, onClose }: { ids: string[]; start?:
           <div className="mx-auto mt-16 max-w-md rounded-3xl border border-[#E9E6E0] bg-white p-8 text-center">
             <div className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-[#E6F5EC] text-[#17804A]"><Check size={28} /></div>
             <h3 className="mt-4 text-[20px] font-extrabold">All reviewed</h3>
-            <p className="mt-1 text-[14px] text-[#6B6760]">{handled} of {ids.length} handled. Anything you skipped is still waiting in Needs me.</p>
+            <p className="mt-1 text-[14px] text-[#6B6760]">{handled} of {ids.length} handled. Anything you skipped is still waiting in Needs approval.</p>
             <Button kind="primary" className="mt-5" onClick={onClose}>Back to posts</Button>
           </div>
         ) : (

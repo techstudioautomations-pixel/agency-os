@@ -35,12 +35,13 @@ export function MarketingPage({ clientId, tab, postId, filter }: { clientId?: st
   const { state, go } = useStore();
   const [packOpen, setPackOpen] = useState(true);
   const clients = myClients(state).filter(isMarketing);
-  const client = clients.find((item) => item.id === clientId);
+  // Someone with only one client has nothing to switch between, so open that client straight away.
+  const client = clients.find((item) => item.id === clientId) ?? (clients.length === 1 ? clients[0] : undefined);
   const scope = client ? client.id : "all";
   const post = postId ? state.posts.find((item) => item.id === postId) : undefined;
   if (post) {
     const postClient = state.clients.find((item) => item.id === post.clientId)!;
-    return <PostReview post={post} client={postClient} backScope={scope} />;
+    return <PostReview key={post.id} post={post} client={postClient} backScope={scope} />;
   }
 
   const requested = tab ?? "posts";
@@ -374,6 +375,9 @@ function IdeasView({ client }: { client?: Client }) {
         </div>
       </div>
 
+      {freelancer && client && (
+        <p className="rounded-xl bg-[#F1F6FE] px-4 py-2.5 text-[13px] text-[#1F5BC4]">Add your ideas here. Operations decides on each one: approve, maybe later or reject. An approved idea becomes a post for you to write.</p>
+      )}
       {importing && client && (
         <Card>
           <div className="grid gap-4 lg:grid-cols-2">
@@ -440,7 +444,7 @@ function IdeaCard({ idea, client, showClient, canDecide, onChange, onMakePost, o
                 const active = idea.decision === decision;
                 const colors = decision === "Approved" ? tone.green : decision === "Maybe" ? tone.amber : tone.grey;
                 return (
-                  <button key={decision} onClick={() => onChange({ decision: active ? "New" : decision })} aria-pressed={active} className="flex-1 rounded-lg px-2 py-1.5 text-[12px] font-bold transition" style={active ? { background: colors.dot, color: "#fff" } : { background: colors.bg, color: colors.ink }}>
+                  <button key={decision} onClick={() => (!active && decision === "Approved" && !idea.postId ? onMakePost() : onChange({ decision: active ? "New" : decision }))} aria-pressed={active} className="flex-1 rounded-lg px-2 py-1.5 text-[12px] font-bold transition" style={active ? { background: colors.dot, color: "#fff" } : { background: colors.bg, color: colors.ink }}>
                     {decision === "Approved" ? "Approve" : decision === "Maybe" ? "Maybe" : "Reject"}
                   </button>
                 );
