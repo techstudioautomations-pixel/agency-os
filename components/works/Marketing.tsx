@@ -14,6 +14,7 @@ import { ReviewMode } from "./ReviewMode";
 import { PackPane, packDocs, type DocKey } from "./StarterPack";
 import { Results } from "./Results";
 import { ExtraWork } from "./ExtraWork";
+import { extrasFor } from "@/lib/works/logic";
 import { researchFromFile, researchFromText, type Research } from "@/lib/works/research";
 import { AttachField, Avatar, Button, Card, CardHead, Chip, ClientMark, Empty, Field, Segmented, fieldClass, tone } from "./kit";
 
@@ -52,6 +53,7 @@ export function MarketingPage({ clientId, tab, postId, filter }: { clientId?: st
   const inScope = (item: { clientId: string }) => (client ? item.clientId === client.id : clients.some((c) => c.id === item.clientId));
   const mineCount = (id?: string) => state.posts.filter((item) => (id ? item.clientId === id : inScope(item)) && item.date.startsWith(state.month) && needsMe(state, item)).length;
   const monthAreas = client ? monthlyAreas(state, client).filter((area) => !isFreelancer(state) || area.id === "freelancer") : [];
+  const extraCount = isFreelancer(state) ? extrasFor(state, state.me).filter((item) => !client || item.client.id === client.id).length : 0;
   const monthOpen = monthAreas.reduce((sum, area) => sum + area.steps.filter((step) => !step.done).length, 0);
   const to = (patch: { clientId?: string; tab?: string }) => go({ view: "marketing", clientId: patch.clientId ?? scope, tab: patch.tab ?? current });
   const packProgress = client ? progress(["brain", "brand", "templates", "handoff"].flatMap((id) => areaItems(client.checklist, id))) : undefined;
@@ -92,6 +94,7 @@ export function MarketingPage({ clientId, tab, postId, filter }: { clientId?: st
           {railItem("calendar", "Calendar")}
           {railItem("results", "Results")}
           {client && monthAreas.length > 0 && railItem("month", isFreelancer(state) ? "My checklist" : "This month", monthOpen)}
+          {(extraCount > 0 || current === "extra") && isFreelancer(state) && railItem("extra", "Extra work", extraCount)}
         </nav>
 
         <div className="min-w-0">
@@ -105,6 +108,7 @@ export function MarketingPage({ clientId, tab, postId, filter }: { clientId?: st
             </div>
           )}
           {current === "results" && <Results client={client} />}
+          {current === "extra" && isFreelancer(state) && <ExtraWork personId={state.me} clientId={client?.id} />}
         </div>
       </div>
     </Shell>
@@ -229,7 +233,6 @@ function PostBoard({ client, scope, initial }: { client?: Client; scope: string;
           <Button kind="primary" onClick={() => openPostWizard({ clientId: client?.id })}><Plus size={15} />Create post</Button>
         </div>
       </div>
-      {freelancer && <ExtraWork personId={state.me} compact />}
       {reviewing && <ReviewMode ids={reviewing.ids} start={reviewing.start} onClose={() => setReviewing(null)} />}
       {filter === order[0] && shown.length === 0 && (
         <div className="flex items-center gap-3 rounded-2xl border border-[#CFE8D9] bg-[#EAF6EF] px-5 py-4 text-[14px] font-semibold text-[#17804A]"><Check size={18} />{freelancer ? "Nothing needs you right now." : "Nothing is waiting for your approval."}</div>

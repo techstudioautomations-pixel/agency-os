@@ -6,7 +6,7 @@ import { useStore } from "@/lib/works/store";
 import { agreedFor, canBeAssigned, gate, inReview, isFreelancer, isMarketing, me, monthName, monthlyAreas, myClients, personById, progress, shiftMonth, todayIso, turnOf } from "@/lib/works/logic";
 import type { Post } from "@/lib/works/types";
 import { Shell } from "./Shell";
-import { ExtraWork } from "./ExtraWork";
+import { ExtraAlert } from "./ExtraWork";
 import { PostArt } from "./PostArt";
 import { statusTone } from "./Marketing";
 import { Avatar, Bar, Chip, ClientMark, Light, tone } from "./kit";
@@ -132,7 +132,7 @@ export function Today() {
   return (
     <Shell title={`${greeting}, ${person.name.split(" ")[0]}`} sub={dateLine}>
       <div className="space-y-8">
-        {freelancer && <ExtraWork personId={state.me} />}
+        {freelancer && <ExtraAlert personId={state.me} />}
         {freelancer ? <QuickActions /> : (
           <ReviewBlock
             title="In review now"
