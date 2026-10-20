@@ -9,6 +9,7 @@ import type { PostFile } from "@/lib/works/types";
 import { Button, ClientMark, Field, fieldClass } from "./kit";
 import { Lightbox } from "./Lightbox";
 import { CtaPicker } from "./CtaPicker";
+import { pagesIn, readPostFiles, slidesOf, withoutFile } from "@/lib/works/pdf";
 
 const formats = ["Carousel", "Text post", "Single image", "Reel", "Document", "Newsletter"] as const;
 const formatLabel: Record<string, string> = { Reel: "Video / Reel", Document: "PDF / document", "Single image": "Image only", "Text post": "Text only" };
@@ -40,7 +41,8 @@ export function NewPostWizard() {
 }
 
 function Wizard() {
-  const { state, postWizard, closePostWizard, createPost, go } = useStore();
+  const { state, postWizard, closePostWizard, createPost, go, ping } = useStore();
+  const [reading, setReading] = useState(false);
   const clients = myClients(state).filter(isMarketing);
   const idea = state.ideas.find((item) => item.id === postWizard.ideaId);
   const firstClient = idea?.clientId ?? postWizard.clientId ?? (clients.length === 1 ? clients[0].id : "");
@@ -89,7 +91,8 @@ function Wizard() {
   const tab = useDifferent ? (picked.includes(captionTab) ? captionTab : picked[0]) : "";
   const captionFor = (channel: string) => captions[channel] ?? copy;
   const hasCaption = useDifferent ? picked.every((channel) => captionFor(channel).trim()) : Boolean(copy.trim());
-  const shownFile = files[Math.min(active, files.length - 1)];
+  const slides = slidesOf(files);
+  const shownFile = slides[Math.min(active, slides.length - 1)];
 
   const chooseMonth = (value: string) => {
     setMonth(value);
@@ -110,21 +113,17 @@ function Wizard() {
       setFormat(formatFor(found.format));
     }
   };
-  const addFiles = (list: FileList | null) => {
-    if (!list) return;
+  const addFiles = async (list: FileList | null) => {
+    if (!list || list.length === 0) return;
     const chosen = rule.multiple ? Array.from(list) : Array.from(list).slice(0, 1);
-    if (!rule.multiple) setFiles([]);
-    chosen.forEach((file) => {
-      const base = { id: `f-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, name: file.name, kind: kindOf(file) };
-      if (file.size < 1_500_000) {
-        const reader = new FileReader();
-        reader.onload = () => setFiles((current) => (rule.multiple ? [...current, { ...base, src: String(reader.result) }] : [{ ...base, src: String(reader.result) }]));
-        reader.readAsDataURL(file);
-      } else {
-        const entry = { ...base, src: URL.createObjectURL(file) };
-        setFiles((current) => (rule.multiple ? [...current, entry] : [entry]));
-      }
-    });
+    setReading(true);
+    try {
+      const { files: read, notes } = await readPostFiles(chosen);
+      setFiles((current) => (rule.multiple ? [...current, ...read] : read));
+      if (notes.length) ping(notes[0]);
+    } finally {
+      setReading(false);
+    }
   };
   const move = (index: number, delta: number) => setFiles((current) => { const next = [...current]; const to = index + delta; if (to < 0 || to >= next.length) return current; [next[index], next[to]] = [next[to], next[index]]; return next; });
 
@@ -152,7 +151,7 @@ function Wizard() {
 
   return (
     <div className="fixed inset-0 z-[70] grid place-items-end bg-[#1E2430]/50 sm:place-items-center sm:p-4" role="dialog" aria-modal="true" aria-label="Create post">
-      {big !== null && <Lightbox files={files} start={big} onClose={() => setBig(null)} />}
+      {big !== null && <Lightbox files={slides} start={big} onClose={() => setBig(null)} />}
       <div className="flex max-h-[96vh] w-full max-w-[680px] flex-col overflow-hidden rounded-t-3xl bg-white shadow-2xl sm:rounded-3xl">
         <div className="flex items-start gap-3 border-b border-[#F0EEE9] px-6 pb-4 pt-5">
           <div className="flex-1">
@@ -311,25 +310,26 @@ function Wizard() {
                       {shownFile.kind === "image" && /* eslint-disable-next-line @next/next/no-img-element */ <img src={shownFile.src} alt={shownFile.name} className="mx-auto max-h-[42vh] max-w-full rounded-xl object-contain" />}
                       {shownFile.kind === "video" && <video src={shownFile.src} controls className="mx-auto max-h-[42vh] max-w-full rounded-xl" />}
                       {(shownFile.kind === "pdf" || shownFile.kind === "other") && <div className="grid h-40 w-64 place-items-center rounded-xl bg-white text-[14px] font-bold text-[#55514B]">{shownFile.kind === "pdf" ? "PDF" : "File"} · {shownFile.name}</div>}
-                      <button onClick={() => setBig(files.indexOf(shownFile))} aria-label="See it full size" className="absolute right-2 top-2 inline-flex items-center gap-1 rounded-full bg-white/95 px-3 py-1.5 text-[12px] font-bold shadow"><Maximize2 size={13} />Full size</button>
+                      <button onClick={() => setBig(slides.indexOf(shownFile))} aria-label="See it full size" className="absolute right-2 top-2 inline-flex items-center gap-1 rounded-full bg-white/95 px-3 py-1.5 text-[12px] font-bold shadow"><Maximize2 size={13} />Full size</button>
                     </div>
-                    {files.length > 1 && <p className="mt-2 text-center text-[12px] text-[#6B6760]">Showing {Math.min(active, files.length - 1) + 1} of {files.length}. Tap a file below to look at it.</p>}
+                    {slides.length > 1 && <div className="mt-2 flex items-center justify-center gap-2 text-[12px] text-[#6B6760]"><button onClick={() => setActive((Math.min(active, slides.length - 1) - 1 + slides.length) % slides.length)} className="rounded-lg bg-white px-2.5 py-1 font-bold">Previous</button>Slide {Math.min(active, slides.length - 1) + 1} of {slides.length}<button onClick={() => setActive((Math.min(active, slides.length - 1) + 1) % slides.length)} className="rounded-lg bg-white px-2.5 py-1 font-bold">Next</button></div>}
                   </div>
                 )}
-                {files.length > 0 && (
+                {files.some((file) => !file.pageOf) && (
                   <ul className="mb-2 space-y-1.5">
-                    {files.map((file, index) => (
-                      <li key={file.id} className={`flex items-center gap-2.5 rounded-xl p-1.5 ${index === Math.min(active, files.length - 1) ? "bg-[#E8F0FD]" : "bg-[#F6F5F2]"}`}>
+                    {files.filter((file) => !file.pageOf).map((file, index) => (
+                      <li key={file.id} className="flex items-center gap-2.5 rounded-xl bg-[#F6F5F2] p-1.5">
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         {file.kind === "image" ? <img src={file.src} alt="" className="h-11 w-9 rounded-md object-cover" /> : <span className="grid h-11 w-9 place-items-center rounded-md bg-white text-[10px] font-bold uppercase text-[#6B6760]">{file.kind === "pdf" ? "PDF" : file.kind === "video" ? "Vid" : "File"}</span>}
-                        <button onClick={() => setActive(index)} className="min-w-0 flex-1 truncate text-left text-[13px] font-semibold">{rule.multiple ? `${index + 1}. ` : ""}{file.name}</button>
+                        <span className="min-w-0 flex-1 truncate text-[13px] font-semibold">{rule.multiple ? `${index + 1}. ` : ""}{file.name}{file.kind === "pdf" && pagesIn(files, file.id) > 0 ? <span className="ml-1.5 rounded-full bg-[#E8F0FD] px-2 py-0.5 text-[11px] font-bold text-[#1F5BC4]">{pagesIn(files, file.id)} pages</span> : null}</span>
                         {rule.multiple && <button onClick={() => move(index, -1)} disabled={index === 0} aria-label="Move earlier" className="rounded-lg p-1.5 disabled:opacity-30"><ArrowUp size={14} /></button>}
                         {rule.multiple && <button onClick={() => move(index, 1)} disabled={index === files.length - 1} aria-label="Move later" className="rounded-lg p-1.5 disabled:opacity-30"><ArrowDown size={14} /></button>}
-                        <button onClick={() => setFiles(files.filter((item) => item.id !== file.id))} aria-label={`Remove ${file.name}`} className="rounded-lg p-1.5 text-[#B83232]"><Trash2 size={14} /></button>
+                        <button onClick={() => setFiles(withoutFile(files, file.id))} aria-label={`Remove ${file.name}`} className="rounded-lg p-1.5 text-[#B83232]"><Trash2 size={14} /></button>
                       </li>
                     ))}
                   </ul>
                 )}
+                {reading && <p className="mb-2 rounded-xl bg-[#F1F6FE] px-4 py-3 text-[13px] font-semibold text-[#1F5BC4]">Reading the file and drawing its pages…</p>}
                 {(rule.multiple || files.length === 0) && (
                   <label className="flex cursor-pointer items-center justify-center gap-2 rounded-xl border-2 border-dashed border-[#C9D6EE] bg-[#F7FAFF] p-4 text-[13px] font-semibold text-[#1F5BC4] hover:bg-[#EEF4FF]">
                     <UploadCloud size={18} />{rule.label}
@@ -352,11 +352,11 @@ function Wizard() {
                 <li><b>{title || "Untitled post"}</b></li>
                 <li>{client?.name} · {kind === "extra" ? `Extra: ${extraType}` : formatLabel[format] ?? format} · {picked.join(", ") || "no channel"}</li>
                 <li>Goes out {new Date(`${date}T12:00:00`).toLocaleDateString("en-IE", { weekday: "short", day: "numeric", month: "long" })} {kind === "plan" ? ` · counts for ${monthName(month)}` : " · extra, not counted in the monthly posts"}</li>
-                <li>{useDifferent ? `Different captions for ${picked.join(" and ")}` : copy.trim() ? `${copy.trim().length} characters of caption` : "No caption yet"} · {files.length} file{files.length === 1 ? "" : "s"}</li>
+                <li>{useDifferent ? `Different captions for ${picked.join(" and ")}` : copy.trim() ? `${copy.trim().length} characters of caption` : "No caption yet"} · {slides.length} {files.some((file) => file.pageOf) ? "slide" : "file"}{slides.length === 1 ? "" : "s"}</li>
               </ul>
-              {files.length > 0 && (
+              {slides.length > 0 && (
                 <div className="flex gap-2 overflow-x-auto pb-1">
-                  {files.map((file, index) => (
+                  {slides.map((file, index) => (
                     <button key={file.id} onClick={() => setBig(index)} aria-label={`See ${file.name} full size`} className="relative h-24 w-[76px] shrink-0 overflow-hidden rounded-lg border border-[#E2DED7] bg-[#F1F0ED]">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       {file.kind === "image" ? <img src={file.src} alt="" className="h-full w-full object-cover" /> : <span className="grid h-full w-full place-items-center text-[11px] font-bold text-[#55514B]">{file.kind === "pdf" ? "PDF" : file.kind === "video" ? "Video" : "File"}</span>}

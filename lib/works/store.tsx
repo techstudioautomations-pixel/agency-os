@@ -117,7 +117,13 @@ function useStoreValue() {
           posts: state.posts.map((post) => ({ ...post, files: post.files.filter((file) => !file.src.startsWith("blob:")) })),
           clients: state.clients.map((client) => (client.packFiles ? { ...client, packFiles: Object.fromEntries(Object.entries(client.packFiles).filter(([, file]) => file && !file.url.startsWith("blob:"))) } : client)),
         };
-        window.localStorage.setItem(KEY, JSON.stringify(clean));
+        try {
+          window.localStorage.setItem(KEY, JSON.stringify(clean));
+        } catch {
+          // Too big for the browser. Keep the text and the real files; leave out the drawn PDF pages, which can be redrawn.
+          const lean: State = { ...clean, posts: clean.posts.map((post) => ({ ...post, files: post.files.filter((file) => !file.pageOf) })) };
+          window.localStorage.setItem(KEY, JSON.stringify(lean));
+        }
       } catch {
         /* storage full: keep working in memory */
       }

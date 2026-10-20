@@ -8,6 +8,7 @@ import type { Client, Post, PostFile, RevisionCategory } from "@/lib/works/types
 import { buildZip, safeName } from "@/lib/zip";
 import { PostArt } from "./PostArt";
 import { Lightbox } from "./Lightbox";
+import { pagesForAttached, pagesIn, readPostFiles, slidesOf, withoutFile } from "@/lib/works/pdf";
 import { CtaPicker } from "./CtaPicker";
 import { statusTone } from "./Marketing";
 import { asset, Avatar, Button, Chip, ClientMark, Field, fieldClass } from "./kit";
@@ -104,7 +105,7 @@ export function PostPreviewPanel({ post, client, canEdit, onEdit }: { post: Post
   async function downloadAll() {
     setBusy(true);
     try {
-      const entries = await Promise.all(post.files.map(async (file, index) => ({ name: `${String(index + 1).padStart(2, "0")}-${safeName(file.name)}`, data: new Uint8Array(await (await fetch(asset(file.src))).arrayBuffer()) })));
+      const entries = await Promise.all(post.files.filter((file) => !file.pageOf).map(async (file, index) => ({ name: `${String(index + 1).padStart(2, "0")}-${safeName(file.name)}`, data: new Uint8Array(await (await fetch(asset(file.src))).arrayBuffer()) })));
       const url = URL.createObjectURL(buildZip(entries));
       const a = document.createElement("a");
       a.href = url;
@@ -120,13 +121,13 @@ export function PostPreviewPanel({ post, client, canEdit, onEdit }: { post: Post
 
   return (
     <div className="overflow-hidden rounded-2xl border border-[#E9E6E0] bg-white">
-      {big && <Lightbox files={post.files.map((file) => ({ ...file, src: asset(file.src) }))} start={slide} onClose={() => setBig(false)} />}
+      {big && <Lightbox files={slidesOf(post.files).map((file) => ({ ...file, src: asset(file.src) }))} start={slide} onClose={() => setBig(false)} />}
       <div className="flex flex-wrap items-center gap-2 border-b border-[#F0EEE9] px-4 py-3">
         <div className="flex gap-1">
           {post.platforms.map((item) => <button key={item} onClick={() => setChannel(item)} className={`rounded-lg px-3 py-1.5 text-[12px] font-bold ${channel === item ? "bg-[#1E2430] text-white" : "text-[#6B6760] hover:bg-[#F1F0ED]"}`}>{item}</button>)}
         </div>
         <span className="ml-auto flex flex-wrap gap-1.5">
-          {post.files.length > 0 && <Button size="sm" onClick={downloadAll} disabled={busy}><Download size={13} />{busy ? "Preparing…" : post.files.length > 1 ? `Download all (${post.files.length})` : "Download"}</Button>}
+          {post.files.length > 0 && <Button size="sm" onClick={downloadAll} disabled={busy}><Download size={13} />{busy ? "Preparing…" : post.files.filter((file) => !file.pageOf).length > 1 ? `Download all (${post.files.filter((file) => !file.pageOf).length})` : "Download"}</Button>}
           {post.designLink && <a href={post.designLink} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 rounded-xl border border-[#E2DED7] px-3 py-1.5 text-[12px] font-semibold hover:border-[#C9C3B8]">Canva <ExternalLink size={12} /></a>}
           {canEdit && <Button size="sm" kind="primary" onClick={onEdit}><Pencil size={13} />Edit post</Button>}
         </span>
@@ -183,27 +184,44 @@ function PostEditor({ post, onDone }: { post: Post; onDone: () => void }) {
   filesRef.current = post.files;
   const [captionTab, setCaptionTab] = useState("main");
 
-  function add(list: FileList | null) {
-    if (!list) return;
-    Array.from(list).forEach((file) => {
-      const base = { id: `f-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, name: file.name, kind: kindOf(file) };
-      if (file.size < 1_500_000) {
-        const reader = new FileReader();
-        reader.onload = () => { const next = [...filesRef.current, { ...base, src: String(reader.result) }]; filesRef.current = next; set({ files: next }); };
-        reader.readAsDataURL(file);
-      } else {
-        const next = [...filesRef.current, { ...base, src: URL.createObjectURL(file) }];
-        filesRef.current = next;
-        set({ files: next });
-      }
-    });
+  const [reading, setReading] = useState(false);
+  async function add(list: FileList | null) {
+    if (!list || list.length === 0) return;
+    setReading(true);
+    try {
+      const { files: read, notes } = await readPostFiles(Array.from(list));
+      const next = [...filesRef.current, ...read];
+      filesRef.current = next;
+      set({ files: next });
+      if (notes.length) store.ping(notes[0]);
+    } finally {
+      setReading(false);
+    }
+  }
+  async function showPages(file: PostFile) {
+    setReading(true);
+    try {
+      const pages = await pagesForAttached(file);
+      const at = filesRef.current.findIndex((item) => item.id === file.id);
+      const next = [...filesRef.current.slice(0, at + 1), ...pages, ...filesRef.current.slice(at + 1)];
+      filesRef.current = next;
+      set({ files: next });
+    } catch {
+      store.ping("Could not draw the pages of this PDF. Upload it again to try once more.");
+    } finally {
+      setReading(false);
+    }
   }
   const move = (index: number, delta: number) => {
-    const next = [...post.files];
+    const groups: PostFile[][] = [];
+    for (const file of post.files) {
+      if (file.pageOf) groups[groups.length - 1]?.push(file);
+      else groups.push([file]);
+    }
     const target = index + delta;
-    if (target < 0 || target >= next.length) return;
-    [next[index], next[target]] = [next[target], next[index]];
-    set({ files: next });
+    if (target < 0 || target >= groups.length) return;
+    [groups[index], groups[target]] = [groups[target], groups[index]];
+    set({ files: groups.flat() });
   };
   const toggleChannel = (item: string) => set({ platforms: post.platforms.includes(item) ? post.platforms.filter((value) => value !== item) : [...post.platforms, item] });
   const different = post.platforms.length > 1 && post.platforms.some((item) => post.captions[item] !== undefined);
@@ -247,18 +265,20 @@ function PostEditor({ post, onDone }: { post: Post; onDone: () => void }) {
         <div className="mb-1.5 text-[12px] font-semibold text-[#55514B]">Artwork {post.format === "Carousel" ? "· slides in order" : ""}</div>
         {post.files.length > 0 && (
           <div className="mb-2 space-y-1.5">
-            {post.files.map((file, index) => (
+            {post.files.filter((file) => !file.pageOf).map((file, index, top) => (
               <div key={file.id} className="flex items-center gap-2.5 rounded-xl bg-[#F6F5F2] p-1.5">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 {file.kind === "image" ? <img src={asset(file.src)} alt="" className="h-11 w-9 rounded-md object-cover" /> : <span className="grid h-11 w-9 place-items-center rounded-md bg-white text-[10px] font-bold uppercase">{file.kind}</span>}
-                <span className="min-w-0 flex-1 truncate text-[13px] font-semibold">{index + 1}. {file.name}</span>
+                <span className="min-w-0 flex-1 truncate text-[13px] font-semibold">{index + 1}. {file.name}{file.kind === "pdf" && pagesIn(post.files, file.id) > 0 ? <span className="ml-1.5 rounded-full bg-[#E8F0FD] px-2 py-0.5 text-[11px] font-bold text-[#1F5BC4]">{pagesIn(post.files, file.id)} pages</span> : null}</span>
+                {file.kind === "pdf" && pagesIn(post.files, file.id) === 0 && <button onClick={() => showPages(file)} disabled={reading} className="rounded-lg bg-[#EAF1FD] px-2.5 py-1 text-[12px] font-bold text-[#1F5BC4] disabled:opacity-50">Show pages</button>}
                 <button onClick={() => move(index, -1)} disabled={index === 0} aria-label="Move up" className="rounded-lg p-1.5 disabled:opacity-30"><ArrowUp size={14} /></button>
-                <button onClick={() => move(index, 1)} disabled={index === post.files.length - 1} aria-label="Move down" className="rounded-lg p-1.5 disabled:opacity-30"><ArrowDown size={14} /></button>
-                <button onClick={() => set({ files: post.files.filter((item) => item.id !== file.id) })} aria-label={`Remove ${file.name}`} className="rounded-lg p-1.5 text-[#B83232]"><Trash2 size={14} /></button>
+                <button onClick={() => move(index, 1)} disabled={index === top.length - 1} aria-label="Move down" className="rounded-lg p-1.5 disabled:opacity-30"><ArrowDown size={14} /></button>
+                <button onClick={() => set({ files: withoutFile(post.files, file.id) })} aria-label={`Remove ${file.name}`} className="rounded-lg p-1.5 text-[#B83232]"><Trash2 size={14} /></button>
               </div>
             ))}
           </div>
         )}
+        {reading && <p className="mb-2 rounded-xl bg-[#F1F6FE] px-4 py-3 text-[13px] font-semibold text-[#1F5BC4]">Reading the file and drawing its pages…</p>}
         <label className="flex cursor-pointer items-center justify-center gap-2 rounded-xl border-2 border-dashed border-[#C9D6EE] bg-[#F7FAFF] p-4 text-[13px] font-semibold text-[#1F5BC4] hover:bg-[#EEF4FF]">
           <UploadCloud size={18} />Upload images, a PDF carousel or a video
           <input type="file" multiple accept="image/*,video/*,application/pdf" className="sr-only" onChange={(event) => { add(event.target.files); event.target.value = ""; }} />

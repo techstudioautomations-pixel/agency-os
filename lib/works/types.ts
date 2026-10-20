@@ -256,7 +256,8 @@ export type PostComment = {
   resolved?: boolean;
 };
 
-export type PostFile = { id: string; name: string; src: string; kind: "image" | "pdf" | "video" | "other" };
+/** `pageOf` marks an image that is one page of an attached PDF, drawn so the PDF can be seen as slides. */
+export type PostFile = { id: string; name: string; src: string; kind: "image" | "pdf" | "video" | "other"; pageOf?: string; /** Width divided by height, so the picture is shown in its own shape and never cropped. */ ratio?: number };
 
 export type Post = {
   id: string;

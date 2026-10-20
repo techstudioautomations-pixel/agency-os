@@ -8,6 +8,11 @@ const nextConfig: NextConfig = {
   basePath,
   assetPrefix: basePath || undefined,
   images: { unoptimized: true },
+  // pdf.js can use the Node "canvas" package. The browser does not need it.
+  webpack: (config) => {
+    config.resolve.alias = { ...config.resolve.alias, canvas: false };
+    return config;
+  },
 };
 
 export default nextConfig;
