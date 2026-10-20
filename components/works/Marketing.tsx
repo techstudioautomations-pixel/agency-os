@@ -154,7 +154,7 @@ function ClientPicker({ clients, scope, onPick, count }: { clients: Client[]; sc
 }
 
 // ─── Posts ───
-export function PostTile({ post, showClient, scope }: { post: Post; showClient: boolean; scope: string }) {
+export function PostTile({ post, showClient, scope, onOpen }: { post: Post; showClient: boolean; scope: string; onOpen?: () => void }) {
   const { state, go } = useStore();
   const client = state.clients.find((item) => item.id === post.clientId)!;
   const turn = turnOf(state, post);
@@ -163,7 +163,7 @@ export function PostTile({ post, showClient, scope }: { post: Post; showClient: 
   const comments = post.comments.filter((comment) => comment.kind !== "system").length;
   const person = personById(state, turn.who);
   return (
-    <button onClick={() => go({ view: "marketing", clientId: scope, postId: post.id })} className={`group flex min-w-0 flex-col overflow-hidden rounded-2xl border bg-white text-left transition hover:-translate-y-0.5 hover:shadow-[0_10px_28px_rgba(30,36,48,.10)] ${mine ? "border-[#2F6FDB] shadow-[0_0_0_2px_rgba(47,111,219,.18)]" : "border-[#E9E6E0]"}`}>
+    <button onClick={() => (onOpen ? onOpen() : go({ view: "marketing", clientId: scope, postId: post.id }))} className={`group flex min-w-0 flex-col overflow-hidden rounded-2xl border bg-white text-left transition hover:-translate-y-0.5 hover:shadow-[0_10px_28px_rgba(30,36,48,.10)] ${mine ? "border-[#2F6FDB] shadow-[0_0_0_2px_rgba(47,111,219,.18)]" : "border-[#E9E6E0]"}`}>
       <div className="relative">
         <PostArt post={post} client={client} rounded="rounded-none" />
         <span className="absolute bottom-2 left-2"><Chip t={status.t} className="shadow-sm">{status.label}</Chip></span>
@@ -190,51 +190,54 @@ function PostBoard({ client, scope, initial }: { client?: Client; scope: string;
   const { state, go, addPost } = useStore();
   const freelancer = isFreelancer(state);
   const clients = myClients(state).filter(isMarketing);
-  const [filter, setFilter] = useState(initial ?? "mine");
-  const [reviewing, setReviewing] = useState<string[]>([]);
   const posts = state.posts
     .filter((post) => (client ? post.clientId === client.id : clients.some((c) => c.id === post.clientId)) && post.date.startsWith(state.month))
     .sort((a, b) => a.date.localeCompare(b.date));
-  const approvedStatus = ["Ready to schedule", "Scheduled", "Published"];
+  const inList = (statuses: string[]) => (post: Post) => statuses.includes(post.status);
+  // One group per step of the journey, so every post is in exactly one place.
   const groups: Record<string, (post: Post) => boolean> = {
-    mine: (post) => needsMe(state, post),
-    progress: (post) => !approvedStatus.includes(post.status) && !needsMe(state, post),
-    ...(clients.some((c) => c.approvalMode !== "C") ? { client: (post: Post) => post.status === "Client approval" } : {}),
-    approved: (post) => approvedStatus.includes(post.status),
+    approval: inList(["Copy review", "Design review"]),
+    freelancer: inList(["Copy in progress", "Design in progress"]),
+    ...(clients.some((c) => c.approvalMode !== "C") ? { client: inList(["Client approval"]) } : {}),
+    approved: inList(["Ready to schedule"]),
+    posted: inList(["Scheduled", "Published"]),
     all: () => true,
-    review: (post) => inReview(post),
   };
+  const order = (freelancer ? ["freelancer", "approval", "approved", "posted", "client", "all"] : ["approval", "freelancer", "client", "approved", "posted", "all"]).filter((key) => key in groups);
   const labels: Record<string, string> = freelancer
-    ? { mine: "Needs me", progress: "With the team", client: "With client", approved: "Approved & live", all: "All", review: "In review" }
-    : { mine: "Needs me", progress: "In progress", client: "With client", approved: "Approved & live", all: "All", review: "In review" };
+    ? { freelancer: "Needs me", approval: "In review", client: "With client", approved: "Approved · schedule", posted: "Scheduled & posted", all: "All" }
+    : { approval: "Needs approval", freelancer: "With freelancer", client: "With client", approved: "Approved", posted: "Scheduled & posted", all: "All" };
+  const wanted = initial === "review" || initial === "mine" ? undefined : initial;
+  const [filter, setFilter] = useState(wanted && wanted in groups ? wanted : order[0]);
+  const [reviewing, setReviewing] = useState<{ ids: string[]; start: number } | null>(null);
   const shown = posts.filter(groups[filter] ?? groups.all);
-  const toReview = freelancer ? [] : shown.filter((post) => inReview(post)).map((post) => post.id);
+  const reviewIds = posts.filter(groups.approval).map((post) => post.id);
+  const open = (post: Post) => (!freelancer && groups.approval(post) ? () => setReviewing({ ids: reviewIds, start: reviewIds.indexOf(post.id) }) : undefined);
   const agreed = client ? agreedFor(client, state.month) : clients.filter((c) => c.stage === "Live").reduce((sum, c) => sum + agreedFor(c, state.month), 0);
 
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <Segmented value={filter} onChange={setFilter} options={Object.keys(groups).filter((key) => key !== "review" || filter === "review").map((key) => ({ value: key, label: labels[key], count: posts.filter(groups[key]).length }))} />
+        <Segmented value={filter} onChange={setFilter} options={order.map((key) => ({ value: key, label: labels[key], count: posts.filter(groups[key]).length }))} />
         <div className="flex items-center gap-3 text-[13px]">
           <span className="font-semibold text-[#55514B]">{posts.length} of {agreed} agreed posts planned</span>
-          {toReview.length > 0 && <Button kind="primary" onClick={() => setReviewing(toReview)}>Review {toReview.length} one by one</Button>}
           {client && <Button kind="primary" onClick={() => { const id = addPost(client.id, "New post"); go({ view: "marketing", clientId: scope, postId: id }); }}><Plus size={15} />New post</Button>}
         </div>
       </div>
-      {reviewing.length > 0 && <ReviewMode ids={reviewing} onClose={() => setReviewing([])} />}
-      {filter === "mine" && shown.length === 0 && (
-        <div className="flex items-center gap-3 rounded-2xl border border-[#CFE8D9] bg-[#EAF6EF] px-5 py-4 text-[14px] font-semibold text-[#17804A]"><Check size={18} />You are up to date. Nothing is waiting on you.</div>
+      {reviewing && <ReviewMode ids={reviewing.ids} start={reviewing.start} onClose={() => setReviewing(null)} />}
+      {filter === order[0] && shown.length === 0 && (
+        <div className="flex items-center gap-3 rounded-2xl border border-[#CFE8D9] bg-[#EAF6EF] px-5 py-4 text-[14px] font-semibold text-[#17804A]"><Check size={18} />{freelancer ? "Nothing needs you right now." : "Nothing is waiting for your approval."}</div>
       )}
-      {filter === "mine" && shown.length === 0 && posts.filter(groups.progress).length > 0 && (
+      {filter === order[0] && shown.length === 0 && posts.filter((post) => !groups.posted(post) && !groups.approved(post)).length > 0 && (
         <div>
-          <h3 className="mb-2 text-[15px] font-bold">Still in progress</h3>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">{posts.filter(groups.progress).map((post) => <PostTile key={post.id} post={post} showClient={!client} scope={scope} />)}</div>
+          <h3 className="mb-2 text-[15px] font-bold">Still moving</h3>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">{posts.filter((post) => !groups.posted(post) && !groups.approved(post)).map((post) => <PostTile key={post.id} post={post} showClient={!client} scope={scope} onOpen={open(post)} />)}</div>
         </div>
       )}
-      {filter !== "mine" && shown.length === 0 && <Empty title="No posts here">Try another filter or month.</Empty>}
+      {filter !== order[0] && shown.length === 0 && <Empty title="No posts here">Try another filter or month.</Empty>}
       {shown.length > 0 && (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
-          {shown.map((post) => <PostTile key={post.id} post={post} showClient={!client} scope={scope} />)}
+          {shown.map((post) => <PostTile key={post.id} post={post} showClient={!client} scope={scope} onOpen={open(post)} />)}
         </div>
       )}
     </div>

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { createPortal } from "react-dom";
-import { ArrowRight, Check, ExternalLink, MessageSquareWarning, ShieldCheck, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, ExternalLink, MessageSquareWarning, ShieldCheck, X } from "lucide-react";
 import { useStore } from "@/lib/works/store";
 import { shortDate } from "@/lib/works/logic";
 import type { RevisionCategory } from "@/lib/works/types";
@@ -12,9 +12,9 @@ import { Button, Chip, ClientMark, fieldClass } from "./kit";
 const categories: RevisionCategory[] = ["Copy", "Layout", "Brand", "Factual"];
 
 /** Review the posts waiting on you one at a time: see it as it will appear, approve it or ask for changes, and move on. */
-export function ReviewMode({ ids, onClose }: { ids: string[]; onClose: () => void }) {
+export function ReviewMode({ ids, start = 0, onClose }: { ids: string[]; start?: number; onClose: () => void }) {
   const { state, go, approvePost, requestChanges, updatePost } = useStore();
-  const [index, setIndex] = useState(0);
+  const [index, setIndex] = useState(start);
   const [asking, setAsking] = useState(false);
   const [note, setNote] = useState("");
   const [category, setCategory] = useState<RevisionCategory>("Copy");
@@ -85,7 +85,8 @@ export function ReviewMode({ ids, onClose }: { ids: string[]; onClose: () => voi
                 <>
                   <Button kind="good" disabled={post.status === "Design review" && post.needsExpert && !post.expertOk} onClick={() => { approvePost(post.id); setHandled((value) => value + 1); next(); }}><Check size={15} />Approve {post.status === "Copy review" ? "copy" : "design"}</Button>
                   <Button onClick={() => setAsking(true)}><MessageSquareWarning size={15} />Ask for changes</Button>
-                  <Button kind="ghost" className="ml-auto" onClick={next}>Skip <ArrowRight size={14} /></Button>
+                  {index > 0 && <Button kind="ghost" className="ml-auto" onClick={() => { setAsking(false); setNote(""); setIndex((value) => value - 1); }}><ArrowLeft size={14} />Back</Button>}
+                  <Button kind="ghost" className={index > 0 ? "" : "ml-auto"} onClick={next}>Skip <ArrowRight size={14} /></Button>
                 </>
               )}
             </div>

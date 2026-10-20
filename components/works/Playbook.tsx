@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ArrowDown, ArrowUp, BarChart3, BookOpen, Brain, CalendarDays, Check, ChevronDown, ClipboardCheck, Coins, ExternalLink, FileText, Handshake, KeyRound, Megaphone, Paperclip, Pencil, Plus, Rocket, Settings as SettingsIcon, ShieldCheck, Sparkles, Star, Target, Trash2, UserCheck, Users, type LucideIcon } from "lucide-react";
+import { ArrowDown, ArrowUp, BarChart3, BookOpen, Brain, CalendarDays, Check, ChevronDown, ClipboardCheck, Coins, ExternalLink, FileText, Handshake, KeyRound, Megaphone, Paperclip, Pencil, Plus, Rocket, Settings as SettingsIcon, ShieldCheck, Sparkles, Target, Trash2, UserCheck, Users, type LucideIcon } from "lucide-react";
 import { useStore } from "@/lib/works/store";
 import { isFreelancer, isOwner, todayIso } from "@/lib/works/logic";
 import type { PlaybookItem, PlaybookItemKind, PlaybookSlot, PlaybookStage } from "@/lib/works/types";
@@ -30,8 +30,6 @@ export function PlaybookView({ group }: { group: "workflow" | "areas" }) {
   const [selected, setSelected] = useState(stages[0]?.id ?? "");
   const [editing, setEditing] = useState(false);
   const stage = stages.find((item) => item.id === selected) ?? stages[0];
-  const keySlots = stages.flatMap((item) => item.slots.filter((slot) => slot.key));
-  const ready = keySlots.filter((slot) => slot.attachments.length > 0).length;
   const numbered = group === "workflow";
 
   const change = (fn: (stages: PlaybookStage[]) => void) => editPlaybook((playbook) => fn(playbook[group]));
@@ -45,12 +43,8 @@ export function PlaybookView({ group }: { group: "workflow" | "areas" }) {
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-wrap items-center gap-4 rounded-2xl border border-[#E9E6E0] bg-white px-5 py-4">
-        <div className="min-w-[220px] flex-1">
-          <div className="flex items-center justify-between text-[13px] font-semibold"><span className="inline-flex items-center gap-1.5"><Star size={14} className="fill-[#E0A21E] text-[#E0A21E]" />Needed before the first new client</span><span>{ready} of {keySlots.length} have something attached</span></div>
-          <div className="mt-2 h-2 overflow-hidden rounded-full bg-[#EEECE7]"><div className="h-full rounded-full bg-[#1D9E5A] transition-all" style={{ width: `${keySlots.length ? (ready / keySlots.length) * 100 : 0}%` }} /></div>
-        </div>
-        <div className="hidden gap-3 text-[12px] text-[#6B6760] md:flex">
+      <div className="flex flex-wrap items-center gap-4">
+        <div className="flex flex-1 flex-wrap gap-x-5 gap-y-1 text-[12px] text-[#6B6760]">
           {kinds.map((item) => <span key={item.kind} className="inline-flex items-center gap-1"><item.icon size={13} /><b>{item.one}</b>: {item.hint.toLowerCase()}</span>)}
         </div>
         {owner && <Button kind={editing ? "primary" : "secondary"} onClick={() => setEditing(!editing)}>{editing ? <><Check size={14} />Done editing</> : <><Pencil size={14} />Edit structure</>}</Button>}
@@ -59,8 +53,6 @@ export function PlaybookView({ group }: { group: "workflow" | "areas" }) {
       <ol className={`grid gap-3 ${numbered ? "" : "sm:grid-cols-2"}`} style={numbered ? { gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))" } : undefined}>
         {stages.map((item, index) => {
           const Icon = iconFor(item.icon);
-          const keys = item.slots.filter((slot) => slot.key);
-          const done = keys.filter((slot) => slot.attachments.length > 0).length;
           const active = item.id === stage.id;
           return (
             <li key={item.id}>
@@ -71,10 +63,7 @@ export function PlaybookView({ group }: { group: "workflow" | "areas" }) {
                 </div>
                 <div className="mt-2.5 text-[14px] font-bold leading-snug">{item.title}</div>
                 {item.owner && <div className="mt-0.5 text-[12px] font-semibold text-[#55514B]">{item.owner}</div>}
-                <div className="mt-2 flex items-center gap-1.5 text-[12px] text-[#6B6760]">
-                  {keys.length > 0 ? <span className={`inline-flex items-center gap-1 font-semibold ${done === keys.length ? "text-[#17804A]" : ""}`}><Star size={11} className={done === keys.length ? "fill-[#17804A] text-[#17804A]" : "fill-[#E0A21E] text-[#E0A21E]"} />{done}/{keys.length}</span> : null}
-                  <span>{item.slots.length} item{item.slots.length === 1 ? "" : "s"}</span>
-                </div>
+                <div className="mt-2 text-[12px] text-[#6B6760]">{item.slots.length} item{item.slots.length === 1 ? "" : "s"} · {item.slots.reduce((sum, slot) => sum + slot.attachments.length, 0)} attached</div>
               </button>
             </li>
           );
@@ -127,7 +116,6 @@ function StagePanel({ stage, index, total, editing, numbered, canAttach, change,
           <li key={slot.id}>
             {editing ? (
               <div className="flex items-center gap-2 px-4 py-2">
-                <button onClick={() => patch((target) => { const entry = target.slots.find((item) => item.id === slot.id); if (entry) entry.key = !entry.key; })} aria-pressed={slot.key} aria-label={slot.key ? "Remove star" : "Mark as needed first"} title="Needed before the first new client" className="rounded-lg p-1.5 hover:bg-[#F6F5F2]"><Star size={16} className={slot.key ? "fill-[#E0A21E] text-[#E0A21E]" : "text-[#C9C3B8]"} /></button>
                 <input value={slot.title} onChange={(event) => patch((target) => { const entry = target.slots.find((item) => item.id === slot.id); if (entry) entry.title = event.target.value; })} aria-label="Item" className="min-w-0 flex-1 rounded-lg border border-[#E2DED7] bg-white px-2.5 py-1.5 text-[14px]" />
                 <span className="hidden text-[12px] text-[#8B867E] sm:inline">{slot.attachments.length} attached</span>
                 <button onClick={() => moveSlot(slot.id, -1)} disabled={slotIndex === 0} aria-label="Move up" className="rounded-lg p-1.5 text-[#55514B] hover:bg-[#F6F5F2] disabled:opacity-30"><ArrowUp size={15} /></button>
@@ -157,9 +145,8 @@ function SlotRow({ slot, color, open, onToggle, canAttach, change }: { slot: Pla
   return (
     <div>
       <button onClick={onToggle} aria-expanded={open} className="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-[#FBFAF8]">
-        {slot.key ? <Star size={15} className="shrink-0 fill-[#E0A21E] text-[#E0A21E]" aria-label="Needed before the first new client" /> : <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: `${color}66`, margin: "0 3.5px" }} />}
+        <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: total > 0 ? color : `${color}55` }} />
         <span className="min-w-0 flex-1 text-[14px] font-semibold">{slot.title}</span>
-        {total === 0 && slot.key && <Chip t="amber">Needs something</Chip>}
         <span className="flex items-center gap-2.5 text-[12px] font-semibold text-[#6B6760]">
           {kinds.map((item) => count(slot, item.kind) > 0 && <span key={item.kind} className="inline-flex items-center gap-1" title={`${count(slot, item.kind)} ${item.label.toLowerCase()}`}><item.icon size={13} />{count(slot, item.kind)}</span>)}
         </span>
