@@ -62,6 +62,9 @@ export const stageOf = (status: PostStatus) =>
   status.startsWith("Copy") ? 0 : status.startsWith("Design") ? 1 : status === "Client approval" ? 2 : status === "Ready to schedule" || status === "Scheduled" ? 3 : 4;
 export const stages = ["Copy", "Design", "Client", "Schedule", "Live"];
 
+/** Owners and operations can approve anything in review, so it counts as waiting on them. Freelancers only see their own turn. */
+export const needsMe = (state: State, post: Post) => turnOf(state, post).who === state.me || (!isFreelancer(state) && inReview(post));
+
 export type Turn = { who: string; verb: string; tone: "you" | "freelancer" | "review" | "client" | "done" };
 
 export function turnOf(state: State, post: Post): Turn {

@@ -105,7 +105,11 @@ function useStoreValue() {
     if (!ready) return;
     const timer = window.setTimeout(() => {
       try {
-        const clean: State = { ...state, posts: state.posts.map((post) => ({ ...post, files: post.files.filter((file) => !file.src.startsWith("blob:")) })) };
+        const clean: State = {
+          ...state,
+          posts: state.posts.map((post) => ({ ...post, files: post.files.filter((file) => !file.src.startsWith("blob:")) })),
+          clients: state.clients.map((client) => (client.packFiles ? { ...client, packFiles: Object.fromEntries(Object.entries(client.packFiles).filter(([, file]) => file && !file.url.startsWith("blob:"))) } : client)),
+        };
         window.localStorage.setItem(KEY, JSON.stringify(clean));
       } catch {
         /* storage full: keep working in memory */
@@ -478,17 +482,38 @@ function useStoreValue() {
       },
 
       // Reports
-      saveNumbers: (clientId: string, month: string, numbers: ReportNumbers) => {
+      /** Saves the key numbers for one platform. The main platform's numbers also feed the client report. */
+      saveNumbers: (clientId: string, month: string, platform: string, numbers: ReportNumbers) => {
         update((d) => {
           const client = d.clients.find((c) => c.id === clientId)!;
           let report = d.reports.find((item) => item.clientId === clientId && item.month === month);
           if (!report) { report = { id: `${clientId}-${month}`, clientId, month, checked: false, summary: "", recommendations: "", approved: false, sentAt: "", reportLink: "" }; d.reports.push(report); }
-          report.numbers = numbers;
+          const by = report.byPlatform ?? (report.byPlatform = {});
+          by[platform] = { ...numbers, savedAt: todayIso(), savedBy: d.me };
+          const main = [...client.platforms, ...Object.keys(by)].find((name) => by[name]);
+          if (main) report.numbers = { ...by[main] };
           report.numbersBy = d.me;
           report.numbersAt = todayIso();
-          notify(d, client.opsId, `${client.name}: month-end numbers are in`, { view: "client", clientId, tab: "reporting" });
         });
-        ping("Numbers saved. Operations has been notified.");
+        ping(`${platform} numbers saved`);
+      },
+      toggleReportCheck: (clientId: string, month: string, stepId: string) =>
+        update((d) => {
+          let report = d.reports.find((item) => item.clientId === clientId && item.month === month);
+          if (!report) { report = { id: `${clientId}-${month}`, clientId, month, checked: false, summary: "", recommendations: "", approved: false, sentAt: "", reportLink: "" }; d.reports.push(report); }
+          const checks = report.checks ?? (report.checks = {});
+          if (checks[stepId]) delete checks[stepId];
+          else checks[stepId] = todayIso();
+        }),
+      submitReport: (clientId: string, month: string) => {
+        update((d) => {
+          const client = d.clients.find((c) => c.id === clientId)!;
+          const report = d.reports.find((item) => item.clientId === clientId && item.month === month);
+          if (!report) return;
+          report.submittedAt = todayIso();
+          notify(d, client.opsId, `${client.name}: the freelancer handed in the ${month} report`, { view: "client", clientId, tab: "reporting" });
+        });
+        ping("Report handed to operations");
       },
       updateReport: (clientId: string, month: string, patch: Partial<MonthReport>) =>
         update((d) => {

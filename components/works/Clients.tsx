@@ -11,6 +11,7 @@ import { AreaDetail, AreaGrid, AreaStrip } from "./Areas";
 import { ClientShare, ProfileEditor, ServicesCard } from "./ClientServices";
 import { MonthChecklist } from "./Monthly";
 import { StarterPack } from "./StarterPack";
+import { StrategyView } from "./Marketing";
 import { AttachField, Avatar, Bar, Button, Card, CardHead, Chip, ClientMark, Empty, Field, Light, Ring, Segmented, fieldClass, tone } from "./kit";
 
 export const modeText: Record<ApprovalMode, string> = {
@@ -69,6 +70,7 @@ export function ClientProfile({ clientId, tab, sub }: { clientId: string; tab?: 
   const tabs = [
     { value: "overview", label: "Overview" },
     { value: "checklists", label: "Checklists", count: missing(client.checklist).filter((item) => !item.soft && !item.detail).length },
+    ...(isMarketing(client) ? [{ value: "strategy", label: "Strategy" }] : []),
     { value: "access", label: "Access" },
     { value: "reporting", label: "Reporting" },
     { value: "files", label: "Files & links" },
@@ -107,6 +109,7 @@ export function ClientProfile({ clientId, tab, sub }: { clientId: string; tab?: 
       </div>
       {current === "overview" && <Overview client={client} />}
       {current === "checklists" && <Checklists client={client} sub={sub} />}
+      {current === "strategy" && isMarketing(client) && <StrategyView client={client} />}
       {current === "access" && <Access client={client} />}
       {current === "reporting" && <Reporting client={client} />}
       {current === "files" && <Files client={client} />}

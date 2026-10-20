@@ -1,16 +1,17 @@
 "use client";
 
-import { useRef, useState } from "react";
-import { ArrowRight, Check, ExternalLink, FileUp, MessageCircle, Plus, Trash2 } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { ArrowRight, Check, ChevronDown, ExternalLink, FileUp, LayoutGrid, MessageCircle, Plus, Trash2 } from "lucide-react";
 import { useStore } from "@/lib/works/store";
-import { agreedFor, monthlyAreas, docxText, inReview, stageOf, isFreelancer, isMarketing, monthName, myClients, nameOf, personById, shortDate, splitIdeas, todayIso, turnOf } from "@/lib/works/logic";
+import { agreedFor, areaItems, monthlyAreas, docxText, inReview, needsMe, progress, stageOf, isFreelancer, isMarketing, monthName, myClients, nameOf, personById, shortDate, splitIdeas, todayIso, turnOf } from "@/lib/works/logic";
 import type { Client, Idea, IdeaDecision, Persona, Pillar, Post, ReportNumbers, Strategy } from "@/lib/works/types";
 import { Shell } from "./Shell";
 import { PostArt } from "./PostArt";
 import { PostReview } from "./PostView";
 import { MonthChecklist } from "./Monthly";
 import { ReviewMode } from "./ReviewMode";
-import { StarterPack } from "./StarterPack";
+import { PackPane, packDocs, type DocKey } from "./StarterPack";
+import { Results } from "./Results";
 import { AttachField, Avatar, Button, Card, CardHead, Chip, ClientMark, Empty, Field, Segmented, fieldClass, tone } from "./kit";
 
 const formats = ["Carousel", "Single image", "Reel", "Text post", "Newsletter"];
@@ -28,8 +29,11 @@ export const statusTone = (post: Post) => {
 };
 
 // ─── Page ───
+const packTabs: Record<string, DocKey> = { "pack-brand": "brand", "pack-brain": "brain", "pack-templates": "templates" };
+
 export function MarketingPage({ clientId, tab, postId, filter }: { clientId?: string; tab?: string; postId?: string; filter?: string }) {
   const { state, go } = useStore();
+  const [packOpen, setPackOpen] = useState(true);
   const clients = myClients(state).filter(isMarketing);
   const client = clients.find((item) => item.id === clientId);
   const scope = client ? client.id : "all";
@@ -39,56 +43,114 @@ export function MarketingPage({ clientId, tab, postId, filter }: { clientId?: st
     return <PostReview post={post} client={postClient} backScope={scope} />;
   }
 
-  const current = tab ?? "posts";
+  const requested = tab ?? "posts";
+  const current = !client && (requested in packTabs || requested === "month") ? "posts" : requested === "strategy" ? "posts" : requested;
   const inScope = (item: { clientId: string }) => (client ? item.clientId === client.id : clients.some((c) => c.id === item.clientId));
-  const mineCount = (id?: string) => state.posts.filter((item) => (id ? item.clientId === id : inScope(item)) && item.date.startsWith(state.month) && turnOf(state, item).who === state.me).length;
-  const tabs = [
-    { value: "posts", label: "Posts", count: state.posts.filter((item) => inScope(item) && item.date.startsWith(state.month)).length },
-    { value: "calendar", label: "Calendar" },
-    { value: "ideas", label: "Ideas", count: state.ideas.filter((idea) => inScope(idea) && idea.month === state.month && idea.decision === "New").length },
-    { value: "strategy", label: "Strategy" },
-    { value: "results", label: "Results" },
-  ];
+  const mineCount = (id?: string) => state.posts.filter((item) => (id ? item.clientId === id : inScope(item)) && item.date.startsWith(state.month) && needsMe(state, item)).length;
+  const monthAreas = client ? monthlyAreas(state, client).filter((area) => !isFreelancer(state) || area.id === "freelancer") : [];
+  const monthOpen = monthAreas.reduce((sum, area) => sum + area.steps.filter((step) => !step.done).length, 0);
   const to = (patch: { clientId?: string; tab?: string }) => go({ view: "marketing", clientId: patch.clientId ?? scope, tab: patch.tab ?? current });
+  const packProgress = client ? progress(["brain", "brand", "templates", "handoff"].flatMap((id) => areaItems(client.checklist, id))) : undefined;
+
+  const railItem = (value: string, label: string, count?: number, sub?: { color: string; ready: boolean }) => (
+    <button key={value} onClick={() => to({ tab: value })} aria-current={current === value} className={`flex shrink-0 items-center gap-2 rounded-xl px-3.5 py-2.5 text-left text-[14px] font-semibold transition lg:w-full ${sub ? "lg:ml-3 lg:w-[calc(100%-0.75rem)]" : ""} ${current === value ? "bg-[#1E2430] text-white" : "text-[#3D4450] hover:bg-white"}`}>
+      {sub && <span className="h-4 w-1 shrink-0 rounded-full" style={{ background: sub.color }} />}
+      <span className="flex-1 whitespace-nowrap lg:whitespace-normal">{label}</span>
+      {sub?.ready && <Check size={14} className={current === value ? "text-white" : "text-[#17804A]"} />}
+      {!!count && <span className={`rounded-full px-1.5 text-[11px] font-bold ${current === value ? "bg-white/20 text-white" : "bg-[#E9E6E0] text-[#55514B]"}`}>{count}</span>}
+    </button>
+  );
 
   return (
-    <Shell title="Marketing" sub={`${monthName(state.month)} · ${mineCount() ? `${mineCount()} post${mineCount() === 1 ? "" : "s"} waiting on you` : "nothing waiting on you"}`}>
-      <div className="-mx-1 mb-4 flex gap-2 overflow-x-auto px-1 pb-1">
-        <button onClick={() => to({ clientId: "all" })} className={`flex shrink-0 items-center gap-2 rounded-2xl border px-3.5 py-2 text-[13px] font-bold ${scope === "all" ? "border-[#1E2430] bg-[#1E2430] text-white" : "border-[#E2DED7] bg-white"}`}>
-          All clients{mineCount() > 0 && <span className="rounded-full bg-[#D64545] px-1.5 text-[11px] text-white">{mineCount()}</span>}
-        </button>
-        {clients.map((item) => (
-          <button key={item.id} onClick={() => to({ clientId: item.id })} className={`flex shrink-0 items-center gap-2 rounded-2xl border py-1.5 pl-1.5 pr-3.5 text-[13px] font-bold ${scope === item.id ? "border-[#1E2430] bg-white shadow-[0_0_0_1px_#1E2430]" : "border-[#E2DED7] bg-white hover:border-[#C9C3B8]"}`}>
-            <ClientMark client={item} size={28} />
-            {item.name}
-            {mineCount(item.id) > 0 && <span className="rounded-full bg-[#D64545] px-1.5 text-[11px] text-white">{mineCount(item.id)}</span>}
-          </button>
-        ))}
+    <Shell
+      title="Marketing"
+      sub={`${monthName(state.month)} · ${mineCount() ? `${mineCount()} post${mineCount() === 1 ? "" : "s"} waiting on you` : "nothing waiting on you"}`}
+      actions={<ClientPicker clients={clients} scope={scope} onPick={(id) => to({ clientId: id, tab: id !== "all" ? current : current in packTabs || current === "month" ? "posts" : current })} count={mineCount} />}
+    >
+      <div className="grid gap-5 lg:grid-cols-[232px_minmax(0,1fr)]">
+        <nav aria-label="Marketing sections" className="-mx-1 flex gap-1 overflow-x-auto px-1 pb-1 lg:sticky lg:top-4 lg:mx-0 lg:flex-col lg:self-start lg:overflow-visible lg:px-0 lg:pb-0">
+          {client && (
+            <>
+              <button onClick={() => setPackOpen(!packOpen)} aria-expanded={packOpen} className="flex shrink-0 items-center gap-2 rounded-xl px-3.5 py-2.5 text-left text-[14px] font-bold text-[#1E2430] hover:bg-white lg:w-full">
+                <span className="flex-1 whitespace-nowrap lg:whitespace-normal">{isFreelancer(state) ? "Your starter pack" : "Freelancer starter pack"}</span>
+                {packProgress && packProgress.percent < 100 && <span className="text-[11px] font-semibold text-[#B7864B]">{packProgress.percent}%</span>}
+                <ChevronDown size={15} className={`text-[#8B867E] transition ${packOpen ? "" : "-rotate-90"}`} />
+              </button>
+              {packOpen && packDocs(client).map((doc) => {
+                const items = areaItems(client.checklist, doc.key);
+                return railItem(`pack-${doc.key}`, doc.label, undefined, { color: doc.color, ready: items.length > 0 && items.every((item) => item.status === "Received" || item.status === "N/A") });
+              })}
+              <div className="mx-2 my-1 hidden border-t border-[#E9E6E0] lg:block" />
+            </>
+          )}
+          {railItem("posts", "Posts", state.posts.filter((item) => inScope(item) && item.date.startsWith(state.month)).length)}
+          {railItem("calendar", "Calendar")}
+          {railItem("ideas", "Ideas", state.ideas.filter((idea) => inScope(idea) && idea.month === state.month && idea.decision === "New").length)}
+          {client && monthAreas.length > 0 && railItem("month", isFreelancer(state) ? "My checklist" : "This month", monthOpen)}
+          {railItem("results", "Results")}
+        </nav>
+
+        <div className="min-w-0">
+          {client && current in packTabs && <PackPane key={`${client.id}-${current}`} client={client} docKey={packTabs[current]} />}
+          {current === "posts" && <PostBoard key={scope} client={client} scope={scope} initial={filter} />}
+          {current === "calendar" && <PlanCalendar client={client} scope={scope} />}
+          {current === "ideas" && <IdeasView client={client} />}
+          {client && current === "month" && (
+            <div className="space-y-5">
+              {monthAreas.map((area) => <div key={area.id} className="rounded-2xl border border-[#E9E6E0] bg-white p-5"><MonthChecklist client={client} area={area} month={state.month} /></div>)}
+            </div>
+          )}
+          {current === "results" && <Results client={client} />}
+        </div>
       </div>
-      {client && isMarketing(client) && <div className="mb-5"><StarterPack client={client} /></div>}
-      {client && isMarketing(client) && isFreelancer(state) && (() => {
-        const mine = monthlyAreas(state, client).find((area) => area.id === "freelancer");
-        return mine ? <div className="mb-5 rounded-2xl border border-[#E9E6E0] bg-white p-4"><MonthChecklist client={client} area={mine} month={state.month} /></div> : null;
-      })()}
-      <div className="mb-5 flex gap-1 overflow-x-auto border-b border-[#E9E6E0]">
-        {tabs.map((item) => (
-          <button key={item.value} onClick={() => to({ tab: item.value })} className={`-mb-px shrink-0 border-b-2 px-4 py-2.5 text-[14px] font-semibold ${current === item.value ? "border-[#1E2430] text-[#1E2430]" : "border-transparent text-[#8B867E] hover:text-[#1E2430]"}`}>
-            {item.label}{!!item.count && <span className="ml-1.5 text-[12px] opacity-60">{item.count}</span>}
-          </button>
-        ))}
-      </div>
-      {current === "posts" && <PostBoard client={client} scope={scope} initial={filter} />}
-      {current === "calendar" && <PlanCalendar client={client} scope={scope} />}
-      {current === "ideas" && <IdeasView client={client} />}
-      {current === "strategy" && (client ? <StrategyView client={client} /> : <PickClient what="the strategy" />)}
-      {current === "results" && <Results client={client} />}
     </Shell>
   );
 }
 
-/** The three documents a freelancer starts from, so they do not have to reinterpret the strategy. */
-function PickClient({ what }: { what: string }) {
-  return <Empty title="Choose a client above">Each client has its own {what}.</Empty>;
+/** The client switcher: a pill at the top right that opens a list with logos. */
+function ClientPicker({ clients, scope, onPick, count }: { clients: Client[]; scope: string; onPick: (id: string) => void; count: (id?: string) => number }) {
+  const [open, setOpen] = useState(false);
+  const box = useRef<HTMLDivElement>(null);
+  const selected = clients.find((item) => item.id === scope);
+  useEffect(() => {
+    if (!open) return;
+    const away = (event: MouseEvent) => { if (box.current && !box.current.contains(event.target as Node)) setOpen(false); };
+    const esc = (event: KeyboardEvent) => { if (event.key === "Escape") setOpen(false); };
+    document.addEventListener("mousedown", away);
+    document.addEventListener("keydown", esc);
+    return () => { document.removeEventListener("mousedown", away); document.removeEventListener("keydown", esc); };
+  }, [open]);
+  const choose = (id: string) => { setOpen(false); onPick(id); };
+  const badge = (n: number) => n > 0 && <span className="rounded-full bg-[#D64545] px-1.5 text-[11px] font-bold text-white">{n}</span>;
+
+  return (
+    <div ref={box} className="relative">
+      <button onClick={() => setOpen(!open)} aria-haspopup="listbox" aria-expanded={open} className="flex min-w-[210px] items-center gap-2.5 rounded-xl border border-[#E2DED7] bg-white py-1.5 pl-1.5 pr-3 text-left shadow-sm hover:border-[#C9C3B8]">
+        {selected ? <ClientMark client={selected} size={32} /> : <span className="grid h-8 w-8 place-items-center rounded-lg bg-[#1E2430] text-white"><LayoutGrid size={16} /></span>}
+        <span className="min-w-0 flex-1 truncate text-[14px] font-bold">{selected ? selected.name : "All clients"}</span>
+        <ChevronDown size={16} className={`shrink-0 text-[#8B867E] transition ${open ? "rotate-180" : ""}`} />
+      </button>
+      {open && (
+        <div role="listbox" aria-label="Choose a client" className="absolute left-0 top-full z-30 mt-2 max-h-[62vh] sm:left-auto sm:right-0 w-[290px] max-w-[calc(100vw-2rem)] overflow-y-auto rounded-2xl border border-[#E9E6E0] bg-white p-1.5 shadow-[0_18px_44px_rgba(30,36,48,.16)]">
+          <button role="option" aria-selected={scope === "all"} onClick={() => choose("all")} className={`flex w-full items-center gap-3 rounded-xl px-2.5 py-2 text-left hover:bg-[#F6F5F2] ${scope === "all" ? "bg-[#F6F5F2]" : ""}`}>
+            <span className="grid h-8 w-8 place-items-center rounded-lg bg-[#1E2430] text-white"><LayoutGrid size={16} /></span>
+            <span className="flex-1 text-[14px] font-bold">All clients</span>
+            {badge(count())}
+            {scope === "all" && <Check size={15} className="text-[#2F6FDB]" />}
+          </button>
+          <div className="mx-2 my-1 border-t border-[#F0EEE9]" />
+          {clients.map((item) => (
+            <button key={item.id} role="option" aria-selected={scope === item.id} onClick={() => choose(item.id)} className={`flex w-full items-center gap-3 rounded-xl px-2.5 py-2 text-left hover:bg-[#F6F5F2] ${scope === item.id ? "bg-[#F6F5F2]" : ""}`}>
+              <ClientMark client={item} size={32} />
+              <span className="min-w-0 flex-1"><span className="block truncate text-[14px] font-bold">{item.name}</span><span className="block truncate text-[12px] text-[#8B867E]">{item.sector}</span></span>
+              {badge(count(item.id))}
+              {scope === item.id && <Check size={15} className="text-[#2F6FDB]" />}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 }
 
 // ─── Posts ───
@@ -135,8 +197,8 @@ function PostBoard({ client, scope, initial }: { client?: Client; scope: string;
     .sort((a, b) => a.date.localeCompare(b.date));
   const approvedStatus = ["Ready to schedule", "Scheduled", "Published"];
   const groups: Record<string, (post: Post) => boolean> = {
-    mine: (post) => turnOf(state, post).who === state.me,
-    progress: (post) => !approvedStatus.includes(post.status) && turnOf(state, post).who !== state.me,
+    mine: (post) => needsMe(state, post),
+    progress: (post) => !approvedStatus.includes(post.status) && !needsMe(state, post),
     ...(clients.some((c) => c.approvalMode !== "C") ? { client: (post: Post) => post.status === "Client approval" } : {}),
     approved: (post) => approvedStatus.includes(post.status),
     all: () => true,
@@ -160,10 +222,18 @@ function PostBoard({ client, scope, initial }: { client?: Client; scope: string;
         </div>
       </div>
       {reviewing.length > 0 && <ReviewMode ids={reviewing} onClose={() => setReviewing([])} />}
-      {shown.length === 0 ? (
-        <Empty title={filter === "mine" ? "Nothing waiting on you" : "No posts here"}>{filter === "mine" ? "You are up to date for this month. Try another filter or month." : ""}</Empty>
-      ) : (
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+      {filter === "mine" && shown.length === 0 && (
+        <div className="flex items-center gap-3 rounded-2xl border border-[#CFE8D9] bg-[#EAF6EF] px-5 py-4 text-[14px] font-semibold text-[#17804A]"><Check size={18} />You are up to date. Nothing is waiting on you.</div>
+      )}
+      {filter === "mine" && shown.length === 0 && posts.filter(groups.progress).length > 0 && (
+        <div>
+          <h3 className="mb-2 text-[15px] font-bold">Still in progress</h3>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">{posts.filter(groups.progress).map((post) => <PostTile key={post.id} post={post} showClient={!client} scope={scope} />)}</div>
+        </div>
+      )}
+      {filter !== "mine" && shown.length === 0 && <Empty title="No posts here">Try another filter or month.</Empty>}
+      {shown.length > 0 && (
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
           {shown.map((post) => <PostTile key={post.id} post={post} showClient={!client} scope={scope} />)}
         </div>
       )}
@@ -385,7 +455,7 @@ function IdeaCard({ idea, client, showClient, canDecide, onChange, onMakePost, o
 }
 
 // ─── Strategy: the client's marketing profile ───
-function StrategyView({ client }: { client: Client }) {
+export function StrategyView({ client }: { client: Client }) {
   const { state, updateClient } = useStore();
   const readOnly = isFreelancer(state);
   const s = client.strategy;
@@ -475,67 +545,3 @@ function StrategyView({ client }: { client: Client }) {
 
 // ─── Results: the freelancer's month-end hand-in ───
 const emptyNumbers: ReportNumbers = { followers: "", followerChange: "", reach: "", impressions: "", engagementRate: "", postsPublished: "", topPost: "", observations: "", screenshots: "" };
-
-function Results({ client }: { client?: Client }) {
-  const { state, go } = useStore();
-  const clients = myClients(state).filter(isMarketing);
-  if (!client) {
-    return (
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-        {clients.map((item) => {
-          const report = state.reports.find((entry) => entry.clientId === item.id && entry.month === state.month);
-          return (
-            <button key={item.id} onClick={() => go({ view: "marketing", clientId: item.id, tab: "results" })} className="flex items-center gap-3 rounded-2xl border border-[#E9E6E0] bg-white p-4 text-left hover:border-[#C9C3B8]">
-              <ClientMark client={item} size={38} />
-              <span className="flex-1"><b className="text-[14px]">{item.name}</b><span className="block text-[12px] text-[#8B867E]">{monthName(state.month)}</span></span>
-              <Chip t={report?.freelancerReport || report?.numbers ? "green" : "grey"} dot>{report?.freelancerReport || report?.numbers ? "Handed in" : "Not yet"}</Chip>
-            </button>
-          );
-        })}
-      </div>
-    );
-  }
-  return <ResultsForm key={`${client.id}-${state.month}`} client={client} />;
-}
-
-function ResultsForm({ client }: { client: Client }) {
-  const { state, saveNumbers, attachReport } = useStore();
-  const report = state.reports.find((item) => item.clientId === client.id && item.month === state.month);
-  const [numbers, setNumbers] = useState<ReportNumbers>(report?.numbers ?? emptyNumbers);
-  const posts = state.posts.filter((post) => post.clientId === client.id && post.date.startsWith(state.month));
-  const live = posts.filter((post) => post.status === "Published").length;
-  return (
-    <div className="grid gap-5 xl:grid-cols-[.8fr_1.2fr]">
-      <div className="space-y-4">
-        <Card>
-          <CardHead title={`${monthName(state.month)} at a glance`} />
-          <div className="grid grid-cols-2 gap-2">
-            <div className="rounded-xl bg-[#E7F6EE] p-3"><div className="text-[24px] font-extrabold text-[#17804A]">{live}</div><div className="text-[12px] font-semibold">Live</div></div>
-            <div className="rounded-xl bg-[#F6F5F2] p-3"><div className="text-[24px] font-extrabold">{client.agreedPosts}</div><div className="text-[12px] font-semibold">Agreed</div></div>
-          </div>
-        </Card>
-        <Card>
-          <CardHead title="Monthly report" sub="The freelancer's report for the month, as a file or a link." />
-          <AttachField value={report?.freelancerReport} onChange={(file) => attachReport(client.id, state.month, "freelancerReport", file)} label="Upload report" />
-          <p className="mt-3 text-[12px] text-[#8B867E]">Operations is notified when it is attached. The client report is sent from the client&apos;s Reporting tab.</p>
-        </Card>
-      </div>
-      <Card>
-        <CardHead title="Key numbers (optional)" sub="From LinkedIn / Instagram analytics or the publishing tool." />
-        <form onSubmit={(event) => { event.preventDefault(); saveNumbers(client.id, state.month, numbers); }} className="space-y-3">
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-            {([["followers", "Followers"], ["followerChange", "Change"], ["reach", "Reach"], ["impressions", "Impressions"], ["engagementRate", "Engagement %"], ["postsPublished", "Posts published"]] as [keyof ReportNumbers, string][]).map(([key, label]) => (
-              <Field key={key} label={label}><input value={numbers[key]} onChange={(event) => setNumbers({ ...numbers, [key]: event.target.value })} className={fieldClass} /></Field>
-            ))}
-          </div>
-          <Field label="Best post and why"><input value={numbers.topPost} onChange={(event) => setNumbers({ ...numbers, topPost: event.target.value })} className={fieldClass} /></Field>
-          <Field label="What you noticed"><textarea value={numbers.observations} onChange={(event) => setNumbers({ ...numbers, observations: event.target.value })} rows={3} className={fieldClass} /></Field>
-          <div className="flex items-center gap-3">
-            <Button kind="primary" type="submit"><Check size={14} />Save numbers</Button>
-            {report?.numbersAt && <span className="text-[12px] text-[#8B867E]">Last saved by {nameOf(state, report.numbersBy)} on {shortDate(report.numbersAt)}</span>}
-          </div>
-        </form>
-      </Card>
-    </div>
-  );
-}

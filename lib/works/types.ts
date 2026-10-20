@@ -65,6 +65,8 @@ export type Client = {
   setupPosts: number;
   /** Manual ticks on the monthly checklists: month, then step id, then the date it was ticked. */
   monthDone: Record<string, Record<string, string>>;
+  /** An uploaded document for each part of the starter pack. A link goes in links instead. */
+  packFiles?: Partial<Record<"brand" | "brain" | "templates", { name: string; url: string }>>;
   /** What the freelancer starter pack says, in words, so it can be read in the app. */
   packNotes: { brand: string; brain: string; templates: string };
   name: string;
@@ -288,6 +290,12 @@ export type MonthReport = {
   numbers?: ReportNumbers;
   numbersBy?: string;
   numbersAt?: string;
+  /** Key numbers for each platform, saved one by one. `numbers` holds the main one for the client report. */
+  byPlatform?: Record<string, ReportNumbers & { savedAt: string; savedBy: string }>;
+  /** Steps on the freelancer's report checklist that are ticked by hand. */
+  checks?: Record<string, string>;
+  /** When the freelancer handed the report to operations. */
+  submittedAt?: string;
   checked: boolean;
   summary: string;
   recommendations: string;
