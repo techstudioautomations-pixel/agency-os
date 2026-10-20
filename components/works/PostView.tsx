@@ -8,7 +8,7 @@ import type { Client, Post, PostFile, RevisionCategory } from "@/lib/works/types
 import { buildZip, safeName } from "@/lib/zip";
 import { PostArt } from "./PostArt";
 import { Lightbox } from "./Lightbox";
-import { pagesForAttached, pagesIn, readPostFiles, slidesOf, withoutFile } from "@/lib/works/pdf";
+import { carouselPdf, isLinkedInCarousel, openFile, pagesForAttached, pagesIn, readPostFiles, saveFile, slidesOf, withoutFile } from "@/lib/works/pdf";
 import { CtaPicker } from "./CtaPicker";
 import { statusTone } from "./Marketing";
 import { asset, Avatar, Button, Chip, ClientMark, Field, fieldClass } from "./kit";
@@ -97,15 +97,30 @@ export function PostPreviewPanel({ post, client, canEdit, onEdit }: { post: Post
   const [channel, setChannel] = useState(post.platforms[0] ?? "LinkedIn");
   const [busy, setBusy] = useState(false);
   const [big, setBig] = useState(false);
+  const linkedinPdf = isLinkedInCarousel(post);
+  const slideImages = post.files.filter((file) => file.kind === "image");
   const visuals = post.files.filter((file) => file.kind === "image" || file.kind === "video");
   const pdf = post.files.find((file) => file.kind === "pdf");
   const caption = post.captions[channel] ?? post.copy;
   const count = Math.max(1, visuals.length);
 
+  async function makeLinkedInPdf() {
+    setBusy(true);
+    try {
+      const blob = await carouselPdf(slideImages.map((file) => asset(file.src)));
+      saveFile(blob, `${safeName(client.name)}-${safeName(post.title)}-linkedin.pdf`);
+    } catch {
+      ping("Could not build the PDF");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function downloadAll() {
     setBusy(true);
     try {
       const entries = await Promise.all(post.files.filter((file) => !file.pageOf).map(async (file, index) => ({ name: `${String(index + 1).padStart(2, "0")}-${safeName(file.name)}`, data: new Uint8Array(await (await fetch(asset(file.src))).arrayBuffer()) })));
+      if (linkedinPdf && !pdf && slideImages.length > 0) entries.push({ name: `${String(entries.length + 1).padStart(2, "0")}-${safeName(post.title)}-linkedin.pdf`, data: new Uint8Array(await (await carouselPdf(slideImages.map((file) => asset(file.src)))).arrayBuffer()) });
       const url = URL.createObjectURL(buildZip(entries));
       const a = document.createElement("a");
       a.href = url;
@@ -155,7 +170,16 @@ export function PostPreviewPanel({ post, client, canEdit, onEdit }: { post: Post
               ))}
             </div>
           )}
-          {pdf && <a href={asset(pdf.src)} target="_blank" rel="noreferrer" className="mx-auto mt-3 flex max-w-[420px] items-center justify-center gap-1.5 rounded-xl bg-white px-3 py-2 text-[12px] font-semibold text-[#1F5BC4]">Open PDF carousel: {pdf.name} <ExternalLink size={12} /></a>}
+          {pdf && (
+            <div className="mx-auto mt-3 flex max-w-[420px] flex-wrap items-center justify-center gap-2">
+              <button onClick={() => openFile(asset(pdf.src))} className="inline-flex items-center gap-1.5 rounded-xl bg-white px-3 py-2 text-[12px] font-semibold text-[#1F5BC4]">Open the PDF <ExternalLink size={12} /></button>
+              <button onClick={() => fetch(asset(pdf.src)).then((response) => response.blob()).then((blob) => saveFile(blob, pdf.name)).catch(() => ping("Could not download the PDF"))} className="inline-flex items-center gap-1.5 rounded-xl bg-white px-3 py-2 text-[12px] font-semibold text-[#1F5BC4]"><Download size={12} />Download the PDF</button>
+            </div>
+          )}
+          {linkedinPdf && !pdf && slidesOf(post.files).some((file) => file.kind === "image") && (
+            <div className="mx-auto mt-3 flex max-w-[420px] justify-center"><button onClick={makeLinkedInPdf} disabled={busy} className="inline-flex items-center gap-1.5 rounded-xl bg-[#0A66C2] px-3.5 py-2 text-[12px] font-bold text-white disabled:opacity-60"><Download size={13} />{busy ? "Building the PDF…" : "Download the LinkedIn PDF"}</button></div>
+          )}
+          {linkedinPdf && <p className="mx-auto mt-3 max-w-[420px] rounded-xl bg-[#EAF3FC] px-3 py-2 text-[12px] leading-snug text-[#0A4E8F]"><b>LinkedIn carousel.</b> LinkedIn only takes a carousel as one PDF. It is shown here as slides, and posted on LinkedIn as a PDF.</p>}
           {!post.files.length && <p className="mx-auto mt-3 max-w-[420px] text-center text-[12px] text-[#8B867E]">{post.status.startsWith("Copy") ? "Preview design. The artwork is made after the copy is approved." : "No artwork uploaded yet. This is a preview."}</p>}
         </div>
 
@@ -391,6 +415,7 @@ function Conversation({ post, client, mine }: { post: Post; client: Client; mine
     action = (
       <div className="space-y-2">
         <div className="flex gap-2"><input type="date" value={date} onChange={(event) => setDate(event.target.value)} aria-label="Publish date" className={`${fieldClass} !mt-0`} /></div>
+        {isLinkedInCarousel(post) && <p className="rounded-xl bg-[#EAF3FC] px-3 py-2 text-[12px] text-[#0A4E8F]"><b>LinkedIn:</b> post this carousel as a PDF. Download it from the preview.</p>}
         {!post.driveLink && <p className="text-[12px] font-semibold text-[#94600A]">Add the Drive link to the final files first (Edit post).</p>}
         <Button kind="primary" className="w-full" disabled={!post.driveLink || !date} onClick={() => store.schedulePost(post.id, date, "Publishing tool")}>Scheduled in publishing tool</Button>
       </div>

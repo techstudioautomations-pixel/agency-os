@@ -9,7 +9,7 @@ import type { PostFile } from "@/lib/works/types";
 import { Button, ClientMark, Field, fieldClass } from "./kit";
 import { Lightbox } from "./Lightbox";
 import { CtaPicker } from "./CtaPicker";
-import { pagesIn, readPostFiles, slidesOf, withoutFile } from "@/lib/works/pdf";
+import { isLinkedInCarousel, pagesIn, readPostFiles, slidesOf, withoutFile } from "@/lib/works/pdf";
 
 const formats = ["Carousel", "Text post", "Single image", "Reel", "Document", "Newsletter"] as const;
 const formatLabel: Record<string, string> = { Reel: "Video / Reel", Document: "PDF / document", "Single image": "Image only", "Text post": "Text only" };
@@ -329,6 +329,7 @@ function Wizard() {
                     ))}
                   </ul>
                 )}
+                {kind === "plan" && isLinkedInCarousel({ format, platforms: picked }) && <p className="mb-2 rounded-xl bg-[#EAF3FC] px-4 py-3 text-[12px] leading-snug text-[#0A4E8F]"><b>This is a LinkedIn carousel.</b> LinkedIn only takes a carousel as one PDF, so it is posted as a PDF. Upload the slides here as images (or a PDF) and we build the PDF for you to post.</p>}
                 {reading && <p className="mb-2 rounded-xl bg-[#F1F6FE] px-4 py-3 text-[13px] font-semibold text-[#1F5BC4]">Reading the file and drawing its pages…</p>}
                 {(rule.multiple || files.length === 0) && (
                   <label className="flex cursor-pointer items-center justify-center gap-2 rounded-xl border-2 border-dashed border-[#C9D6EE] bg-[#F7FAFF] p-4 text-[13px] font-semibold text-[#1F5BC4] hover:bg-[#EEF4FF]">

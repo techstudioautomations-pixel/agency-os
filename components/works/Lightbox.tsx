@@ -1,14 +1,16 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { ChevronLeft, ChevronRight, ExternalLink, X } from "lucide-react";
 import type { PostFile } from "@/lib/works/types";
+import { openableUrl } from "@/lib/works/pdf";
 
 /** Shows what was attached at full size, one file at a time. */
 export function Lightbox({ files, start = 0, onClose }: { files: PostFile[]; start?: number; onClose: () => void }) {
   const [index, setIndex] = useState(Math.min(start, Math.max(0, files.length - 1)));
   const file = files[index];
+  const pdfUrl = useMemo(() => (file?.kind === "pdf" ? openableUrl(file.src) : ""), [file]);
   const step = (delta: number) => setIndex((value) => (value + delta + files.length) % files.length);
 
   useEffect(() => {
@@ -31,7 +33,7 @@ export function Lightbox({ files, start = 0, onClose }: { files: PostFile[]; sta
       <div className="relative flex min-h-0 flex-1 items-center justify-center px-4 pb-4" onClick={(event) => { if (event.target === event.currentTarget) onClose(); }}>
         {file.kind === "image" && /* eslint-disable-next-line @next/next/no-img-element */ <img src={file.src} alt={file.name} className="max-h-full max-w-full rounded-lg object-contain" />}
         {file.kind === "video" && <video src={file.src} controls className="max-h-full max-w-full rounded-lg" />}
-        {file.kind === "pdf" && <iframe src={file.src} title={file.name} className="h-full w-full max-w-[900px] rounded-lg bg-white" />}
+        {file.kind === "pdf" && <iframe src={pdfUrl} title={file.name} className="h-full w-full max-w-[900px] rounded-lg bg-white" />}
         {file.kind === "other" && <a href={file.src} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 rounded-xl bg-white px-5 py-3 text-[14px] font-semibold">Open {file.name} <ExternalLink size={14} /></a>}
         {files.length > 1 && (
           <>
