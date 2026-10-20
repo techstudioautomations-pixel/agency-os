@@ -717,6 +717,8 @@ const packNotes: Record<string, Client["packNotes"]> = {
 };
 const clientPackage: Record<string, string> = { marker: "essential", housebuild: "essential", buildregs: "essential", element: "growth", energyfix: "essential", capcon: "growth" };
 const sectionDefs = defaultSections();
+/** Next month's House Build posts, the example for the client portal. */
+export const portalIds = ["hb-n1", "hb-n2", "hb-n3", "hb-n4", "hb-n5", "hb-n6", "hb-n7", "hb-n8", "hb-n9"];
 clients.forEach((client, index) => {
   client.checklist = [...client.checklist, ...(packFor[client.id] ?? [])];
   client.links = { ...client.links, ...packLinks[client.id] };
@@ -734,7 +736,7 @@ clients.forEach((client, index) => {
   client.checklist.forEach((item) => { item.area = item.area ?? areaIdForGroup(item.group); });
   if (newsletter) client.checklist.push(...buildClientChecklist(sectionDefs.filter((section) => section.id === "newsletter"), client.id).map((item, i) => (i === 0 ? { ...item, status: "Requested" as const, date: ago(3) } : item)));
   client.agreedPosts = piecesPerMonth(client.assets);
-  client.share = { ...newShare(client.id, index + 1), enabled: client.id === "housebuild", postIds: client.id === "housebuild" ? ["h1", "h3", "h6"] : [] };
+  client.share = { ...newShare(client.id, index + 1), enabled: client.id === "housebuild", postIds: client.id === "housebuild" ? ["h1", "h3", "h6", ...portalIds] : [] };
 });
 
 // ─── Posts ───
@@ -759,7 +761,23 @@ const post = (p: Partial<Post> & Pick<Post, "id" | "clientId" | "title" | "statu
 
 const img = (id: string, src: string) => ({ id, name: src.split("/").pop() ?? id, src, kind: (src.endsWith(".mp4") ? "video" : "image") as "video" | "image" });
 
+const monthAfter = (() => { const date = new Date(`${thisMonth}-15T12:00:00Z`); date.setUTCMonth(date.getUTCMonth() + 1); return date.toISOString().slice(0, 7); })();
+const nextDay = (value: number) => `${monthAfter}-${pad(value)}`;
+/** What House Build's next month looks like, from first idea to scheduled. */
+export const portalPosts: Post[] = [
+  post({ id: "hb-n1", clientId: "housebuild", title: "Look up your span in seconds", platforms: ["Instagram", "LinkedIn"], pillarId: "pl1", status: "Scheduled", date: nextDay(3), copy: "Which timber fits your span? Enter the opening, the load and the grade, and the HouseBuild span lookup gives you the answer in seconds.\n\nGuidance only. Confirm with your engineer.", files: [img("pn1", "/posts/housebuild-span-cover.jpg")], scheduledVia: "Publishing tool" }),
+  post({ id: "hb-n2", clientId: "housebuild", title: "Steel or timber beam: when does each make sense?", format: "Carousel", platforms: ["Instagram", "LinkedIn"], pillarId: "pl1", status: "Scheduled", date: nextDay(5), copy: "Steel is not always the answer, and timber is not always the cheaper one. Four questions to ask before you choose a beam.\n\nSwipe through, then try the span tool.", art: "Steel or timber beam?", scheduledVia: "Publishing tool" }),
+  post({ id: "hb-n3", clientId: "housebuild", title: "Every opening has a structural rule behind it", platforms: ["Instagram"], pillarId: "pl2", status: "Ready to schedule", date: nextDay(7), copy: "Every opening in a wall needs support above it. Review the openings guidance on HouseBuild before you cut.", files: [img("pn3", "/posts/housebuild-openings.jpg")] }),
+  post({ id: "hb-n4", clientId: "housebuild", title: "Top 3 mistakes self-builders make with foundations", format: "Carousel", platforms: ["Instagram", "LinkedIn"], pillarId: "pl3", status: "Ready to schedule", date: nextDay(10), copy: "From the questions our support inbox gets every week: the three foundation mistakes that cost the most to fix, and how to avoid each one.", art: "3 foundation mistakes" }),
+  post({ id: "hb-n5", clientId: "housebuild", title: "What will your build really cost?", platforms: ["Instagram", "LinkedIn"], pillarId: "pl1", status: "Ready to schedule", date: nextDay(12), copy: "Design fees, structural sign-off, BER, site surveys: the costs most self-builders forget. Our cost calculator lists them line by line so nothing surprises you.", files: [img("pn5", "/posts/housebuild-cost-calculator.jpg")] }),
+  post({ id: "hb-n6", clientId: "housebuild", title: "Myth: you can always remove an internal wall", format: "Reel", platforms: ["Instagram"], pillarId: "pl2", status: "Design review", date: nextDay(14), copy: "Some walls hold the house up. Here is how to tell which, and what a structural opening really involves.", art: "Can you really remove that wall?" }),
+  post({ id: "hb-n7", clientId: "housebuild", title: "Timber only performs to its grade if it's stored right", platforms: ["Instagram"], pillarId: "pl3", status: "Design review", date: nextDay(17), copy: "Off the ground, covered, ventilated. Storage and protection of materials on housebuild.com.", files: [img("pn7", "/posts/housebuild-timber-storage.jpg")] }),
+  post({ id: "hb-n8", clientId: "housebuild", title: "What Part A means for your extension", format: "Text post", platforms: ["LinkedIn"], pillarId: "pl2", status: "Copy review", date: nextDay(19), copy: "Planning an extension? Part A covers structure, and it decides more than most people expect: foundations, loads, openings and the way the new build ties into the old.\n\nThree things to settle with your engineer before the drawings go out.", art: "What Part A means for your extension" }),
+  post({ id: "hb-n9", clientId: "housebuild", title: "Timber span: 4 things decide it", format: "Carousel", platforms: ["Instagram", "LinkedIn"], pillarId: "pl1", status: "Copy in progress", date: nextDay(21), copy: "", art: "Timber span: 4 things decide it" }),
+];
+
 export const posts: Post[] = [
+  ...portalPosts,
   post({ id: "m1", clientId: "marker", title: "The hidden cost of a delayed fire door inspection", format: "Carousel", pillarId: "pl2", status: "Published", date: day(3), copy: "Three places small inspection delays turn into big problems, and a checklist your facilities team can use this week.", liveUrl: "https://www.linkedin.com/", art: "Fire door inspection delays" }),
   post({ id: "m2", clientId: "marker", title: "Make compliance easier to act on", pillarId: "pl1", status: "Scheduled", date: day(21), copy: "Useful guidance your team can put to work this week.", scheduledVia: "Publishing tool", art: "CLEAR STEPS.\nSAFER SITES." }),
   post({ id: "m3", clientId: "marker", title: "Fire door maintenance: a 5-point checklist", format: "Carousel", pillarId: "pl1", status: "Ready to schedule", date: day(24), copy: "Five checks that keep a fire door doing its job: gaps, seals, closers, hinges and signage.", waitingSince: ago(2), art: "5-point fire door checklist" }),

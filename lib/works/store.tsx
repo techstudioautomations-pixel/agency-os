@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { buildClientChecklist, defaultAssets, defaultMonthLine, defaultMonthly, defaultPlaybook, defaultSections, newShare, piecesPerMonth, seedState } from "./seed";
+import { buildClientChecklist, defaultAssets, portalIds, portalPosts, defaultMonthLine, defaultMonthly, defaultPlaybook, defaultSections, newShare, piecesPerMonth, seedState } from "./seed";
 import { canBeAssigned, monthlyAreas, monthName, nameOf, reviewerFor, todayIso } from "./logic";
 import type { CheckItem, Client, ClientAsset, ClientSection, ClientShare, Idea, Lead, MonthReport, NewClientDraft, Notice, Post, PostDraft, ReportNumbers, RevisionCategory, Route, SectionStep, State, ReportPeriod, WeekReport } from "./types";
 
@@ -28,8 +28,9 @@ function migrate(saved: State): State {
   return {
     ...saved,
     playbook: saved.playbook ?? defaultPlaybook(),
+    posts: [...saved.posts, ...portalPosts.filter((post) => !saved.posts.some((item) => item.id === post.id))],
     settings: { ...saved.settings, assets: [...saved.settings.assets, ...defaultAssets.filter((asset) => !saved.settings.assets.some((item) => item.id === asset.id))], sections, monthly: saved.settings.monthly ?? defaultMonthly(), monthLine: saved.settings.monthLine ?? defaultMonthLine(saved.settings.dates) },
-    clients: saved.clients.map((client) => ({ ...client, area: client.area ?? "marketing", setupPosts: client.setupPosts ?? 2, monthDone: client.monthDone ?? {}, packNotes: client.packNotes ?? { brand: "", brain: "", templates: "" } })),
+    clients: saved.clients.map((client) => ({ ...client, share: client.id === "housebuild" ? { ...client.share, postIds: [...new Set([...client.share.postIds, ...portalIds])] } : client.share, area: client.area ?? "marketing", setupPosts: client.setupPosts ?? 2, monthDone: client.monthDone ?? {}, packNotes: client.packNotes ?? { brand: "", brain: "", templates: "" } })),
   };
 }
 

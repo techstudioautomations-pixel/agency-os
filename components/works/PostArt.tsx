@@ -27,15 +27,15 @@ function Logo({ client, dark }: { client: Pick<Client, "name" | "logo" | "color"
  * The artwork for a post. Uploaded images win; otherwise a branded design is drawn
  * from the post's format, title and the client's colour, so every card shows a picture.
  */
-export function PostArt({ post, client, className = "", rounded = "rounded-xl", index = 0 }: { post: Post; client: Pick<Client, "name" | "logo" | "color">; className?: string; rounded?: string; index?: number }) {
+export function PostArt({ post, client, className = "", rounded = "rounded-xl", index = 0, fill = false }: { post: Post; client: Pick<Client, "name" | "logo" | "color">; className?: string; rounded?: string; index?: number; fill?: boolean }) {
   const visuals = post.files.filter((file) => file.kind === "image" || file.kind === "video");
   const file = visuals[Math.min(index, Math.max(0, visuals.length - 1))];
   const ratio = file?.ratio;
-  const base = `@container relative ${ratio ? "" : "aspect-[4/5]"} w-full overflow-hidden ${rounded} ${className}`;
+  const base = `@container relative ${fill ? "h-full" : ratio ? "" : "aspect-[4/5]"} w-full overflow-hidden ${rounded} ${className}`;
 
   if (file) {
     return (
-      <div className={`${base} bg-[#EFEDE8]`} style={ratio ? { aspectRatio: String(ratio) } : undefined}>
+      <div className={`${base} bg-[#EFEDE8]`} style={ratio && !fill ? { aspectRatio: String(ratio) } : undefined}>
         {file.kind === "video" ? (
           <>
             <video src={asset(file.src)} muted playsInline loop autoPlay className="h-full w-full object-cover" />
