@@ -216,6 +216,8 @@ export type Idea = {
   createdBy: string;
   createdAt: string;
   source?: string;
+  /** The topic line from the research. */
+  topic?: string;
   /** Drafted wording from the research, used to start the caption. */
   angle?: string;
   /** Where it sits in the research, for example "Priority 1". */

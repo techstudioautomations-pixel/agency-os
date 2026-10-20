@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { ArrowRight, Check, ChevronDown, ClipboardCopy, ExternalLink, FileUp, LayoutGrid, MessageCircle, Plus, Trash2 } from "lucide-react";
+import { createPortal } from "react-dom";
+import { ArrowRight, Check, ChevronDown, ClipboardCopy, ExternalLink, FileUp, LayoutGrid, MessageCircle, Plus, Trash2, X } from "lucide-react";
 import { useStore } from "@/lib/works/store";
 import { agreedFor, areaItems, monthlyAreas, docxText, inReview, needsMe, progress, stageOf, isFreelancer, isMarketing, monthName, myClients, nameOf, personById, shortDate, splitIdeas, todayIso, turnOf } from "@/lib/works/logic";
 import type { Client, Idea, IdeaDecision, Persona, Pillar, Post, ReportNumbers, Strategy } from "@/lib/works/types";
@@ -329,13 +330,15 @@ function PlanCalendar({ client, scope }: { client?: Client; scope: string }) {
 }
 
 // ─── Ideas ───
-const decisionStyle: Record<IdeaDecision, { bar: string; label: string }> = {
-  New: { bar: "#C9C3B8", label: "To decide" },
-  Approved: { bar: "#1D9E5A", label: "Use" },
-  Maybe: { bar: "#E0A325", label: "Maybe later" },
-  Rejected: { bar: "#D9D5CE", label: "Rejected" },
-  Done: { bar: "#8FBFA3", label: "Already made" },
+/** Colours follow the document legend: yellow is a carousel to make, blue a text post to make, red is rejected, green is already made. */
+const decisionStyle: Record<IdeaDecision, { bar: string; label: string; hint: string }> = {
+  New: { bar: "#B9B3A8", label: "To decide", hint: "Waiting for a yes or no." },
+  Approved: { bar: "#E8B923", label: "Use", hint: "Approved. Press Create post to turn it into a post. Yellow is a carousel, blue is a text post." },
+  Maybe: { bar: "#8E5CD9", label: "Maybe later", hint: "Kept for another month." },
+  Rejected: { bar: "#D64545", label: "Rejected", hint: "Not relevant. Nothing to do." },
+  Done: { bar: "#1D9E5A", label: "Already made", hint: "Already created or scheduled before it was added here. Nothing to do." },
 };
+const ideaBar = (idea: Idea) => (idea.decision === "Approved" && idea.format === "Text post" ? "#4A86E8" : decisionStyle[idea.decision].bar);
 
 function IdeasView({ client }: { client?: Client }) {
   const { state, importResearch, updateIdea, openPostWizard, go, ping } = useStore();
@@ -349,6 +352,8 @@ function IdeasView({ client }: { client?: Client }) {
   const [fileResearch, setFileResearch] = useState<Research | null>(null);
   const [include, setInclude] = useState({ facts: true, ctas: true, ideas: true });
   const [dragging, setDragging] = useState(false);
+  const [openId, setOpenId] = useState("");
+  const [filed, setFiled] = useState<{ source: string; clientId: string; counts: Record<IdeaDecision, number>; facts: number; ctas: number } | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
   const ideas = state.ideas.filter((idea) => (client ? idea.clientId === client.id : clients.some((c) => c.id === idea.clientId)) && (allMonths || idea.month === state.month));
   const shown = ideas.filter((idea) => filter === "All" || idea.decision === filter);
@@ -373,7 +378,7 @@ function IdeasView({ client }: { client?: Client }) {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <Segmented value={filter} onChange={setFilter} options={(["New", "Approved", "Maybe", "Rejected", "Done", "All"] as const).filter((value) => value !== "Done" || ideas.some((idea) => idea.decision === "Done")).map((value) => ({ value, label: value === "All" ? "All" : decisionStyle[value].label, count: value === "All" ? ideas.length : ideas.filter((idea) => idea.decision === value).length }))} />
+        <Segmented value={filter} onChange={setFilter} options={(["New", "Approved", "Maybe", "Rejected", "Done", "All"] as const).filter((value) => value !== "Done" || ideas.some((idea) => idea.decision === "Done")).map((value) => ({ value, label: value === "All" ? "All" : <span className="inline-flex items-center gap-1.5"><i className="inline-block h-2 w-2 rounded-full not-italic" style={{ background: decisionStyle[value].bar }} />{decisionStyle[value].label}</span>, count: value === "All" ? ideas.length : ideas.filter((idea) => idea.decision === value).length }))} />
         <div className="flex flex-wrap items-center gap-2">
           <label className="flex items-center gap-1.5 text-[13px] font-semibold text-[#55514B]"><input type="checkbox" checked={allMonths} onChange={(event) => setAllMonths(event.target.checked)} />All months</label>
           {client && (
@@ -386,9 +391,28 @@ function IdeasView({ client }: { client?: Client }) {
         </div>
       </div>
 
+      {filed && (
+        <Card>
+          <div className="flex flex-wrap items-start gap-3">
+            <div className="min-w-0 flex-1">
+              <div className="text-[15px] font-bold">Filed {filed.source}</div>
+              <p className="mt-0.5 text-[13px] text-[#55514B]">Everything from the document is now in the app. Tap a number to see those ideas.</p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {(["New", "Approved", "Maybe", "Rejected", "Done"] as const).filter((decision) => filed.counts[decision] > 0).map((decision) => (
+                  <button key={decision} onClick={() => { setAllMonths(true); setFilter(decision); }} className="inline-flex items-center gap-2 rounded-full border border-[#E2DED7] bg-white px-3.5 py-1.5 text-[13px] font-semibold hover:border-[#C9C3B8]"><i className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: decisionStyle[decision].bar }} />{filed.counts[decision]} {decisionStyle[decision].label.toLowerCase()}</button>
+                ))}
+                {filed.facts > 0 && <button onClick={() => go({ view: "client", clientId: filed.clientId, tab: "strategy" })} className="rounded-full bg-[#EAF1FD] px-3.5 py-1.5 text-[13px] font-semibold text-[#1F5BC4]">{filed.facts} facts on the Strategy tab →</button>}
+                {filed.ctas > 0 && <button onClick={() => go({ view: "client", clientId: filed.clientId, tab: "strategy" })} className="rounded-full bg-[#EAF1FD] px-3.5 py-1.5 text-[13px] font-semibold text-[#1F5BC4]">{filed.ctas} calls to action →</button>}
+              </div>
+            </div>
+            <button onClick={() => setFiled(null)} aria-label="Dismiss" className="rounded-lg p-1.5 text-[#8B867E] hover:bg-[#F1F0ED]"><X size={16} /></button>
+          </div>
+        </Card>
+      )}
       {freelancer && client && (
         <p className="rounded-xl bg-[#F1F6FE] px-4 py-2.5 text-[13px] text-[#1F5BC4]">Add your ideas here. Operations decides on each one: use, maybe later or reject. Press Create post on a “Use” idea to turn it into a post.</p>
       )}
+      {filter !== "All" && <p className="flex items-center gap-2 text-[13px] text-[#6B6760]"><i className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: decisionStyle[filter].bar }} />{decisionStyle[filter].hint}</p>}
       {importing && client && (
         <Card>
           <div className="grid gap-5 lg:grid-cols-[minmax(0,.9fr)_minmax(0,1.1fr)]">
@@ -428,7 +452,7 @@ function IdeasView({ client }: { client?: Client }) {
                     <div className="rounded-xl border border-[#E9E6E0] p-3">
                       <label className="flex cursor-pointer items-start gap-3">
                         <input type="checkbox" checked={include.ideas} onChange={(event) => setInclude({ ...include, ideas: event.target.checked })} className="mt-1 h-4 w-4" />
-                        <span className="min-w-0 flex-1"><b className="text-[14px]">Ideas · {parsed.ideas.length} cards</b><span className="block text-[12px] text-[#6B6760]">{[counts("Approved") && `${counts("Approved")} to use`, counts("Done") && `${counts("Done")} already made`, counts("Rejected") && `${counts("Rejected")} rejected`, counts("New") && `${counts("New")} to decide`].filter(Boolean).join(" · ")}{parsed.ideas.some((idea) => idea.coloured) ? ". Decisions come from the highlight colours." : ""}</span></span>
+                        <span className="min-w-0 flex-1"><b className="text-[14px]">Ideas · {parsed.ideas.length} cards</b><span className="block text-[12px] text-[#6B6760]">{[counts("Approved") && `${counts("Approved")} to use`, counts("Done") && `${counts("Done")} already made`, counts("Rejected") && `${counts("Rejected")} rejected`, counts("New") && `${counts("New")} to decide`].filter(Boolean).join(" · ")}{parsed.ideas.some((idea) => idea.angle || idea.topic) ? `. ${parsed.ideas.filter((idea) => idea.angle || idea.topic).length} have a topic and content angle.` : ""}{parsed.ideas.some((idea) => idea.coloured) ? " Decisions come from the highlight colours." : ""}</span></span>
                       </label>
                       <div className="mt-2 max-h-[210px] space-y-1 overflow-y-auto rounded-lg bg-[#F8F7F4] p-1.5">
                         {parsed.ideas.map((idea, index) => (
@@ -442,7 +466,7 @@ function IdeasView({ client }: { client?: Client }) {
                     </div>
                   )}
                   <div className="flex gap-2">
-                    <Button kind="primary" disabled={!importable} onClick={() => { importResearch(client.id, { facts: include.facts ? parsed.facts : [], ctas: include.ctas ? parsed.ctas : [], brief: include.facts ? parsed.brief : "", ideas: include.ideas ? parsed.ideas : [], source }); closeImport(); setFilter(freelancer ? "Approved" : "New"); }}>File it all</Button>
+                    <Button kind="primary" disabled={!importable} onClick={() => { const chosen = include.ideas ? parsed.ideas : []; importResearch(client.id, { facts: include.facts ? parsed.facts : [], ctas: include.ctas ? parsed.ctas : [], brief: include.facts ? parsed.brief : "", ideas: chosen, source }); setFiled({ source, clientId: client.id, counts: { New: chosen.filter((idea) => idea.decision === "New").length, Approved: chosen.filter((idea) => idea.decision === "Approved").length, Maybe: 0, Rejected: chosen.filter((idea) => idea.decision === "Rejected").length, Done: chosen.filter((idea) => idea.decision === "Done").length }, facts: include.facts ? parsed.facts.length : 0, ctas: include.ctas ? parsed.ctas.length : 0 }); closeImport(); setAllMonths(true); setFilter("All"); }}>File it all</Button>
                     <Button kind="ghost" onClick={closeImport}>Cancel</Button>
                   </div>
                 </div>
@@ -458,20 +482,25 @@ function IdeasView({ client }: { client?: Client }) {
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           {shown.map((idea) => {
             const ideaClient = state.clients.find((item) => item.id === idea.clientId)!;
-            return <IdeaCard key={idea.id} idea={idea} client={ideaClient} showClient={!client} canDecide={!freelancer} onChange={(patch) => updateIdea(idea.id, patch)} onMakePost={() => openPostWizard({ clientId: idea.clientId, ideaId: idea.id })} onOpenPost={() => go({ view: "marketing", clientId: client?.id ?? "all", postId: idea.postId })} />;
+            return <IdeaCard key={idea.id} idea={idea} client={ideaClient} showClient={!client} canDecide={!freelancer} onOpen={() => setOpenId(idea.id)} onChange={(patch) => updateIdea(idea.id, patch)} onMakePost={() => openPostWizard({ clientId: idea.clientId, ideaId: idea.id })} onOpenPost={() => go({ view: "marketing", clientId: client?.id ?? "all", postId: idea.postId })} />;
           })}
         </div>
       )}
+      {(() => {
+        const open = state.ideas.find((item) => item.id === openId);
+        const openClient = open && state.clients.find((item) => item.id === open.clientId);
+        return open && openClient ? <IdeaDetail idea={open} client={openClient} canDecide={!freelancer} onClose={() => setOpenId("")} onChange={(patch) => updateIdea(open.id, patch)} onMakePost={() => { setOpenId(""); openPostWizard({ clientId: open.clientId, ideaId: open.id }); }} onOpenPost={() => { setOpenId(""); go({ view: "marketing", clientId: open.clientId, postId: open.postId }); }} /> : null;
+      })()}
     </div>
   );
 }
 
-function IdeaCard({ idea, client, showClient, canDecide, onChange, onMakePost, onOpenPost }: { idea: Idea; client: Client; showClient: boolean; canDecide: boolean; onChange: (patch: Partial<Idea>) => void; onMakePost: () => void; onOpenPost: () => void }) {
+function IdeaCard({ idea, client, showClient, canDecide, onOpen, onChange, onMakePost, onOpenPost }: { idea: Idea; client: Client; showClient: boolean; canDecide: boolean; onOpen: () => void; onChange: (patch: Partial<Idea>) => void; onMakePost: () => void; onOpenPost: () => void }) {
   const [note, setNote] = useState(false);
-  const [showAngle, setShowAngle] = useState(false);
   const style = decisionStyle[idea.decision];
+  const more = Boolean(idea.topic || idea.notes || idea.angle);
   return (
-    <article className={`flex min-w-0 flex-col rounded-2xl border border-[#E9E6E0] bg-white p-4 ${idea.decision === "Rejected" ? "opacity-60" : ""}`} style={{ borderLeft: `5px solid ${style.bar}` }}>
+    <article className={`flex min-w-0 flex-col rounded-2xl border border-[#E9E6E0] bg-white p-4 ${idea.decision === "Rejected" ? "opacity-70" : ""}`} style={{ borderLeft: `5px solid ${ideaBar(idea)}` }}>
       <div className="flex flex-wrap items-center gap-1.5">
         {showClient && <span className="flex items-center gap-1.5 text-[12px] font-bold"><ClientMark client={client} size={18} />{client.name}</span>}
         {idea.group && <span className="rounded-full bg-[#F1ECFC] px-2.5 py-1 text-[11px] font-bold text-[#4A3596]">{idea.group.split(" · ")[0]}</span>}
@@ -479,30 +508,26 @@ function IdeaCard({ idea, client, showClient, canDecide, onChange, onMakePost, o
           {formats.map((format) => <option key={format}>{format}</option>)}
         </select>
       </div>
-      <h4 className="mt-2.5 text-[15px] font-bold leading-snug">{idea.title}</h4>
-      {idea.notes && <p className="mt-1 line-clamp-3 text-[13px] text-[#55514B]">{idea.notes}</p>}
-      {idea.angle && (
-        <div className="mt-2">
-          <button onClick={() => setShowAngle(!showAngle)} aria-expanded={showAngle} className="text-[12px] font-bold text-[#1F5BC4]">{showAngle ? "Hide the draft copy" : "See the draft copy"}</button>
-          {showAngle && <p className="mt-1 whitespace-pre-wrap rounded-lg bg-[#F8F7F4] px-3 py-2 text-[12px] leading-relaxed text-[#3D4450]">{idea.angle}</p>}
-        </div>
-      )}
+      <button onClick={onOpen} className="mt-2.5 text-left text-[15px] font-bold leading-snug hover:text-[#1F5BC4]">{idea.title}</button>
+      {idea.topic && <p className="mt-1 line-clamp-2 text-[13px] font-semibold text-[#3D4450]">{idea.topic}</p>}
+      {idea.notes && <p className="mt-1 line-clamp-2 text-[13px] text-[#55514B]">{idea.notes}</p>}
+      {more && <button onClick={onOpen} className="mt-1.5 self-start text-[12px] font-bold text-[#1F5BC4]">{idea.angle ? "See the topic and content angle →" : "See more →"}</button>}
       {idea.comment && !note && <p className="mt-2 rounded-lg bg-[#F6F5F2] px-2.5 py-1.5 text-[12px] italic text-[#55514B]">“{idea.comment}”</p>}
-      {note && <textarea autoFocus value={idea.comment} onChange={(event) => onChange({ comment: event.target.value })} onBlur={() => setNote(false)} rows={2} placeholder="Why? Any direction for the freelancer?" className="mt-2 w-full rounded-lg border border-[#E2DED7] px-2.5 py-2 text-[13px] outline-none" />}
+      {note && <textarea autoFocus value={idea.comment} onChange={(event) => onChange({ comment: event.target.value })} onBlur={() => setNote(false)} rows={2} placeholder="Why? Any direction for the freelancer?" className="mt-2 w-full rounded-lg border border-[#E2DED7] px-2.5 py-1.5 text-[13px] outline-none focus:border-[#2F6FDB]" />}
       <div className="mt-auto pt-3">
         {idea.postId ? (
           <Button size="sm" className="w-full" onClick={onOpenPost}>Open the post <ArrowRight size={13} /></Button>
         ) : idea.decision === "Done" ? (
-          <Chip t="green">Already made</Chip>
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-[#E6F5EC] px-3 py-1 text-[12px] font-bold text-[#17804A]"><Check size={13} />Already made</span>
         ) : idea.decision === "Approved" ? (
           <Button size="sm" kind="primary" className="w-full" onClick={onMakePost}>Create post <ArrowRight size={13} /></Button>
         ) : canDecide ? (
           <div className="flex gap-1.5">
             {(["Approved", "Maybe", "Rejected"] as const).map((decision) => {
               const active = idea.decision === decision;
-              const colors = decision === "Approved" ? tone.green : decision === "Maybe" ? tone.amber : tone.grey;
+              const color = decisionStyle[decision].bar;
               return (
-                <button key={decision} onClick={() => onChange({ decision: active ? "New" : decision })} aria-pressed={active} className="flex-1 rounded-lg px-2 py-1.5 text-[12px] font-bold transition" style={active ? { background: colors.dot, color: "#fff" } : { background: colors.bg, color: colors.ink }}>
+                <button key={decision} onClick={() => onChange({ decision: active ? "New" : decision })} aria-pressed={active} className="flex-1 rounded-lg px-2 py-1.5 text-[12px] font-bold transition" style={active ? { background: color, color: "#fff" } : { background: `${color}22`, color: "#3D4450" }}>
                   {decision === "Approved" ? "Use" : decision === "Maybe" ? "Maybe" : "Reject"}
                 </button>
               );
@@ -510,10 +535,75 @@ function IdeaCard({ idea, client, showClient, canDecide, onChange, onMakePost, o
             <button onClick={() => setNote(true)} aria-label="Comment" className="rounded-lg px-2 text-[#55514B] hover:bg-[#F1F0ED]"><MessageCircle size={15} /></button>
           </div>
         ) : (
-          <Chip t={idea.decision === "Maybe" ? "amber" : idea.decision === "Rejected" ? "grey" : "purple"}>{style.label}</Chip>
+          <span className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[12px] font-bold" style={{ background: `${style.bar}22`, color: "#3D4450" }}><i className="inline-block h-2 w-2 rounded-full" style={{ background: style.bar }} />{style.label}</span>
         )}
       </div>
     </article>
+  );
+}
+
+/** Everything the document said about one idea: the topic, why it matters and the draft copy. */
+function IdeaDetail({ idea, client, canDecide, onClose, onChange, onMakePost, onOpenPost }: { idea: Idea; client: Client; canDecide: boolean; onClose: () => void; onChange: (patch: Partial<Idea>) => void; onMakePost: () => void; onOpenPost: () => void }) {
+  const { ping } = useStore();
+  const style = decisionStyle[idea.decision];
+  const copy = async (value: string) => { try { await navigator.clipboard.writeText(value); ping("Copied"); } catch { ping("Copy was blocked by the browser"); } };
+  useEffect(() => {
+    const key = (event: KeyboardEvent) => { if (event.key === "Escape") onClose(); };
+    document.addEventListener("keydown", key);
+    return () => document.removeEventListener("keydown", key);
+  }, [onClose]);
+  const section = (label: string, text?: string, withCopy = false) => text ? (
+    <section>
+      <div className="mb-1 flex items-center gap-2"><h4 className="text-[11px] font-bold uppercase tracking-wide text-[#8B867E]">{label}</h4>{withCopy && <button onClick={() => copy(text)} className="ml-auto inline-flex items-center gap-1 text-[12px] font-semibold text-[#1F5BC4]"><ClipboardCopy size={13} />Copy</button>}</div>
+      <p className="whitespace-pre-wrap rounded-xl bg-[#F8F7F4] px-4 py-3 text-[14px] leading-relaxed">{text}</p>
+    </section>
+  ) : null;
+  return createPortal(
+    <div className="fixed inset-0 z-[70] grid place-items-end bg-[#1E2430]/50 sm:place-items-center sm:p-4" role="dialog" aria-modal="true" aria-label={idea.title} onClick={(event) => { if (event.target === event.currentTarget) onClose(); }}>
+      <div className="flex max-h-[94vh] w-full max-w-[680px] flex-col overflow-hidden rounded-t-3xl bg-white shadow-2xl sm:rounded-3xl" style={{ borderTop: `6px solid ${ideaBar(idea)}` }}>
+        <div className="flex items-start gap-3 px-6 pb-3 pt-5">
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-1.5 text-[12px] font-semibold text-[#55514B]">
+              <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 font-bold" style={{ background: `${style.bar}22` }}><i className="inline-block h-2 w-2 rounded-full" style={{ background: ideaBar(idea) }} />{style.label}</span>
+              {idea.group && <span className="rounded-full bg-[#F1ECFC] px-2.5 py-1 font-bold text-[#4A3596]">{idea.group}</span>}
+              <span>{client.name}</span>
+            </div>
+            <h2 className="mt-2 text-[21px] font-extrabold leading-tight">{idea.title}</h2>
+          </div>
+          <button onClick={onClose} aria-label="Close" className="rounded-xl p-2 text-[#8B867E] hover:bg-[#F1F0ED]"><X size={18} /></button>
+        </div>
+        <div className="flex-1 space-y-4 overflow-y-auto px-6 pb-5">
+          {section("Topic", idea.topic)}
+          {section("Why it matters", idea.notes)}
+          {section("Content angle · draft copy", idea.angle, true)}
+          {!idea.topic && !idea.notes && !idea.angle && <p className="rounded-xl bg-[#F8F7F4] px-4 py-3 text-[13px] text-[#8B867E]">The document only had the title for this one.</p>}
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className="text-[12px] font-semibold text-[#55514B]">Type of post
+              <select value={idea.format} onChange={(event) => onChange({ format: event.target.value })} className="mt-1 w-full rounded-xl border border-[#E2DED7] bg-white px-3 py-2 text-[14px]">{formats.map((format) => <option key={format}>{format}</option>)}</select>
+            </label>
+            <div className="text-[12px] text-[#8B867E]"><div className="font-semibold text-[#55514B]">From</div><div className="mt-1 text-[13px]">{idea.source ?? "Added by hand"} · {idea.createdAt}</div></div>
+          </div>
+          {canDecide && !idea.postId && (
+            <div>
+              <div className="mb-1.5 text-[12px] font-semibold text-[#55514B]">Decision</div>
+              <div className="flex flex-wrap gap-1.5">
+                {(["New", "Approved", "Maybe", "Rejected", "Done"] as const).map((decision) => (
+                  <button key={decision} onClick={() => onChange({ decision })} aria-pressed={idea.decision === decision} className="inline-flex items-center gap-1.5 rounded-full border px-3.5 py-1.5 text-[13px] font-semibold" style={idea.decision === decision ? { background: decisionStyle[decision].bar, borderColor: decisionStyle[decision].bar, color: "#fff" } : { borderColor: "#E2DED7" }}><i className="inline-block h-2 w-2 rounded-full" style={{ background: idea.decision === decision ? "#fff" : decisionStyle[decision].bar }} />{decisionStyle[decision].label}</button>
+                ))}
+              </div>
+            </div>
+          )}
+          <label className="block text-[12px] font-semibold text-[#55514B]">Note for the freelancer
+            <textarea value={idea.comment} onChange={(event) => onChange({ comment: event.target.value })} rows={2} placeholder="Any direction on how to make it" className="mt-1 w-full rounded-xl border border-[#E2DED7] px-3 py-2 text-[14px] outline-none focus:border-[#2F6FDB]" />
+          </label>
+        </div>
+        <div className="flex flex-wrap items-center gap-2 border-t border-[#F0EEE9] bg-[#FBFAF8] px-6 py-4">
+          <Button kind="ghost" onClick={onClose}>Close</Button>
+          {idea.postId ? <Button className="ml-auto" kind="primary" onClick={onOpenPost}>Open the post <ArrowRight size={14} /></Button> : idea.decision === "Approved" ? <Button className="ml-auto" kind="primary" onClick={onMakePost}>Create post <ArrowRight size={14} /></Button> : null}
+        </div>
+      </div>
+    </div>,
+    document.body,
   );
 }
 

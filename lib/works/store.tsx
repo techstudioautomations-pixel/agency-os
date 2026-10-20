@@ -363,7 +363,7 @@ function useStoreValue() {
         ping(`${items.length} idea card${items.length === 1 ? "" : "s"} added`);
       },
       /** Files what a research document contained: facts into the client's strategy, calls to action into the library, ideas into the deck. */
-      importResearch: (clientId: string, data: { facts: { label: string; value: string }[]; ctas: { text: string; group: string }[]; brief: string; ideas: { title: string; notes: string; angle: string; format: string; decision: "New" | "Approved" | "Rejected" | "Done"; group: string }[]; source: string }) => {
+      importResearch: (clientId: string, data: { facts: { label: string; value: string }[]; ctas: { text: string; group: string }[]; brief: string; ideas: { title: string; topic?: string; notes: string; angle: string; format: string; decision: "New" | "Approved" | "Rejected" | "Done"; group: string }[]; source: string }) => {
         update((d) => {
           const client = d.clients.find((c) => c.id === clientId)!;
           const strategy = client.strategy;
@@ -388,7 +388,7 @@ function useStoreValue() {
           if (data.brief && !strategy.brief?.trim()) strategy.brief = data.brief;
           const have = new Set(d.ideas.filter((idea) => idea.clientId === clientId).map((idea) => idea.title.toLowerCase()));
           const fresh = data.ideas.filter((idea) => !have.has(idea.title.toLowerCase()));
-          d.ideas.unshift(...fresh.map((idea) => ({ id: uid("idea"), clientId, title: idea.title, notes: idea.notes, angle: idea.angle || undefined, group: idea.group || undefined, format: idea.format, decision: idea.decision, comment: "", createdBy: d.me, createdAt: todayIso(), source: data.source, month: d.month })));
+          d.ideas.unshift(...fresh.map((idea) => ({ id: uid("idea"), clientId, title: idea.title, topic: idea.topic || undefined, notes: idea.notes, angle: idea.angle || undefined, group: idea.group || undefined, format: idea.format, decision: idea.decision, comment: "", createdBy: d.me, createdAt: todayIso(), source: data.source, month: d.month })));
           const toDecide = fresh.filter((idea) => idea.decision === "New").length;
           const toWrite = fresh.filter((idea) => idea.decision === "Approved").length;
           if (toDecide) notify(d, reviewerFor(d, client), `${toDecide} new idea${toDecide === 1 ? "" : "s"} for ${client.name} to decide`, { view: "marketing", clientId, tab: "ideas" }, ["In app", "Email", "Google Chat"]);

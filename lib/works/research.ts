@@ -15,7 +15,9 @@ export type ColorKind = "yellow" | "blue" | "red" | "green" | "other";
 export type ResearchDecision = "New" | "Approved" | "Rejected" | "Done";
 export type ParsedIdea = {
   title: string;
-  /** The topic and why it matters. */
+  /** The topic line. */
+  topic: string;
+  /** Why it matters: the background to the idea. */
   notes: string;
   /** The drafted wording to start the caption from. */
   angle: string;
@@ -183,7 +185,7 @@ export function parseResearch(blocks: Block[], plain = false): Research {
   const finishIdea = () => {
     if (!current) return;
     const kinds = new Set(current.colors.map(colorKind));
-    const notes = [current.topic, ...current.description].filter(Boolean).join("\n\n");
+    const notes = current.description.filter(Boolean).join("\n\n");
     const angle = current.angle.map(unquote).filter(Boolean).join("\n\n");
     let decision: ResearchDecision = "New";
     let format = formatOf(`${current.title} ${notes}`) ?? "Carousel";
@@ -194,7 +196,7 @@ export function parseResearch(blocks: Block[], plain = false): Research {
       const shaped = marks.map((kind) => meaning[kind]?.format).find(Boolean);
       if (shaped) format = shaped;
     }
-    if (current.title && (notes || angle || decision !== "New")) ideas.push({ title: current.title, notes, angle, format, decision, group: "", coloured: marks.length > 0 });
+    if (current.title && (current.topic || notes || angle || decision !== "New")) ideas.push({ title: current.title, topic: current.topic, notes, angle, format, decision, group: "", coloured: marks.length > 0 });
     current = null;
   };
 
@@ -277,10 +279,10 @@ export function parseResearch(blocks: Block[], plain = false): Research {
     if (!title || /content idea|key question|main angle/i.test(title)) continue;
     if (!/^\d+[.)]\s/.test(title) && !angle) continue;
     const name = title.replace(/^\d+[.)]\s*/, "").replace(/\s+/g, " ").trim();
-    fromTables.push({ title: name, notes: angle ?? "", angle: "", format: formatOf(`${name} ${angle ?? ""}`) ?? "Carousel", decision: "New", group: row.group, coloured: false });
+    fromTables.push({ title: name, topic: "", notes: angle ?? "", angle: "", format: formatOf(`${name} ${angle ?? ""}`) ?? "Carousel", decision: "New", group: row.group, coloured: false });
   }
 
-  for (const row of plainRows) fromTables.push({ title: row.title.replace(/\s+/g, " ").trim(), notes: row.notes, angle: "", format: formatOf(`${row.title} ${row.notes}`) ?? "Carousel", decision: "New", group: row.group, coloured: false });
+  for (const row of plainRows) fromTables.push({ title: row.title.replace(/\s+/g, " ").trim(), topic: "", notes: row.notes, angle: "", format: formatOf(`${row.title} ${row.notes}`) ?? "Carousel", decision: "New", group: row.group, coloured: false });
 
   if (closing.length) for (const line of closing) ctas.push({ text: line, group: "Closing lines" });
 
@@ -291,7 +293,7 @@ export function parseResearch(blocks: Block[], plain = false): Research {
   // A document that is only a list of ideas, with none of the sections above.
   if (unique.length === 0 && facts.length === 0 && ctas.length === 0) {
     const plain = blocks.map((block) => `${block.list ? "- " : ""}${block.text}`).join("\n");
-    for (const item of splitIdeas(plain)) unique.push({ title: item.title, notes: item.notes, angle: "", format: item.format, decision: "New", group: "", coloured: false });
+    for (const item of splitIdeas(plain)) unique.push({ title: item.title, topic: "", notes: item.notes, angle: "", format: item.format, decision: "New", group: "", coloured: false });
   }
   return { facts, ctas, brief, ideas: unique, legend };
 }
