@@ -1,4 +1,4 @@
-import type { CheckItem, Client, ClientAsset, Freelancer, PackageDef, Person, Post, PostStatus, Route, State } from "./types";
+import type { CheckItem, Client, ClientAsset, Freelancer, MonthlyStep, PackageDef, Person, Post, PostStatus, Route, State } from "./types";
 import { freelancerGateLabels } from "./seed";
 
 // ─── Dates ───
@@ -81,7 +81,7 @@ export function turnOf(state: State, post: Post): Turn {
     case "Client approval":
       return { who: client?.opsId ?? "niamh", verb: "Log client decision", tone: "client" };
     case "Ready to schedule":
-      return { who: freelancer, verb: "Schedule in Publer", tone: "freelancer" };
+      return { who: freelancer, verb: "Schedule it", tone: "freelancer" };
     case "Scheduled":
       return post.date < todayIso() ? { who: freelancer, verb: "Confirm it went live", tone: "freelancer" } : { who: "", verb: `Goes live ${shortDate(post.date)}`, tone: "done" };
     default:
@@ -179,38 +179,63 @@ export async function docxText(file: File): Promise<string> {
 export const areaOf = (item: CheckItem): string => item.area ?? "onboarding";
 export const areaItems = (items: CheckItem[], areaId: string) => items.filter((item) => areaOf(item) === areaId);
 
-/** Areas that fill themselves in from the work. Nothing to tick by hand. */
-export type AutoStep = { label: string; done: boolean; go: Route };
-export function autoAreas(state: State, client: Client): { id: "content" | "report"; label: string; color: string; blurb: string; steps: AutoStep[] }[] {
-  const month = state.month;
-  const lastMonth = shiftMonth(month, -1);
+// ─── Monthly checklists: one for operations, one for the freelancer ───
+export const isMarketing = (client: Client) => client.area === "marketing";
+export const firstMonthOf = (client: Client) => client.startDate.slice(0, 7);
+export const isFirstMonth = (client: Client, month: string) => firstMonthOf(client) === month;
+/** Posts promised in a month. The first month is set-up, so it is usually fewer. */
+export const agreedFor = (client: Client, month: string) => (isFirstMonth(client, month) ? Math.min(client.setupPosts, client.agreedPosts) : client.agreedPosts);
+export const areaLabel = (client: Client) => (client.area === "marketing" ? "Marketing" : client.area === "web" ? "Web design" : client.areaName || "Custom");
+
+export type MonthStep = { id: string; label: string; done: boolean; manual: boolean; hint?: string; go?: Route };
+export type MonthArea = { id: "ops" | "freelancer"; label: string; color: string; blurb: string; steps: MonthStep[] };
+
+export function monthlyAreas(state: State, client: Client, month = state.month): MonthArea[] {
+  const last = shiftMonth(month, -1);
+  const lastName = monthName(last).split(" ")[0];
+  const target = agreedFor(client, month);
+  const first = isFirstMonth(client, month);
   const posts = state.posts.filter((post) => post.clientId === client.id && post.date.startsWith(month));
   const ideas = state.ideas.filter((idea) => idea.clientId === client.id && idea.month === month);
-  const approved = posts.filter((post) => ["Ready to schedule", "Scheduled", "Published"].includes(post.status)).length;
-  const scheduled = posts.filter((post) => ["Scheduled", "Published"].includes(post.status)).length;
-  const plan = client.planApproval[month];
-  const report = state.reports.find((item) => item.clientId === client.id && item.month === lastMonth);
+  const count = (list: string[]) => posts.filter((post) => list.includes(post.status)).length;
+  const approved = count(["Ready to schedule", "Scheduled", "Published"]);
+  const scheduled = count(["Scheduled", "Published"]);
+  const report = state.reports.find((item) => item.clientId === client.id && item.month === last);
   const invoice = state.invoices.find((item) => item.clientId === client.id && item.month === month);
   const marketing = (tab: string): Route => ({ view: "marketing", clientId: client.id, tab });
   const reporting: Route = { view: "client", clientId: client.id, tab: "reporting" };
-  const content: AutoStep[] = [
-    { label: "Ideas for the month decided", done: ideas.length > 0 && !ideas.some((idea) => idea.decision === "New"), go: marketing("ideas") },
-    ...(client.approvalMode !== "C" ? [{ label: "Month plan agreed with the client", done: plan?.status === "Approved", go: marketing("ideas") }] : []),
-    { label: `All ${client.agreedPosts} agreed posts started`, done: posts.length >= client.agreedPosts, go: marketing("posts") },
-    { label: "All posts approved", done: approved >= client.agreedPosts, go: marketing("posts") },
-    { label: `All scheduled by the ${state.settings.dates.schedule}th`, done: scheduled >= client.agreedPosts, go: marketing("calendar") },
-  ];
-  const money: AutoStep[] = [
-    { label: `${monthName(lastMonth).split(" ")[0]}: freelancer report in`, done: Boolean(report?.freelancerReport || report?.numbers), go: reporting },
-    { label: `${monthName(lastMonth).split(" ")[0]}: client report sent`, done: Boolean(report?.sentAt), go: reporting },
-    { label: `${monthName(lastMonth).split(" ")[0]}: finance statement sent`, done: Boolean(report?.financeSentAt), go: reporting },
-    { label: `${monthName(month).split(" ")[0]}: invoice paid`, done: invoice?.status === "Paid", go: { view: "client", clientId: client.id, tab: "finance" } },
-    { label: `${monthName(month).split(" ")[0]}: freelancer paid`, done: state.payouts.some((item) => item.clientId === client.id && item.month === month), go: { view: "client", clientId: client.id, tab: "finance" } },
-  ];
+  const finance: Route = { view: "client", clientId: client.id, tab: "finance" };
+  const auto: Record<string, { done: boolean; go: Route }> = {
+    "pack-ready": { done: client.checklist.some((item) => item.label.startsWith("Pack handed") && item.status === "Received"), go: { view: "client", clientId: client.id, tab: "checklists", sub: "handoff" } },
+    "ideas-decided": { done: ideas.length > 0 && !ideas.some((idea) => idea.decision === "New"), go: marketing("ideas") },
+    "ideas-uploaded": { done: ideas.length > 0, go: marketing("ideas") },
+    "plan-agreed": { done: client.planApproval[month]?.status === "Approved", go: marketing("ideas") },
+    "posts-started": { done: posts.length >= target, go: marketing("posts") },
+    "posts-approved": { done: approved >= target, go: marketing("posts") },
+    "posts-scheduled": { done: scheduled >= target && target > 0, go: marketing("calendar") },
+    submitted: { done: posts.length >= target && !posts.some((post) => post.status === "Copy in progress" || post.status === "Design in progress"), go: marketing("posts") },
+    "report-in": { done: Boolean(report?.freelancerReport || report?.numbers), go: reporting },
+    "report-sent": { done: Boolean(report?.sentAt), go: reporting },
+    "finance-sent": { done: Boolean(report?.financeSentAt), go: reporting },
+    "invoice-paid": { done: invoice?.status === "Paid", go: finance },
+    "freelancer-paid": { done: state.payouts.some((item) => item.clientId === client.id && item.month === month), go: finance },
+  };
+  const ticks = client.monthDone[month] ?? {};
+  const hasNewsletter = client.assets.some((asset) => asset.format === "Newsletter");
+  const applies = (step: MonthlyStep) =>
+    (step.when === "always" || step.when === (first ? "first" : "regular")) &&
+    (step.needs === "marketing" ? isMarketing(client) : step.needs === "client-review" ? isMarketing(client) && client.approvalMode !== "C" : step.needs === "newsletter" ? hasNewsletter : true);
+  const text = (label: string) => label.replace("{n}", String(target)).replace("{last}", lastName).replace("{month}", monthName(month).split(" ")[0]);
+  const build = (role: "ops" | "freelancer"): MonthStep[] =>
+    state.settings.monthly.filter((step) => step.role === role && applies(step)).map((step) => {
+      const hit = step.auto ? auto[step.auto] : undefined;
+      return { id: step.id, label: text(step.label), done: hit ? hit.done : Boolean(ticks[step.id]), manual: !hit, hint: step.hint, go: hit?.go };
+    });
+  const name = monthName(month).split(" ")[0];
   return [
-    { id: "content", label: "Content this month", color: "#E08A1E", blurb: "Fills itself in from the posts.", steps: content },
-    { id: "report", label: "Reports & money", color: "#1E2430", blurb: "Fills itself in from reports and finance.", steps: money },
-  ];
+    { id: "ops", label: `Operations · ${name}`, color: "#1E2430", blurb: first ? "Set-up month: the strategy and the pack come first." : "What operations does this month.", steps: build("ops") },
+    { id: "freelancer", label: `Freelancer · ${name}`, color: "#E08A1E", blurb: "What the freelancer does. It reports back to operations here.", steps: build("freelancer") },
+  ].filter((area) => area.steps.length > 0) as MonthArea[];
 }
 
 // ─── Quality checklist on every post (from the freelancer quality checklist in the brand guide) ───

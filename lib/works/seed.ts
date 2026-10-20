@@ -1,4 +1,4 @@
-import type { AssetType, CheckItem, Client, ClientAsset, Freelancer, Idea, Lead, MonthReport, PackageDef, Person, Post, PostStatus, SectionDef, State, StepKind, Strategy } from "./types";
+import type { AreaKind, AssetType, MonthlyStep, SectionStep, CheckItem, Client, ClientAsset, Freelancer, Idea, Lead, MonthReport, PackageDef, Person, Post, PostStatus, SectionDef, State, StepKind, Strategy } from "./types";
 
 // ─── Dates are generated around today, so the demo always looks current ───
 const pad = (value: number) => String(value).padStart(2, "0");
@@ -255,6 +255,75 @@ const newsletterSteps: { label: string; kind: StepKind; owner: string; group: st
   { group: "Newsletter · First issue", label: "Test send checked on phone and desktop", kind: "detail", owner: "niamh" },
 ];
 
+const websiteSteps: { label: string; kind: StepKind; owner: string; group: string; hint?: string }[] = [
+  { group: "Website · Plan", label: "Brief and goals agreed in writing", kind: "key", owner: "maria" },
+  { group: "Website · Plan", label: "Sitemap and pages agreed", kind: "key", owner: "maria" },
+  { group: "Website · Plan", label: "Text, photos and logo collected from the client", kind: "key", owner: "client", hint: "The most common reason a website runs late." },
+  { group: "Website · Build", label: "Design shown and approved by the client", kind: "key", owner: "freelancer" },
+  { group: "Website · Build", label: "Built and working on a test site", kind: "detail", owner: "freelancer" },
+  { group: "Website · Build", label: "Forms, speed, search basics and mobile checked", kind: "detail", owner: "niamh" },
+  { group: "Website · Launch", label: "Domain, hosting and email ready", kind: "key", owner: "niamh" },
+  { group: "Website · Launch", label: "Launch checklist signed off", kind: "key", owner: "maria" },
+  { group: "Website · Launch", label: "Handover and short training done", kind: "detail", owner: "maria" },
+  { group: "Website · Launch", label: "Care plan or updates agreed", kind: "info", owner: "maria" },
+];
+
+/** The monthly checklists. "{n}" is the number of posts promised that month, "{last}" is last month's name. */
+export const defaultMonthly = (): MonthlyStep[] => [
+  // Operations: first month
+  { id: "o1", role: "ops", when: "first", label: "Kick-off call held" },
+  { id: "o2", role: "ops", when: "first", label: "Client told what month 1 covers", hint: "Month 1 is set-up and strategy, plus a few posts. Full content starts the month after." },
+  { id: "o3", role: "ops", when: "first", needs: "marketing", auto: "pack-ready", label: "Freelancer starter pack handed over" },
+  { id: "o4", role: "ops", when: "first", needs: "marketing", auto: "ideas-decided", label: "First ideas decided" },
+  { id: "o5", role: "ops", when: "first", needs: "marketing", auto: "posts-approved", label: "First {n} posts approved" },
+  { id: "o6", role: "ops", when: "first", auto: "invoice-paid", label: "First invoice paid" },
+  // Operations: every month after
+  { id: "o10", role: "ops", when: "regular", needs: "marketing", auto: "ideas-decided", label: "Ideas for the month decided" },
+  { id: "o11", role: "ops", when: "regular", needs: "client-review", auto: "plan-agreed", label: "Month plan agreed with the client" },
+  { id: "o12", role: "ops", when: "regular", needs: "marketing", auto: "posts-approved", label: "All {n} posts approved" },
+  { id: "o13", role: "ops", when: "regular", needs: "marketing", auto: "posts-scheduled", label: "All {n} posts scheduled" },
+  { id: "o14", role: "ops", when: "regular", auto: "report-sent", label: "{last} report checked and sent" },
+  { id: "o15", role: "ops", when: "regular", auto: "finance-sent", label: "{last} finance statement sent" },
+  { id: "o16", role: "ops", when: "regular", auto: "invoice-paid", label: "Invoice paid" },
+  { id: "o17", role: "ops", when: "regular", auto: "freelancer-paid", label: "Freelancer paid" },
+  { id: "o18", role: "ops", when: "regular", label: "Monthly check-in with the client" },
+  // Freelancer: first month
+  { id: "f1", role: "freelancer", when: "first", needs: "marketing", label: "Starter pack read: brand guide, strategy brain, Canva templates" },
+  { id: "f2", role: "freelancer", when: "first", needs: "marketing", label: "Questions sent to operations" },
+  { id: "f3", role: "freelancer", when: "first", needs: "marketing", label: "Account audit done" },
+  { id: "f4", role: "freelancer", when: "first", needs: "marketing", auto: "submitted", label: "First {n} posts sent for review" },
+  // Freelancer: every month after
+  { id: "f10", role: "freelancer", when: "regular", needs: "marketing", auto: "ideas-uploaded", label: "Ideas uploaded" },
+  { id: "f11", role: "freelancer", when: "regular", needs: "marketing", auto: "posts-started", label: "All {n} posts started" },
+  { id: "f12", role: "freelancer", when: "regular", needs: "marketing", auto: "submitted", label: "All posts sent for review" },
+  { id: "f13", role: "freelancer", when: "regular", needs: "marketing", label: "Final files in the client's Drive" },
+  { id: "f14", role: "freelancer", when: "regular", needs: "marketing", auto: "posts-scheduled", label: "All posts scheduled in the publishing tool" },
+  { id: "f15", role: "freelancer", when: "regular", needs: "newsletter", label: "Newsletter sent" },
+  { id: "f16", role: "freelancer", when: "regular", needs: "marketing", auto: "report-in", label: "{last} results report uploaded" },
+];
+
+/** Steps in the shared sections that only make sense for marketing clients. */
+const marketingOnlySteps = new Set([
+  "Approval route agreed",
+  "Goals for social: credibility, recruitment, enquiries",
+  "Current platforms: which exist, which need creating",
+  "Newsletter tool in use",
+  "Claims that need client confirmation: technical, safety, named clients, testimonials",
+  "Permission to use project photos and names",
+  "Followers, engagement and screenshots before any changes",
+  "Monthly dates set: capture by the 5th, scheduled by the 25th",
+  "LinkedIn page admin invite",
+  "Meta Business / Facebook / Instagram access",
+  "Other platforms: TikTok, newsletter tool",
+  "Publishing tool connected",
+]);
+const otherAccess: SectionStep[] = [
+  { id: "access-web-1", group: "3 · Access", label: "Domain registrar and DNS access", kind: "key", owner: "client", areas: ["web"], hint: "Log who has access and when. Never store passwords here." },
+  { id: "access-web-2", group: "3 · Access", label: "Hosting or website platform access", kind: "key", owner: "client", areas: ["web"] },
+  { id: "access-web-3", group: "3 · Access", label: "Existing website and analytics access, if there is one", kind: "detail", owner: "client", areas: ["web"] },
+  { id: "access-custom-1", group: "3 · Access", label: "Access to the accounts or files we need for this work", kind: "key", owner: "client", areas: ["custom"], hint: "Log who has access and when. Never store passwords here." },
+];
+
 export const defaultSections = (): SectionDef[] => {
   const all = [...clientChecklistTemplate, ...packChecklistTemplate];
   const built: SectionDef[] = areaDefs.map((area) => ({
@@ -263,16 +332,22 @@ export const defaultSections = (): SectionDef[] => {
     color: area.color,
     blurb: area.blurb,
     always: ["onboarding", "access", "handoff"].includes(area.id),
+    areas: ["brain", "brand", "templates", "handoff"].includes(area.id) ? (["marketing"] as AreaKind[]) : undefined,
     steps: all.filter((template) => (area.groups as readonly string[]).includes(template.group)).map((template, index) => ({ id: `${area.id}-${index + 1}`, label: template.label, group: template.group, kind: stepKind(template), owner: template.owner, hint: template.hint })),
   }));
-  built.push({ id: "newsletter", label: "Newsletter setup", color: "#0F8F8F", blurb: "Tool, template and first issue.", always: false, steps: newsletterSteps.map((step, index) => ({ id: `newsletter-${index + 1}`, ...step })) });
+  for (const section of built) {
+    section.steps = section.steps.map((step) => (marketingOnlySteps.has(step.label) ? { ...step, areas: ["marketing" as AreaKind] } : step));
+    if (section.id === "access") section.steps.push(...otherAccess);
+  }
+  built.push({ id: "website", label: "Website project", color: "#2F6FDB", blurb: "From brief to launch and handover.", always: true, areas: ["web"], steps: websiteSteps.map((step, index) => ({ id: `website-${index + 1}`, ...step })) });
+  built.push({ id: "newsletter", label: "Newsletter setup", color: "#0F8F8F", blurb: "Tool, template and first issue.", always: false, areas: ["marketing"], steps: newsletterSteps.map((step, index) => ({ id: `newsletter-${index + 1}`, ...step })) });
   return built;
 };
 
 /** Turns sections into the ticks a client starts with. Owners named "freelancer" become the client's freelancer. */
-export function buildClientChecklist(sections: SectionDef[], prefix: string, freelancerId?: string): CheckItem[] {
+export function buildClientChecklist(sections: SectionDef[], prefix: string, freelancerId?: string, area: AreaKind = "marketing"): CheckItem[] {
   return sections.flatMap((section) =>
-    section.steps.map((step, index) => ({
+    section.steps.filter((step) => !step.areas || step.areas.includes(area)).map((step, index) => ({
       id: `${prefix}-${section.id}-${index + 1}`,
       group: step.group,
       area: section.id,
@@ -356,6 +431,10 @@ const pillar = (id: string, name: string, color: string) => ({ id, name, color }
 
 // ─── Clients ───
 const baseClient = (c: Partial<Client> & Pick<Client, "id" | "name" | "color">): Client => ({
+  area: "marketing",
+  setupPosts: 2,
+  monthDone: {},
+  packNotes: { brand: "", brain: "", templates: "" },
   sector: "Construction",
   package: "Essential",
   assets: [],
@@ -567,11 +646,19 @@ const packLinks: Record<string, { guide?: string; brain?: string }> = {
   buildregs: { guide: "https://docs.google.com/", brain: "https://docs.google.com/" },
   element: { brain: "https://docs.google.com/" },
 };
+const packNotes: Record<string, Client["packNotes"]> = {
+  marker: {
+    brand: "Sample text, replace with the real guide.\nVoice: calm, practical, plain English. We explain what an inspector looks for, we do not scare.\nColours: Marker green with white space. Keep one idea per slide.\nAvoid: stock photos of hard hats, fear headlines, claims we cannot source.",
+    brain: "Sample text, replace with the real research.\nBuyers: facilities managers and housing associations who must prove fire doors are inspected.\nWhat they worry about: missed inspections, unclear sign-off, being the named responsible person.\nPillars: Inspection basics, Compliance made simple, A day on site.",
+    templates: "Sample text, replace with the real list.\nPortrait 1080×1350 and square 1080×1080 masters. Use the carousel master for checklists and the quote master for people.",
+  },
+};
 const clientPackage: Record<string, string> = { marker: "essential", housebuild: "essential", buildregs: "essential", element: "growth", energyfix: "essential", capcon: "growth" };
 const sectionDefs = defaultSections();
 clients.forEach((client, index) => {
   client.checklist = [...client.checklist, ...(packFor[client.id] ?? [])];
   client.links = { ...client.links, ...packLinks[client.id] };
+  if (packNotes[client.id]) client.packNotes = packNotes[client.id];
   const pkg = defaultPackages.find((item) => item.id === clientPackage[client.id]);
   client.packageId = pkg?.id;
   client.package = pkg?.name ?? "Custom";
@@ -739,6 +826,7 @@ export function seedState(): State {
       assets: defaultAssets,
       packages: defaultPackages,
       sections: defaultSections(),
+      monthly: defaultMonthly(),
       defaultApprovalMode: "C",
       reviewer: "ops-first",
       escalationDays: 3,

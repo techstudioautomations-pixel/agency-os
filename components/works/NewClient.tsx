@@ -1,15 +1,16 @@
 "use client";
 
 import { useState } from "react";
-import { ArrowLeft, ArrowRight, Check, Minus, Plus, Trash2, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, ClipboardCopy, Globe, Megaphone, Minus, Plus, Shapes, Trash2, X } from "lucide-react";
 import { useStore } from "@/lib/works/store";
-import { canBeAssigned, money } from "@/lib/works/logic";
+import { canBeAssigned, money, monthName, shiftMonth, todayIso } from "@/lib/works/logic";
 import { packageAssets } from "@/lib/works/seed";
 import { clientColors, fileToLogo } from "@/lib/works/image";
-import type { ApprovalMode, AssetKind, ClientAsset, NewClientDraft } from "@/lib/works/types";
+import type { ApprovalMode, AreaKind, AssetKind, ClientAsset, NewClientDraft } from "@/lib/works/types";
 import { Button, Chip, ClientMark, Field, fieldClass } from "./kit";
 
-const steps = ["Who", "People", "Services", "Set up"];
+const steps = ["Who", "People", "Area", "Services", "Set up"];
+const titles = ["Who is the client?", "Who do we talk to?", "What kind of work?", "What do they get?", "How do we run it?"];
 const formats = ["Single image", "Carousel", "Text post", "Video", "Newsletter", "Blog post", "Document", "Other"];
 const uid = () => `a-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
 
@@ -36,6 +37,13 @@ function Wizard() {
   const [sector, setSector] = useState(lead?.sector ?? "");
   const [color, setColor] = useState(clientColors[state.clients.length % clientColors.length]);
   const [logo, setLogo] = useState<string | undefined>();
+  const [logoLater, setLogoLater] = useState(false);
+  const [startDate, setStartDate] = useState(todayIso());
+  const [area, setArea] = useState<AreaKind>("marketing");
+  const [areaName, setAreaName] = useState("");
+  const [description, setDescription] = useState("");
+  const [setupPosts, setSetupPosts] = useState(2);
+  const [copied, setCopied] = useState(false);
   const [logoError, setLogoError] = useState("");
   const [contact, setContact] = useState({ name: lead?.contact ?? "", email: lead?.email ?? "", phone: "" });
   const [approver, setApprover] = useState({ name: "", email: "" });
@@ -52,10 +60,18 @@ function Wizard() {
   const pkg = settings.packages.find((item) => item.id === packageId);
   const addOnTotal = assets.filter((asset) => asset.source !== "package").reduce((sum, asset) => sum + (asset.price ?? 0) * (asset.period === "month" ? asset.qty : 0), 0);
   const pieces = assets.filter((asset) => asset.kind === "piece" && asset.period === "month").reduce((sum, asset) => sum + asset.qty, 0);
-  const suggested = new Set(settings.sections.filter((section) => section.always || assets.some((asset) => settings.assets.find((entry) => entry.id === asset.assetId)?.sections.includes(section.id))).map((section) => section.id));
+  const appliesHere = (section: (typeof settings.sections)[number]) => !section.areas || section.areas.includes(area);
+  const suggested = new Set(settings.sections.filter((section) => appliesHere(section) && (section.always || assets.some((asset) => settings.assets.find((entry) => entry.id === asset.assetId)?.sections.includes(section.id)))).map((section) => section.id));
   const picked = (id: string) => sectionOverride[id] ?? suggested.has(id);
   const assignable = state.freelancers.filter((person) => person.status !== "Offboarded" && canBeAssigned(person));
 
+  function chooseArea(next: AreaKind) {
+    setArea(next);
+    setSectionOverride({});
+    setAssets([]);
+    setPackageId("");
+    if (next !== "marketing") setApprovalMode("C");
+  }
   function choosePackage(id: string) {
     setPackageId(id);
     const next = settings.packages.find((item) => item.id === id);
@@ -84,8 +100,9 @@ function Wizard() {
 
   const finish = () => {
     const draft: NewClientDraft = {
+      area, areaName: area === "custom" ? areaName.trim() || "Custom" : undefined, description: description.trim() || undefined, startDate: startDate || todayIso(), setupPosts: area === "marketing" ? setupPosts : 0,
       name: name.trim(), color, logo, sector: sector.trim(), mainContact: contact, approver, billingContact: billing.trim(),
-      packageId: pkg ? pkg.id : "custom", assets, sectionIds: settings.sections.filter((section) => picked(section.id)).map((section) => section.id),
+      packageId: area === "marketing" && pkg ? pkg.id : "custom", assets, sectionIds: settings.sections.filter((section) => appliesHere(section) && picked(section.id)).map((section) => section.id),
       approvalMode, freelancerId: freelancerId || undefined, fee: Number(fee) || 0, addOnFee: addOnTotal, leadId: lead?.id,
     };
     const id = createClient(draft);
@@ -93,7 +110,11 @@ function Wizard() {
     go({ view: "client", clientId: id, tab: "checklists" });
   };
 
-  const canNext = step === 0 ? name.trim().length > 0 : true;
+  const canNext = step === 0 ? name.trim().length > 0 : step === 2 ? area !== "custom" || areaName.trim().length > 0 : true;
+  const firstMonth = startDate.slice(0, 7);
+  const monthMessage = `Month 1 (${monthName(firstMonth)}) is mostly set-up and strategy: we learn your business, agree the plan and prepare your brand templates${setupPosts > 0 ? `, and publish ${setupPosts} post${setupPosts === 1 ? "" : "s"}` : ""}. Full monthly content starts in ${monthName(shiftMonth(firstMonth, 1))}.`;
+  const copyMessage = async () => { try { await navigator.clipboard.writeText(monthMessage); setCopied(true); window.setTimeout(() => setCopied(false), 1800); } catch { /* the text is visible to copy by hand */ } };
+  const last = steps.length - 1;
 
   return (
     <div className="fixed inset-0 z-[70] grid place-items-end bg-[#1E2430]/50 sm:place-items-center sm:p-4" role="dialog" aria-modal="true" aria-label="New client">
@@ -101,7 +122,7 @@ function Wizard() {
         <div className="flex items-start gap-3 border-b border-[#F0EEE9] px-6 pb-4 pt-5">
           <div className="flex-1">
             <div className="text-[12px] font-bold uppercase tracking-[.12em] text-[#8B867E]">{lead ? `Won: ${lead.company}` : "New client"}</div>
-            <h2 className="mt-0.5 text-[22px] font-extrabold">{["Who is the client?", "Who do we talk to?", "What do they get?", "How do we run it?"][step]}</h2>
+            <h2 className="mt-0.5 text-[22px] font-extrabold">{titles[step]}</h2>
           </div>
           <button onClick={closeWizard} aria-label="Close" className="rounded-xl p-2 text-[#8B867E] hover:bg-[#F1F0ED]"><X size={18} /></button>
         </div>
@@ -128,14 +149,20 @@ function Wizard() {
                 </div>
               </div>
               <div>
-                <div className="mb-1.5 text-[12px] font-semibold text-[#55514B]">Logo (optional)</div>
-                <div className="flex flex-wrap items-center gap-3">
-                  <label className="cursor-pointer rounded-xl border border-dashed border-[#C9C3B8] px-4 py-2.5 text-[13px] font-semibold hover:border-[#2F6FDB] hover:text-[#1F5BC4]">{logo ? "Change logo" : "Upload logo"}<input type="file" accept="image/*" className="sr-only" onChange={(event) => { chooseLogo(event.target.files?.[0]); event.target.value = ""; }} /></label>
-                  {logo && <button onClick={() => setLogo(undefined)} className="text-[13px] font-semibold text-[#B83232]">Remove</button>}
-                  <span className="text-[12px] text-[#8B867E]">You can add it later from the client page.</span>
+                <div className="mb-1.5 flex flex-wrap items-center justify-between gap-2 text-[12px] font-semibold text-[#55514B]">
+                  <span>Logo</span>
+                  <label className="flex cursor-pointer items-center gap-2"><input type="checkbox" checked={logoLater} onChange={(event) => { setLogoLater(event.target.checked); if (event.target.checked) setLogo(undefined); }} className="h-4 w-4" />Add the logo later</label>
                 </div>
+                {!logoLater && (
+                  <div className="flex flex-wrap items-center gap-3">
+                    <label className="cursor-pointer rounded-xl border border-dashed border-[#C9C3B8] px-4 py-2.5 text-[13px] font-semibold hover:border-[#2F6FDB] hover:text-[#1F5BC4]">{logo ? "Change logo" : "Upload logo"}<input type="file" accept="image/*" className="sr-only" onChange={(event) => { chooseLogo(event.target.files?.[0]); event.target.value = ""; }} /></label>
+                    {logo && <button onClick={() => setLogo(undefined)} className="text-[13px] font-semibold text-[#B83232]">Remove</button>}
+                  </div>
+                )}
+                {logoLater && <p className="text-[12px] text-[#8B867E]">No problem. The first letter is used until you add it from the client page.</p>}
                 {logoError && <p className="mt-1 text-[12px] font-semibold text-[#B83232]">{logoError}</p>}
               </div>
+              <Field label="Start date" hint="The first month runs from here. It is mostly set-up, so we promise fewer posts in it."><input type="date" value={startDate} onChange={(event) => setStartDate(event.target.value)} className={fieldClass} /></Field>
             </div>
           )}
 
@@ -155,6 +182,50 @@ function Wizard() {
           )}
 
           {step === 2 && (
+            <div className="space-y-3">
+              <p className="text-[13px] text-[#6B6760]">This decides which checklists and screens the client gets.</p>
+              {([
+                { value: "marketing" as const, title: "Marketing", note: "Posts, newsletters and monthly reports. Pick Essential, Growth or a custom mix.", icon: Megaphone },
+                { value: "web" as const, title: "Web design", note: "A website project with a price, deliverables and a launch checklist.", icon: Globe },
+                { value: "custom" as const, title: "Something else", note: "Branding, photography, anything. You name it and set the price.", icon: Shapes },
+              ]).map((option) => (
+                <button key={option.value} onClick={() => chooseArea(option.value)} aria-pressed={area === option.value} className={`flex w-full items-center gap-4 rounded-2xl border-2 p-4 text-left transition ${area === option.value ? "border-[#2F6FDB] bg-[#F4F8FF]" : "border-[#E9E6E0] hover:border-[#C9C3B8]"}`}>
+                  <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-[#1E2430] text-white"><option.icon size={21} /></span>
+                  <span className="min-w-0 flex-1"><span className="block text-[16px] font-extrabold">{option.title}</span><span className="text-[13px] text-[#6B6760]">{option.note}</span></span>
+                  {area === option.value && <Check size={18} className="text-[#2F6FDB]" />}
+                </button>
+              ))}
+              {area === "custom" && <Field label="What is it called?"><input autoFocus value={areaName} onChange={(event) => setAreaName(event.target.value)} className={fieldClass} placeholder="e.g. Branding, Photography" /></Field>}
+            </div>
+          )}
+
+          {step === 3 && area !== "marketing" && (
+            <div className="space-y-5">
+              <Field label="What are we delivering?"><textarea value={description} onChange={(event) => setDescription(event.target.value)} rows={3} className={fieldClass} placeholder={area === "web" ? "e.g. 6-page website with contact form and a blog" : "A short description of the work"} /></Field>
+              <div>
+                <h3 className="mb-2 text-[15px] font-bold">Deliverables</h3>
+                {assets.length === 0 ? <p className="rounded-xl border border-dashed border-[#D6D1C8] p-4 text-[13px] text-[#8B867E]">Nothing yet. Add what the client gets, for example “Website design”, “Logo set”.</p> : (
+                  <ul className="divide-y divide-[#F3F1ED] rounded-xl border border-[#EEEBE5]">
+                    {assets.map((asset) => (
+                      <li key={asset.id} className="flex items-center gap-3 px-3.5 py-2.5">
+                        <span className="min-w-0 flex-1 text-[14px] font-semibold">{asset.name}</span>
+                        {asset.price !== undefined && <span className="text-[13px] font-semibold">{money(asset.price, settings.currency)}</span>}
+                        <button onClick={() => setAssets((list) => list.filter((entry) => entry.id !== asset.id))} aria-label={`Remove ${asset.name}`} className="text-[#B5B0A8] hover:text-[#B83232]"><Trash2 size={15} /></button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                <div className="mt-3 flex flex-wrap gap-2 rounded-2xl bg-[#F8F7F4] p-3">
+                  <input value={custom.name} onChange={(event) => setCustom({ ...custom, name: event.target.value })} placeholder="Add a deliverable" aria-label="Deliverable name" className="min-w-[160px] flex-1 rounded-xl border border-[#E2DED7] bg-white px-3 py-2.5 text-[14px]" />
+                  <input value={custom.price} onChange={(event) => setCustom({ ...custom, price: event.target.value })} placeholder="Price (optional)" aria-label="Deliverable price" className="w-32 rounded-xl border border-[#E2DED7] bg-white px-3 py-2.5 text-[14px]" />
+                  <Button onClick={addCustom} disabled={!custom.name.trim()}><Plus size={14} />Add</Button>
+                </div>
+              </div>
+              <Field label={`Price · ${settings.currency}`} hint="For a project, enter the total. For ongoing work, enter the monthly fee, and say which in the description."><input type="number" min={0} value={fee} onChange={(event) => setFee(event.target.value)} className={fieldClass} /></Field>
+            </div>
+          )}
+
+          {step === 3 && area === "marketing" && (
             <div className="space-y-5">
               <div className="grid gap-3 sm:grid-cols-3">
                 {settings.packages.map((item) => (
@@ -217,9 +288,9 @@ function Wizard() {
             </div>
           )}
 
-          {step === 3 && (
+          {step === 4 && (
             <div className="space-y-5">
-              <div>
+              {area === "marketing" && <div>
                 <h3 className="mb-2 text-[15px] font-bold">Who approves our work?</h3>
                 <div className="space-y-2">
                   {approvalOptions.map((option) => (
@@ -229,23 +300,40 @@ function Wizard() {
                     </label>
                   ))}
                 </div>
-              </div>
+              </div>}
               <Field label="Freelancer (optional)" hint="Only people with a signed NDA and contract can be assigned.">
                 <select value={freelancerId} onChange={(event) => setFreelancerId(event.target.value)} className={fieldClass}>
                   <option value="">Assign later</option>
                   {assignable.map((person) => <option key={person.id} value={person.id}>{person.name} · {person.speciality}</option>)}
                 </select>
               </Field>
+              {area === "marketing" && (
+                <div className="rounded-2xl bg-[#F1ECFC] p-4">
+                  <h3 className="text-[15px] font-bold text-[#4A2F9A]">The first month is set-up</h3>
+                  <p className="mt-1 text-[13px] text-[#4A2F9A]">Starting {monthName(firstMonth)}. We spend it on strategy and templates, so we promise fewer posts than the package says.</p>
+                  <div className="mt-3 flex flex-wrap items-center gap-3">
+                    <span className="text-[13px] font-semibold">Posts in month 1</span>
+                    <span className="flex items-center gap-1.5">
+                      <button onClick={() => setSetupPosts(Math.max(0, setupPosts - 1))} aria-label="Fewer first-month posts" className="grid h-7 w-7 place-items-center rounded-lg bg-white"><Minus size={13} /></button>
+                      <b className="w-6 text-center text-[15px]">{setupPosts}</b>
+                      <button onClick={() => setSetupPosts(setupPosts + 1)} aria-label="More first-month posts" className="grid h-7 w-7 place-items-center rounded-lg bg-white"><Plus size={13} /></button>
+                    </span>
+                    <span className="text-[12px] text-[#6B5BA8]">then {pieces} a month from {monthName(shiftMonth(firstMonth, 1))}</span>
+                  </div>
+                  <p className="mt-3 rounded-xl bg-white/70 p-3 text-[13px] leading-relaxed text-[#1E2430]">{monthMessage}</p>
+                  <Button className="mt-2" onClick={copyMessage}><ClipboardCopy size={14} />{copied ? "Copied" : "Copy to tell the client"}</Button>
+                </div>
+              )}
               <div>
                 <h3 className="text-[15px] font-bold">Checklists to set up</h3>
                 <p className="mb-2 text-[13px] text-[#6B6760]">Chosen from what they get. Untick any that do not apply. You can change this later on the client page.</p>
                 <ul className="space-y-1.5">
-                  {settings.sections.map((section) => (
+                  {settings.sections.filter(appliesHere).map((section) => (
                     <li key={section.id}>
                       <label className="flex cursor-pointer items-center gap-3 rounded-xl border border-[#EEEBE5] px-3.5 py-2.5">
                         <input type="checkbox" checked={picked(section.id)} onChange={(event) => setSectionOverride((old) => ({ ...old, [section.id]: event.target.checked }))} className="h-4 w-4" />
                         <span className="h-3 w-3 rounded-full" style={{ background: section.color }} />
-                        <span className="flex-1"><span className="block text-[14px] font-semibold">{section.label}</span><span className="text-[12px] text-[#8B867E]">{section.steps.length} steps · {section.blurb}</span></span>
+                        <span className="flex-1"><span className="block text-[14px] font-semibold">{section.label}</span><span className="text-[12px] text-[#8B867E]">{section.steps.filter((step) => !step.areas || step.areas.includes(area)).length} steps · {section.blurb}</span></span>
                         {section.always && <Chip>Always</Chip>}
                       </label>
                     </li>
@@ -259,7 +347,8 @@ function Wizard() {
         <div className="flex items-center gap-2 border-t border-[#F0EEE9] bg-[#FBFAF8] px-6 py-4">
           {step > 0 ? <Button kind="ghost" onClick={() => setStep(step - 1)}><ArrowLeft size={15} />Back</Button> : <Button kind="ghost" onClick={closeWizard}>Cancel</Button>}
           <span className="ml-auto text-[12px] text-[#8B867E]">Step {step + 1} of {steps.length}</span>
-          {step < steps.length - 1 ? (
+          {step === 1 && <Button kind="ghost" onClick={() => setStep(step + 1)}>Skip for now</Button>}
+          {step < last ? (
             <Button kind="primary" onClick={() => setStep(step + 1)} disabled={!canNext}>Continue <ArrowRight size={15} /></Button>
           ) : (
             <Button kind="good" onClick={finish} disabled={!name.trim()}><Check size={15} />Create client</Button>

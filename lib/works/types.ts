@@ -50,8 +50,23 @@ export type Strategy = {
   approved: boolean;
 };
 
+/** What kind of work a client buys. Marketing has posts, packages and the monthly cycle. The others are projects. */
+export type AreaKind = "marketing" | "web" | "custom";
+
 export type Client = {
   id: string;
+  /** Marketing, web design or another area. Decides which checklists and screens apply. */
+  area: AreaKind;
+  /** Name of the area when it is "custom", for example Branding. */
+  areaName?: string;
+  /** For projects: what we are delivering. */
+  description?: string;
+  /** The first month is mostly set-up and strategy. This is how many posts we promise in it. */
+  setupPosts: number;
+  /** Manual ticks on the monthly checklists: month, then step id, then the date it was ticked. */
+  monthDone: Record<string, Record<string, string>>;
+  /** What the freelancer starter pack says, in words, so it can be read in the app. */
+  packNotes: { brand: string; brain: string; templates: string };
   name: string;
   color: string;
   logo?: string;
@@ -131,11 +146,13 @@ export type PackageDef = {
 };
 
 export type StepKind = "key" | "detail" | "info";
-export type SectionStep = { id: string; label: string; group: string; kind: StepKind; owner: string; hint?: string };
+export type SectionStep = { id: string; label: string; group: string; kind: StepKind; owner: string; hint?: string; /** Only for these areas. Leave out for every area. */ areas?: AreaKind[] };
 
 /** A default checklist section kept in Settings. Changing it affects new clients only. */
 export type SectionDef = {
   id: string;
+  /** Areas this section applies to. Leave out for every area. */
+  areas?: AreaKind[];
   label: string;
   color: string;
   blurb: string;
@@ -330,7 +347,22 @@ export type Notice = {
   link: Route;
 };
 
+/** A step on the monthly checklist. Operations and the freelancer each have one. */
+export type MonthlyStep = {
+  id: string;
+  label: string;
+  role: "ops" | "freelancer";
+  /** First month is set-up. "regular" is every month after. */
+  when: "first" | "regular" | "always";
+  /** Ticks itself from the work when set. Otherwise someone ticks it. */
+  auto?: string;
+  /** Only shown when this applies to the client. */
+  needs?: "marketing" | "client-review" | "newsletter";
+  hint?: string;
+};
+
 export type Settings = {
+  monthly: MonthlyStep[];
   assets: AssetType[];
   packages: PackageDef[];
   sections: SectionDef[];
@@ -377,6 +409,11 @@ export type State = {
 
 /** Everything the new-client wizard collects. */
 export type NewClientDraft = {
+  area: AreaKind;
+  areaName?: string;
+  description?: string;
+  startDate: string;
+  setupPosts: number;
   name: string;
   color: string;
   logo?: string;

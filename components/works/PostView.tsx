@@ -68,7 +68,7 @@ export function PostReview({ post, client, backScope }: { post: Post; client: Cl
 }
 
 // ─── Left: the post as it will look ───
-function PostPreviewPanel({ post, client, canEdit, onEdit }: { post: Post; client: Client; canEdit: boolean; onEdit: () => void }) {
+export function PostPreviewPanel({ post, client, canEdit, onEdit }: { post: Post; client: Client; canEdit: boolean; onEdit: () => void }) {
   const { ping } = useStore();
   const [slide, setSlide] = useState(0);
   const [channel, setChannel] = useState(post.platforms[0] ?? "LinkedIn");
@@ -337,7 +337,7 @@ function Conversation({ post, client, mine }: { post: Post; client: Client; mine
       <div className="space-y-2">
         <div className="flex gap-2"><input type="date" value={date} onChange={(event) => setDate(event.target.value)} aria-label="Publish date" className={`${fieldClass} !mt-0`} /></div>
         {!post.driveLink && <p className="text-[12px] font-semibold text-[#94600A]">Add the Drive link to the final files first (Edit post).</p>}
-        <Button kind="primary" className="w-full" disabled={!post.driveLink || !date} onClick={() => store.schedulePost(post.id, date, "Publer")}>Scheduled in publishing tool</Button>
+        <Button kind="primary" className="w-full" disabled={!post.driveLink || !date} onClick={() => store.schedulePost(post.id, date, "Publishing tool")}>Scheduled in publishing tool</Button>
       </div>
     );
   } else if (post.status === "Scheduled") {

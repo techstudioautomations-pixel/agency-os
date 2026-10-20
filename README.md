@@ -7,7 +7,7 @@ The operating system for The Works: one place for client checklists, freelancer 
 | Screen | For | What it does |
 |---|---|---|
 | Today | Everyone | Greeting, the posts in review (as artwork), what goes out this week, clients at a glance (name, logo, progress only), and who is on which account. "In review now" is one big number you can expand or open in full |
-| Clients | Owners, operations | Just logo, name and stage. **New client** opens a four-step pop-up (who, people, services, set-up) |
+| Clients | Owners, operations | Just logo, name and stage. **New client** opens a five-step pop-up: who (with start date and "add logo later"), people (can be skipped), area (Marketing, Web design or something else), services, set-up. Marketing clients pick Essential, Growth or custom. Other areas get a description, deliverables and a price, and only the checklists that apply |
 | Client page | Owners, operations (freelancers see Marketing and Reporting only) | Overview (with what they get and Edit profile for colour and logo), Checklists (one card per area, open any area for its full tick-list and add steps for this client), Access, Reporting, Files & links, Client view (share link + code, drag posts the client can see), Finance (owners) |
 | Marketing | Everyone (freelancers see their own clients) | Pick a client or all clients: Posts (artwork grid by who acts next), Calendar (drag to move, open slots for agreed posts), Ideas (upload a document, approve / maybe / reject), Strategy (offer, personas, pillars), Results (freelancer month-end report) |
 | Post review | Everyone | Artwork and caption as they will appear, one conversation with change requests to tick off, the next action at the bottom, edit panel for the freelancer, Next for you |
@@ -15,7 +15,10 @@ The operating system for The Works: one place for client checklists, freelancer 
 | Leads | Owners | Pipeline by stage. Marking a lead as won opens the New client pop-up with the lead filled in |
 | Freelancers | Owners, operations | Setup tick-list with the NDA/contract gate, accounts, services and prices |
 | Finance | Owners | Fees, invoices, payouts after the client pays, client and agency costs, profit, tax set-aside, finance statements, hours by account |
-| Settings | Owners | Packages (built from assets, with prices), Assets (post types, add-ons, prices), default Checklists (onboarding, access, strategy…), Rules, General. Changes are defaults for new clients; existing clients keep their own |
+| This month (client page) | Owners, operations; freelancers see theirs in Marketing | Two monthly checklists per client: Operations and Freelancer. The first month is a set-up month with its own list and fewer posts. Steps tick themselves from posts, reports and invoices, or are ticked by hand. When the freelancer finishes theirs, operations is told |
+| Starter pack | Everyone on the client | Brand guide, strategy brain and Canva templates readable in the app (a written summary plus what is in each), with a link to the full document. On the client page and in Marketing |
+| Review one by one | Owners, operations | Opens each post waiting for review as it will appear, with Approve, Ask for changes and Skip |
+| Settings | Owners | Packages (built from assets, with prices), Assets (post types, add-ons, prices), default Checklists (onboarding, access, strategy, website project…), Monthly checklists, Rules, General. Changes are defaults for new clients; existing clients keep their own |
 | Client view | Client, with code | Read-only calendar of the posts you chose. The client only answers if you asked them to review |
 | How we work | Everyone | The SOPs as visual flows and the agreed rules |
 

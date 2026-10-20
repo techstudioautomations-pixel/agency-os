@@ -3,12 +3,14 @@
 import { useState, type ReactNode } from "react";
 import { ArrowRight, Check, ExternalLink, FileText, FolderOpen, KeyRound, Link2, Pencil, Plus, ShieldAlert, Sparkles, Trash2 } from "lucide-react";
 import { useStore } from "@/lib/works/store";
-import { canBeAssigned, gate, isFreelancer, isOwner, missing, money, monthName, nameOf, personById, progress, shiftMonth, shortDate, todayIso } from "@/lib/works/logic";
+import { agreedFor, areaLabel, canBeAssigned, firstMonthOf, gate, isFirstMonth, isFreelancer, isMarketing, isOwner, missing, money, monthName, monthlyAreas, nameOf, personById, progress, shiftMonth, shortDate, todayIso } from "@/lib/works/logic";
 import type { AccessItem, ApprovalMode, Client, ClientFile } from "@/lib/works/types";
 import { Shell } from "./Shell";
 import { GateBanner } from "./Checklist";
 import { AreaDetail, AreaGrid, AreaStrip } from "./Areas";
 import { ClientShare, ProfileEditor, ServicesCard } from "./ClientServices";
+import { MonthChecklist } from "./Monthly";
+import { StarterPack } from "./StarterPack";
 import { AttachField, Avatar, Bar, Button, Card, CardHead, Chip, ClientMark, Empty, Field, Light, Ring, Segmented, fieldClass, tone } from "./kit";
 
 export const modeText: Record<ApprovalMode, string> = {
@@ -70,7 +72,7 @@ export function ClientProfile({ clientId, tab, sub }: { clientId: string; tab?: 
     { value: "access", label: "Access" },
     { value: "reporting", label: "Reporting" },
     { value: "files", label: "Files & links" },
-    { value: "share", label: "Client view" },
+    ...(isMarketing(client) ? [{ value: "share", label: "Client view" }] : []),
     ...(owner ? [{ value: "finance", label: "Finance" }] : []),
   ];
   const current = tabs.some((item) => item.value === tab) ? tab! : "overview";
@@ -84,13 +86,13 @@ export function ClientProfile({ clientId, tab, sub }: { clientId: string; tab?: 
           <div className="-mt-9 rounded-2xl bg-white p-1 shadow-sm"><ClientMark client={client} size={64} /></div>
           <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2 pt-2">
             <Chip t={client.stage === "Live" ? "green" : "blue"}>{client.stage}</Chip>
-            <Chip>{client.package}</Chip>
+            <Chip>{isMarketing(client) ? client.package : areaLabel(client)}</Chip>
             {client.approvalMode !== "C" && <Chip t="purple">{modeText[client.approvalMode]}</Chip>}
           </div>
           <div className="flex flex-wrap items-center gap-2 pt-2">
             {links.filter(([, url]) => url).map(([label, url, icon]) => <a key={label} href={url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 rounded-xl border border-[#E2DED7] px-3 py-2 text-[12px] font-semibold hover:border-[#C9C3B8]">{icon}{label}</a>)}
             <Button onClick={() => setEditingProfile(!editingProfile)}><Pencil size={14} />Edit profile</Button>
-            <Button kind="primary" onClick={() => go({ view: "marketing", clientId: client.id })}>Open marketing <ArrowRight size={15} /></Button>
+            {isMarketing(client) && <Button kind="primary" onClick={() => go({ view: "marketing", clientId: client.id })}>Open marketing <ArrowRight size={15} /></Button>}
           </div>
         </div>
       </div>
@@ -124,6 +126,20 @@ function Row({ label, value, editing, children }: { label: string; value: ReactN
   );
 }
 
+function MonthPanel({ client }: { client: Client }) {
+  const { state } = useStore();
+  const areas = monthlyAreas(state, client);
+  if (areas.length === 0) return null;
+  return (
+    <Card>
+      <CardHead title={`This month · ${monthName(state.month)}`} sub={isFirstMonth(client, state.month) ? "Set-up month" : "What needs doing for this client"} />
+      <div className={`grid gap-6 ${areas.length > 1 ? "lg:grid-cols-2" : ""}`}>
+        {areas.map((area) => <MonthChecklist key={area.id} client={client} area={area} month={state.month} />)}
+      </div>
+    </Card>
+  );
+}
+
 function Overview({ client }: { client: Client }) {
   const { state, go, updateClient, assignFreelancer } = useStore();
   const [editing, setEditing] = useState(false);
@@ -146,11 +162,18 @@ function Overview({ client }: { client: Client }) {
           <Ring value={p.percent} size={48} color={tone[g.light].dot} />
           <span><span className="block text-[12px] font-semibold text-[#8B867E]">Checklists</span><span className="text-[14px] font-bold">{g.light === "green" ? "Ready for production" : `${g.blocking.length} key step${g.blocking.length === 1 ? "" : "s"} open`}</span></span>
         </button>
-        <button onClick={() => go({ view: "marketing", clientId: client.id })} className="rounded-2xl border border-[#E9E6E0] bg-white p-4 text-left">
-          <span className="block text-[12px] font-semibold text-[#8B867E]">{monthName(state.month).split(" ")[0]} posts approved</span>
-          <span className="text-[22px] font-extrabold">{approved}<span className="text-[14px] text-[#8B867E]"> / {client.agreedPosts}</span></span>
-          <Bar value={client.agreedPosts ? (approved / client.agreedPosts) * 100 : 0} color={tone.green.dot} />
-        </button>
+        {isMarketing(client) ? (
+          <button onClick={() => go({ view: "marketing", clientId: client.id })} className="rounded-2xl border border-[#E9E6E0] bg-white p-4 text-left">
+            <span className="block text-[12px] font-semibold text-[#8B867E]">{monthName(state.month).split(" ")[0]} posts approved</span>
+            <span className="text-[22px] font-extrabold">{approved}<span className="text-[14px] text-[#8B867E]"> / {agreedFor(client, state.month)}</span></span>
+            <Bar value={agreedFor(client, state.month) ? (approved / agreedFor(client, state.month)) * 100 : 0} color={tone.green.dot} />
+          </button>
+        ) : (
+          <div className="rounded-2xl border border-[#E9E6E0] bg-white p-4">
+            <span className="block text-[12px] font-semibold text-[#8B867E]">{areaLabel(client)}</span>
+            <span className="text-[22px] font-extrabold">{client.assets.length}<span className="text-[14px] text-[#8B867E]"> deliverable{client.assets.length === 1 ? "" : "s"}</span></span>
+          </div>
+        )}
         <div className="rounded-2xl border border-[#E9E6E0] bg-white p-4">
           <span className="block text-[12px] font-semibold text-[#8B867E]">Freelancer</span>
           {fl ? <span className="mt-1 flex items-center gap-2 text-[14px] font-bold"><Avatar name={fl.name} color={fl.color} size={28} />{fl.name}</span> : <span className="mt-1 block text-[14px] font-bold text-[#B83232]">Not assigned</span>}
@@ -161,6 +184,11 @@ function Overview({ client }: { client: Client }) {
         </button>
       </div>
 
+      {isMarketing(client) && isFirstMonth(client, state.month) && (
+        <div className="rounded-2xl bg-[#F1ECFC] px-5 py-4 text-[14px] text-[#4A2F9A]"><b>Set-up month.</b> {monthName(firstMonthOf(client))} is mostly strategy and templates. We promised {client.setupPosts} post{client.setupPosts === 1 ? "" : "s"}. Full content ({client.agreedPosts} a month) starts in {monthName(shiftMonth(firstMonthOf(client), 1))}.</div>
+      )}
+      <MonthPanel client={client} />
+      {isMarketing(client) && <StarterPack client={client} />}
       <AreaStrip client={client} />
       <ServicesCard client={client} />
 
@@ -182,9 +210,11 @@ function Overview({ client }: { client: Client }) {
         </Card>
         <Card>
           <CardHead title="How we run it" />
-          <Row label="Approval" value={modeText[client.approvalMode]} editing={editing}><select value={client.approvalMode} onChange={(event) => set({ approvalMode: event.target.value as ApprovalMode })} className={select}>{(["C", "B", "A"] as ApprovalMode[]).map((mode) => <option key={mode} value={mode}>{modeText[mode]}</option>)}</select></Row>
+          {isMarketing(client) && <Row label="Approval" value={modeText[client.approvalMode]} editing={editing}><select value={client.approvalMode} onChange={(event) => set({ approvalMode: event.target.value as ApprovalMode })} className={select}>{(["C", "B", "A"] as ApprovalMode[]).map((mode) => <option key={mode} value={mode}>{modeText[mode]}</option>)}</select></Row>}
+          {!isMarketing(client) && <Row label="About the work" value={client.description} editing={editing}>{input(client.description ?? "", (value) => set({ description: value }))}</Row>}
           <Row label="Stage" value={client.stage} editing={editing}><select value={client.stage} onChange={(event) => set({ stage: event.target.value as Client["stage"] })} className={select}><option>Onboarding</option><option>Live</option><option>Paused</option></select></Row>
-          <Row label="Client since" value={shortDate(client.startDate)} editing={false} />
+          <Row label="Start date" value={shortDate(client.startDate)} editing={editing}><input type="date" value={client.startDate} onChange={(event) => set({ startDate: event.target.value })} className={select} /></Row>
+          {isMarketing(client) && <Row label="Posts in month 1" value={String(client.setupPosts)} editing={editing}><input type="number" min={0} value={client.setupPosts} onChange={(event) => set({ setupPosts: Math.max(0, Number(event.target.value) || 0) })} className={`${select} w-24`} /></Row>}
           {owner && <Row label="Monthly fee" value={money(client.fee + client.addOnFee, state.settings.currency)} editing={false} />}
           {g.blocking.length > 0 && (
             <button onClick={() => go({ view: "client", clientId: client.id, tab: "checklists" })} className="mt-3 flex w-full items-center gap-2 rounded-xl bg-[#FDECEC] px-3 py-2.5 text-left text-[13px] font-semibold text-[#B83232]">

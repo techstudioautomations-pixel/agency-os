@@ -3,11 +3,14 @@
 import { useRef, useState } from "react";
 import { ArrowRight, Check, ExternalLink, FileUp, MessageCircle, Plus, Trash2 } from "lucide-react";
 import { useStore } from "@/lib/works/store";
-import { areaItems, docxText, inReview, isFreelancer, monthName, myClients, nameOf, personById, progress, shortDate, splitIdeas, stageOf, todayIso, turnOf } from "@/lib/works/logic";
+import { agreedFor, monthlyAreas, docxText, inReview, stageOf, isFreelancer, isMarketing, monthName, myClients, nameOf, personById, shortDate, splitIdeas, todayIso, turnOf } from "@/lib/works/logic";
 import type { Client, Idea, IdeaDecision, Persona, Pillar, Post, ReportNumbers, Strategy } from "@/lib/works/types";
 import { Shell } from "./Shell";
 import { PostArt } from "./PostArt";
 import { PostReview } from "./PostView";
+import { MonthChecklist } from "./Monthly";
+import { ReviewMode } from "./ReviewMode";
+import { StarterPack } from "./StarterPack";
 import { AttachField, Avatar, Button, Card, CardHead, Chip, ClientMark, Empty, Field, Segmented, fieldClass, tone } from "./kit";
 
 const formats = ["Carousel", "Single image", "Reel", "Text post", "Newsletter"];
@@ -27,7 +30,7 @@ export const statusTone = (post: Post) => {
 // ─── Page ───
 export function MarketingPage({ clientId, tab, postId, filter }: { clientId?: string; tab?: string; postId?: string; filter?: string }) {
   const { state, go } = useStore();
-  const clients = myClients(state);
+  const clients = myClients(state).filter(isMarketing);
   const client = clients.find((item) => item.id === clientId);
   const scope = client ? client.id : "all";
   const post = postId ? state.posts.find((item) => item.id === postId) : undefined;
@@ -62,7 +65,11 @@ export function MarketingPage({ clientId, tab, postId, filter }: { clientId?: st
           </button>
         ))}
       </div>
-      {client && <StarterPack client={client} />}
+      {client && isMarketing(client) && <div className="mb-5"><StarterPack client={client} /></div>}
+      {client && isMarketing(client) && isFreelancer(state) && (() => {
+        const mine = monthlyAreas(state, client).find((area) => area.id === "freelancer");
+        return mine ? <div className="mb-5 rounded-2xl border border-[#E9E6E0] bg-white p-4"><MonthChecklist client={client} area={mine} month={state.month} /></div> : null;
+      })()}
       <div className="mb-5 flex gap-1 overflow-x-auto border-b border-[#E9E6E0]">
         {tabs.map((item) => (
           <button key={item.value} onClick={() => to({ tab: item.value })} className={`-mb-px shrink-0 border-b-2 px-4 py-2.5 text-[14px] font-semibold ${current === item.value ? "border-[#1E2430] text-[#1E2430]" : "border-transparent text-[#8B867E] hover:text-[#1E2430]"}`}>
@@ -80,47 +87,6 @@ export function MarketingPage({ clientId, tab, postId, filter }: { clientId?: st
 }
 
 /** The three documents a freelancer starts from, so they do not have to reinterpret the strategy. */
-function StarterPack({ client }: { client: Client }) {
-  const { state, go } = useStore();
-  const freelancer = isFreelancer(state);
-  const handed = client.checklist.some((item) => item.label.startsWith("Pack handed") && item.status === "Received");
-  const packItems = ["brain", "brand", "templates", "handoff"].flatMap((id) => areaItems(client.checklist, id));
-  const p = progress(packItems);
-  const tiles = [
-    { label: "Brand & creative guide", note: "Positioning, tone, visual rules", url: client.links.guide ?? "", area: "brand", color: "#D6457A" },
-    { label: "Strategy brain", note: "Research, audiences, claims", url: client.links.brain ?? "", area: "brain", color: "#7C5CD6" },
-    { label: "Canva templates", note: "Editable masters, both sizes", url: client.links.canva, area: "templates", color: "#E08A1E" },
-  ];
-  return (
-    <div className="mb-5 rounded-2xl border border-[#E9E6E0] bg-white p-4">
-      <div className="mb-3 flex flex-wrap items-center gap-2">
-        <h3 className="text-[15px] font-bold">{freelancer ? "Your starter pack" : "Freelancer starter pack"}</h3>
-        {handed ? <Chip t="green" dot>Handed over</Chip> : <Chip t="amber" dot>Being prepared · {p.percent}%</Chip>}
-        {!freelancer && <button onClick={() => go({ view: "client", clientId: client.id, tab: "checklists" })} className="ml-auto text-[13px] font-semibold text-[#1F5BC4]">Checklists <ArrowRight size={12} className="inline" /></button>}
-      </div>
-      <div className="grid gap-2.5 sm:grid-cols-3">
-        {tiles.map((tile) => {
-          const ready = /^https?:/.test(tile.url);
-          const inner = (
-            <>
-              <span className="h-9 w-1.5 shrink-0 rounded-full" style={{ background: tile.color }} />
-              <span className="min-w-0 flex-1"><span className="block truncate text-[14px] font-bold">{tile.label}</span><span className="block truncate text-[12px] text-[#8B867E]">{ready ? tile.note : freelancer ? "Not added yet" : "Add the link"}</span></span>
-              {ready ? <ExternalLink size={15} className="shrink-0 text-[#1F5BC4]" /> : !freelancer && <Plus size={15} className="shrink-0 text-[#8B867E]" />}
-            </>
-          );
-          return ready ? (
-            <a key={tile.label} href={tile.url} target="_blank" rel="noreferrer" className="flex items-center gap-3 rounded-xl border border-[#EEEBE5] px-3 py-2.5 hover:border-[#C9C3B8]">{inner}</a>
-          ) : freelancer ? (
-            <div key={tile.label} className="flex items-center gap-3 rounded-xl border border-dashed border-[#E2DED7] bg-[#FBFAF8] px-3 py-2.5 opacity-70">{inner}</div>
-          ) : (
-            <button key={tile.label} onClick={() => go({ view: "client", clientId: client.id, tab: "checklists", sub: tile.area })} className="flex items-center gap-3 rounded-xl border border-dashed border-[#D6D1C8] bg-[#FBFAF8] px-3 py-2.5 text-left hover:border-[#2F6FDB]">{inner}</button>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
 function PickClient({ what }: { what: string }) {
   return <Empty title="Choose a client above">Each client has its own {what}.</Empty>;
 }
@@ -161,34 +127,39 @@ export function PostTile({ post, showClient, scope }: { post: Post; showClient: 
 function PostBoard({ client, scope, initial }: { client?: Client; scope: string; initial?: string }) {
   const { state, go, addPost } = useStore();
   const freelancer = isFreelancer(state);
-  const clients = myClients(state);
-  const [filter, setFilter] = useState(() => initial ?? (state.posts.some((post) => (client ? post.clientId === client.id : clients.some((c) => c.id === post.clientId)) && post.date.startsWith(state.month) && turnOf(state, post).who === state.me) ? "mine" : "all"));
+  const clients = myClients(state).filter(isMarketing);
+  const [filter, setFilter] = useState(initial ?? "mine");
+  const [reviewing, setReviewing] = useState<string[]>([]);
   const posts = state.posts
     .filter((post) => (client ? post.clientId === client.id : clients.some((c) => c.id === post.clientId)) && post.date.startsWith(state.month))
     .sort((a, b) => a.date.localeCompare(b.date));
+  const approvedStatus = ["Ready to schedule", "Scheduled", "Published"];
   const groups: Record<string, (post: Post) => boolean> = {
     mine: (post) => turnOf(state, post).who === state.me,
-    review: (post) => inReview(post),
-    progress: (post) => stageOf(post.status) < 2 && turnOf(state, post).who !== state.me,
+    progress: (post) => !approvedStatus.includes(post.status) && turnOf(state, post).who !== state.me,
     ...(clients.some((c) => c.approvalMode !== "C") ? { client: (post: Post) => post.status === "Client approval" } : {}),
-    approved: (post) => ["Ready to schedule", "Scheduled", "Published"].includes(post.status),
+    approved: (post) => approvedStatus.includes(post.status),
     all: () => true,
+    review: (post) => inReview(post),
   };
   const labels: Record<string, string> = freelancer
-    ? { mine: "My to-do", review: "In review", progress: "Being made", client: "With client", approved: "Approved & live", all: "All" }
-    : { mine: "Needs me", review: "In review", progress: "Being made", client: "With client", approved: "Approved & live", all: "All" };
+    ? { mine: "Needs me", progress: "With the team", client: "With client", approved: "Approved & live", all: "All", review: "In review" }
+    : { mine: "Needs me", progress: "In progress", client: "With client", approved: "Approved & live", all: "All", review: "In review" };
   const shown = posts.filter(groups[filter] ?? groups.all);
-  const agreed = client ? client.agreedPosts : clients.filter((c) => c.stage === "Live").reduce((sum, c) => sum + c.agreedPosts, 0);
+  const toReview = freelancer ? [] : shown.filter((post) => inReview(post)).map((post) => post.id);
+  const agreed = client ? agreedFor(client, state.month) : clients.filter((c) => c.stage === "Live").reduce((sum, c) => sum + agreedFor(c, state.month), 0);
 
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <Segmented value={filter} onChange={setFilter} options={Object.keys(groups).map((key) => ({ value: key, label: labels[key], count: posts.filter(groups[key]).length }))} />
+        <Segmented value={filter} onChange={setFilter} options={Object.keys(groups).filter((key) => key !== "review" || filter === "review").map((key) => ({ value: key, label: labels[key], count: posts.filter(groups[key]).length }))} />
         <div className="flex items-center gap-3 text-[13px]">
           <span className="font-semibold text-[#55514B]">{posts.length} of {agreed} agreed posts planned</span>
+          {toReview.length > 0 && <Button kind="primary" onClick={() => setReviewing(toReview)}>Review {toReview.length} one by one</Button>}
           {client && <Button kind="primary" onClick={() => { const id = addPost(client.id, "New post"); go({ view: "marketing", clientId: scope, postId: id }); }}><Plus size={15} />New post</Button>}
         </div>
       </div>
+      {reviewing.length > 0 && <ReviewMode ids={reviewing} onClose={() => setReviewing([])} />}
       {shown.length === 0 ? (
         <Empty title={filter === "mine" ? "Nothing waiting on you" : "No posts here"}>{filter === "mine" ? "You are up to date for this month. Try another filter or month." : ""}</Empty>
       ) : (
@@ -211,7 +182,7 @@ function suggestedDays(year: number, month: number, count: number, fromDay = 1) 
 
 function PlanCalendar({ client, scope }: { client?: Client; scope: string }) {
   const { state, go, movePost, addPost } = useStore();
-  const clients = myClients(state);
+  const clients = myClients(state).filter(isMarketing);
   const [dragging, setDragging] = useState("");
   const [over, setOver] = useState("");
   const [year, month] = state.month.split("-").map(Number);
@@ -221,14 +192,14 @@ function PlanCalendar({ client, scope }: { client?: Client; scope: string }) {
   const posts = state.posts.filter((post) => (client ? post.clientId === client.id : clients.some((c) => c.id === post.clientId)) && post.date.startsWith(state.month));
   const today = todayIso();
   const fromDay = state.month === today.slice(0, 7) ? Number(today.slice(8, 10)) + 1 : state.month < today.slice(0, 7) ? 99 : 1;
-  const missingCount = client ? Math.max(0, client.agreedPosts - posts.length) : 0;
+  const missingCount = client ? Math.max(0, agreedFor(client, state.month) - posts.length) : 0;
   const freeSlots = client ? suggestedDays(year, month, missingCount, fromDay).filter((day) => !posts.some((post) => post.date === `${state.month}-${String(day).padStart(2, "0")}`)) : [];
 
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-3 text-[13px] text-[#55514B]">
         <span className="font-semibold">Drag a post to another day to move it.</span>
-        {client && <span>{posts.length} of {client.agreedPosts} agreed posts have a date{freeSlots.length ? ` · ${freeSlots.length} open slot${freeSlots.length === 1 ? "" : "s"} suggested` : ""}</span>}
+        {client && <span>{posts.length} of {agreedFor(client, state.month)} agreed posts have a date{freeSlots.length ? ` · ${freeSlots.length} open slot${freeSlots.length === 1 ? "" : "s"} suggested` : ""}</span>}
       </div>
       <div className="overflow-x-auto rounded-2xl border border-[#E9E6E0] bg-white">
         <div className="grid min-w-[880px] grid-cols-7">
@@ -293,7 +264,7 @@ const decisionStyle: Record<IdeaDecision, { bar: string; label: string }> = {
 function IdeasView({ client }: { client?: Client }) {
   const { state, addIdeas, updateIdea, ideaToPost, go, ping } = useStore();
   const freelancer = isFreelancer(state);
-  const clients = myClients(state);
+  const clients = myClients(state).filter(isMarketing);
   const [filter, setFilter] = useState<IdeaDecision | "All">("New");
   const [allMonths, setAllMonths] = useState(false);
   const [importing, setImporting] = useState(false);
@@ -507,7 +478,7 @@ const emptyNumbers: ReportNumbers = { followers: "", followerChange: "", reach: 
 
 function Results({ client }: { client?: Client }) {
   const { state, go } = useStore();
-  const clients = myClients(state);
+  const clients = myClients(state).filter(isMarketing);
   if (!client) {
     return (
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">

@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { ArrowRight, CheckCircle2, ChevronDown } from "lucide-react";
 import { useStore } from "@/lib/works/store";
-import { canBeAssigned, gate, inReview, isFreelancer, me, monthName, myClients, personById, progress, shiftMonth, todayIso, turnOf } from "@/lib/works/logic";
+import { agreedFor, canBeAssigned, gate, inReview, isFreelancer, isMarketing, me, monthName, monthlyAreas, myClients, personById, progress, shiftMonth, todayIso, turnOf } from "@/lib/works/logic";
 import type { Post } from "@/lib/works/types";
 import { Shell } from "./Shell";
 import { PostArt } from "./PostArt";
@@ -130,6 +130,7 @@ export function Today() {
               const reportSent = Boolean(report?.sentAt || report?.clientReport);
               const fl = personById(state, client.freelancerId);
               const waitingMe = posts.filter((post) => turnOf(state, post).who === state.me).length;
+              const monthSteps = monthlyAreas(state, client).filter((area) => (freelancer ? area.id === "freelancer" : area.id === "ops")).flatMap((area) => area.steps);
               return (
                 <button key={client.id} onClick={() => go(freelancer ? { view: "marketing", clientId: client.id } : { view: "client", clientId: client.id })} className="min-w-0 rounded-2xl border border-[#E9E6E0] bg-white p-4 text-left transition hover:border-[#D2CCC2] hover:shadow-[0_8px_24px_rgba(30,36,48,.06)]">
                   <div className="flex items-center gap-3">
@@ -140,12 +141,15 @@ export function Today() {
                     </div>
                     {waitingMe > 0 && <Chip t="blue">{waitingMe} for you</Chip>}
                   </div>
-                  <div className="mt-3">
-                    <div className="mb-1 flex justify-between text-[12px] font-semibold text-[#55514B]"><span>Approved this month</span><span>{approved} / {client.agreedPosts}</span></div>
-                    <Bar value={(approved / client.agreedPosts) * 100} color={tone.green.dot} />
-                  </div>
+                  {isMarketing(client) && (
+                    <div className="mt-3">
+                      <div className="mb-1 flex justify-between text-[12px] font-semibold text-[#55514B]"><span>Approved this month</span><span>{approved} / {agreedFor(client, state.month)}</span></div>
+                      <Bar value={agreedFor(client, state.month) ? (approved / agreedFor(client, state.month)) * 100 : 0} color={tone.green.dot} />
+                    </div>
+                  )}
                   <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1.5 border-t border-[#F0EEE9] pt-3 text-[12px] font-semibold text-[#55514B]">
                     {!freelancer && <span className="flex items-center gap-1.5"><Light light={g.light} size={7} />Setup {setup}%</span>}
+                    {monthSteps.length > 0 && <span>{freelancer ? "Your list" : "This month"} {monthSteps.filter((step) => step.done).length}/{monthSteps.length}</span>}
                     {reportDue && <span className={reportSent ? "text-[#17804A]" : "text-[#B83232]"}>{reportSent ? "✓" : "○"} {monthName(lastMonth).split(" ")[0]} report</span>}
                     <span className="ml-auto flex items-center gap-1.5">{fl ? <><Avatar name={fl.name} color={fl.color} size={20} />{fl.name}</> : <Chip t="red">No freelancer</Chip>}</span>
                   </div>

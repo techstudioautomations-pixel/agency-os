@@ -5,7 +5,7 @@ import { ArrowDown, ArrowUp, ChevronDown, Plus, Trash2 } from "lucide-react";
 import { useStore } from "@/lib/works/store";
 import { isOwner, money } from "@/lib/works/logic";
 import { clientColors } from "@/lib/works/image";
-import type { AssetKind, AssetType, PackageDef, SectionDef, SectionStep, StepKind } from "@/lib/works/types";
+import type { AssetKind, AssetType, MonthlyStep, PackageDef, SectionDef, SectionStep, StepKind } from "@/lib/works/types";
 import { Shell } from "./Shell";
 import { Button, Card, CardHead, Chip, Empty, Field, Segmented, asset as assetUrl, fieldClass } from "./kit";
 
@@ -22,7 +22,7 @@ const move = <T,>(list: T[], index: number, delta: number) => {
 export function Settings({ tab }: { tab?: string }) {
   const { state, go } = useStore();
   if (!isOwner(state)) return <Shell title="Settings"><Empty title="Owners only">Packages, prices and defaults are changed by María or Gareth.</Empty></Shell>;
-  const current = tab && ["packages", "assets", "checklists", "rules", "general"].includes(tab) ? tab : "packages";
+  const current = tab && ["packages", "assets", "checklists", "monthly", "rules", "general"].includes(tab) ? tab : "packages";
   return (
     <Shell title="Settings" sub="What we sell, what each client gets, and how every client is set up. Changes here are the defaults for new clients. Existing clients keep what they have.">
       <div className="mb-5">
@@ -30,6 +30,7 @@ export function Settings({ tab }: { tab?: string }) {
           { value: "packages", label: "Packages", count: state.settings.packages.length },
           { value: "assets", label: "Assets", count: state.settings.assets.length },
           { value: "checklists", label: "Checklists", count: state.settings.sections.length },
+          { value: "monthly", label: "Monthly" },
           { value: "rules", label: "Rules" },
           { value: "general", label: "General" },
         ]} />
@@ -37,9 +38,49 @@ export function Settings({ tab }: { tab?: string }) {
       {current === "packages" && <Packages />}
       {current === "assets" && <Assets />}
       {current === "checklists" && <Checklists />}
+      {current === "monthly" && <Monthly />}
       {current === "rules" && <Rules />}
       {current === "general" && <General />}
     </Shell>
+  );
+}
+
+// ─── Monthly checklists ───
+function Monthly() {
+  const { state, updateSettings } = useStore();
+  const steps = state.settings.monthly;
+  const set = (id: string, patch: Partial<MonthlyStep>) => updateSettings({ monthly: steps.map((step) => (step.id === id ? { ...step, ...patch } : step)) });
+  const add = (role: MonthlyStep["role"], when: MonthlyStep["when"]) => updateSettings({ monthly: [...steps, { id: slug("step"), role, when, label: "New step" }] });
+  const remove = (id: string) => updateSettings({ monthly: steps.filter((step) => step.id !== id) });
+  const groups: { role: MonthlyStep["role"]; title: string; note: string }[] = [
+    { role: "ops", title: "Operations", note: "Your checklist for each client, every month." },
+    { role: "freelancer", title: "Freelancer", note: "What the freelancer works through. It reports back to operations on the client page." },
+  ];
+  return (
+    <div className="space-y-5">
+      <p className="max-w-[70ch] text-[14px] text-[#55514B]">Every client gets these each month. The first month is set-up and strategy, so it has its own list. Steps marked “ticks itself” are worked out from the posts, reports and invoices. The others are ticked by hand. Use {"{n}"} for the number of posts and {"{last}"} for last month&apos;s name. Changes apply to every client.</p>
+      <div className="grid gap-5 xl:grid-cols-2">
+        {groups.map((group) => (
+          <Card key={group.role}>
+            <CardHead title={group.title} sub={group.note} />
+            {(["first", "regular"] as const).map((when) => (
+              <div key={when} className="mb-4 last:mb-0">
+                <div className="mb-1.5 flex items-center justify-between"><h4 className="text-[13px] font-bold uppercase tracking-wide text-[#8B867E]">{when === "first" ? "First month (set-up)" : "Every month after"}</h4><button onClick={() => add(group.role, when)} className="inline-flex items-center gap-1 text-[13px] font-semibold text-[#1F5BC4]"><Plus size={13} />Add step</button></div>
+                <ul className="space-y-1.5">
+                  {steps.filter((step) => step.role === group.role && step.when === when).map((step) => (
+                    <li key={step.id} className="flex items-center gap-2">
+                      <input value={step.label} onChange={(event) => set(step.id, { label: event.target.value })} aria-label="Step" className="min-w-0 flex-1 rounded-xl border border-[#E2DED7] bg-white px-3 py-2 text-[14px] outline-none focus:border-[#2F6FDB]" />
+                      <Chip t={step.auto ? "green" : "grey"}>{step.auto ? "Ticks itself" : "By hand"}</Chip>
+                      <button onClick={() => remove(step.id)} aria-label={`Remove ${step.label}`} className="text-[#B5B0A8] hover:text-[#B83232]"><Trash2 size={15} /></button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </Card>
+        ))}
+      </div>
+    </div>
   );
 }
 

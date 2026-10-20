@@ -1,11 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { ArrowLeft, ArrowRight, BarChart3, Brain, CalendarCheck, Check, ClipboardList, ExternalLink, Handshake, KeyRound, LayoutTemplate, Mail, Palette, Plus, Trash2, type LucideIcon } from "lucide-react";
+import { ArrowLeft, ArrowRight, Brain, CalendarCheck, Check, ClipboardList, ExternalLink, Handshake, KeyRound, LayoutTemplate, Mail, Palette, Plus, Trash2, type LucideIcon } from "lucide-react";
 import { useStore } from "@/lib/works/store";
-import { areaItems, autoAreas, missing, progress } from "@/lib/works/logic";
+import { areaItems, isFirstMonth, missing, monthlyAreas, monthName, progress } from "@/lib/works/logic";
 import type { CheckItem, Client } from "@/lib/works/types";
 import { PhaseChecklist } from "./Checklist";
+import { MonthChecklist } from "./Monthly";
 import { Bar, Button, Card, Chip, Field, Ring, fieldClass } from "./kit";
 
 const icons: Record<string, LucideIcon> = {
@@ -16,8 +17,9 @@ const icons: Record<string, LucideIcon> = {
   templates: LayoutTemplate,
   handoff: Handshake,
   newsletter: Mail,
-  content: CalendarCheck,
-  report: BarChart3,
+  ops: CalendarCheck,
+  freelancer: Handshake,
+  website: LayoutTemplate,
 };
 const iconFor = (id: string) => icons[id] ?? ClipboardList;
 
@@ -52,8 +54,8 @@ export function AreaGrid({ client }: { client: Client }) {
   const [naming, setNaming] = useState(false);
   const [label, setLabel] = useState("");
   const open = (sub: string) => go({ view: "client", clientId: client.id, tab: "checklists", sub });
-  const autos = autoAreas(state, client);
-  const available = state.settings.sections.filter((section) => !client.sections.some((item) => item.id === section.id));
+  const autos = monthlyAreas(state, client);
+  const available = state.settings.sections.filter((section) => !client.sections.some((item) => item.id === section.id) && (!section.areas || section.areas.includes(client.area)));
   return (
     <div className="space-y-4">
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
@@ -84,7 +86,7 @@ export function AreaGrid({ client }: { client: Client }) {
           const done = area.steps.filter((step) => step.done).length;
           const Icon = iconFor(area.id);
           return (
-            <button key={area.id} onClick={() => open(area.id)} className="group flex min-w-0 flex-col rounded-2xl border border-dashed border-[#D6D1C8] bg-[#FBFAF8] p-4 text-left transition hover:border-[#B5B0A8]">
+            <button key={area.id} onClick={() => open(area.id)} className="group flex min-w-0 flex-col rounded-2xl border-2 border-[#E9E6E0] bg-white p-4 text-left transition hover:border-[#B5B0A8]">
               <div className="flex items-center gap-3">
                 <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl text-white" style={{ background: area.color }}><Icon size={20} /></span>
                 <div className="min-w-0 flex-1">
@@ -93,10 +95,10 @@ export function AreaGrid({ client }: { client: Client }) {
                 </div>
                 <Ring value={Math.round((done / area.steps.length) * 100)} size={42} color={done === area.steps.length ? "#1D9E5A" : area.color} />
               </div>
-              <div className="mt-3 flex-1"><Preview rows={[...area.steps.filter((step) => !step.done), ...area.steps.filter((step) => step.done)].slice(0, 4)} /></div>
+              <div className="mt-3 flex-1"><Preview rows={[...area.steps.filter((step) => !step.done), ...area.steps.filter((step) => step.done)].slice(0, 4).map((step) => ({ label: step.label, done: step.done }))} /></div>
               <div className="mt-3 flex items-center gap-2 border-t border-[#F0EEE9] pt-3 text-[12px] font-semibold">
-                <Chip>Automatic</Chip>
-                <span className="ml-auto inline-flex items-center gap-1 text-[#1F5BC4]">See steps <ArrowRight size={13} /></span>
+                <Chip t={isFirstMonth(client, state.month) ? "purple" : "grey"}>{isFirstMonth(client, state.month) ? "Set-up month" : "Every month"}</Chip>
+                <span className="ml-auto inline-flex items-center gap-1 text-[#1F5BC4]">Open <ArrowRight size={13} /></span>
               </div>
             </button>
           );
@@ -129,30 +131,20 @@ export function AreaGrid({ client }: { client: Client }) {
 export function AreaDetail({ client, areaId }: { client: Client; areaId: string }) {
   const { state, go, toggleCheck, updateCheck, addCheck, removeCheck, updateClient, removeClientSection, renameClientSection } = useStore();
   const back = () => go({ view: "client", clientId: client.id, tab: "checklists" });
-  const auto = autoAreas(state, client).find((area) => area.id === areaId);
+  const auto = monthlyAreas(state, client).find((area) => area.id === areaId);
   const section = client.sections.find((item) => item.id === areaId);
 
   if (auto) {
-    const done = auto.steps.filter((step) => step.done).length;
     const Icon = iconFor(auto.id);
     return (
       <div className="space-y-4">
         <Button kind="ghost" onClick={back}><ArrowLeft size={15} />All checklists</Button>
         <Card>
-          <div className="flex items-center gap-3">
+          <div className="mb-4 flex items-center gap-3">
             <span className="grid h-11 w-11 place-items-center rounded-xl text-white" style={{ background: auto.color }}><Icon size={22} /></span>
-            <div className="flex-1"><h3 className="text-[18px] font-bold">{auto.label}</h3><p className="text-[13px] text-[#6B6760]">{auto.blurb} Nothing to tick: do the work and it ticks itself.</p></div>
-            <Chip t={done === auto.steps.length ? "green" : "grey"}>{done}/{auto.steps.length}</Chip>
+            <p className="flex-1 text-[13px] text-[#6B6760]">{auto.id === "freelancer" ? "The freelancer ticks these. When they finish, operations is told." : "Your checklist for this client this month."} Use the month switcher at the top to look at another month.</p>
           </div>
-          <ul className="mt-4 divide-y divide-[#F3F1ED] rounded-xl border border-[#F0EEE9]">
-            {auto.steps.map((step) => (
-              <li key={step.label} className="flex items-center gap-3 px-4 py-3">
-                <span className={`grid h-6 w-6 shrink-0 place-items-center rounded-lg border-2 ${step.done ? "border-[#1D9E5A] bg-[#1D9E5A] text-white" : "border-[#D9D5CE] bg-white"}`}>{step.done && <Check size={15} strokeWidth={3} />}</span>
-                <span className={`flex-1 text-[14px] ${step.done ? "text-[#9A958D] line-through" : "font-semibold"}`}>{step.label}</span>
-                <Button size="sm" onClick={() => go(step.go)}>Open <ArrowRight size={13} /></Button>
-              </li>
-            ))}
-          </ul>
+          <MonthChecklist client={client} area={auto} month={state.month} />
         </Card>
       </div>
     );
@@ -212,12 +204,11 @@ export function AreaDetail({ client, areaId }: { client: Client; areaId: string 
 
 /** A compact row of bars for the client overview. */
 export function AreaStrip({ client }: { client: Client }) {
-  const { state, go } = useStore();
-  const autos = autoAreas(state, client);
+  const { go } = useStore();
   return (
     <Card>
       <div className="mb-3 flex items-center justify-between">
-        <h3 className="text-[16px] font-bold">Checklists</h3>
+        <h3 className="text-[16px] font-bold">Set-up checklists</h3>
         <button onClick={() => go({ view: "client", clientId: client.id, tab: "checklists" })} className="inline-flex items-center gap-1 text-[13px] font-semibold text-[#1F5BC4]">Open all <ArrowRight size={13} /></button>
       </div>
       <div className="grid gap-x-6 gap-y-3 sm:grid-cols-2 xl:grid-cols-4">
@@ -227,15 +218,6 @@ export function AreaStrip({ client }: { client: Client }) {
             <button key={section.id} onClick={() => go({ view: "client", clientId: client.id, tab: "checklists", sub: section.id })} className="min-w-0 text-left">
               <div className="mb-1 flex items-center justify-between gap-2 text-[13px] font-semibold"><span className="truncate">{section.label}</span><span className="text-[#8B867E]">{p.complete}/{p.total}</span></div>
               <Bar value={p.percent} color={p.percent === 100 ? "#1D9E5A" : section.color} />
-            </button>
-          );
-        })}
-        {autos.map((area) => {
-          const done = area.steps.filter((step) => step.done).length;
-          return (
-            <button key={area.id} onClick={() => go({ view: "client", clientId: client.id, tab: "checklists", sub: area.id })} className="min-w-0 text-left">
-              <div className="mb-1 flex items-center justify-between gap-2 text-[13px] font-semibold"><span className="truncate">{area.label}</span><span className="text-[#8B867E]">{done}/{area.steps.length}</span></div>
-              <Bar value={(done / area.steps.length) * 100} color={done === area.steps.length ? "#1D9E5A" : area.color} />
             </button>
           );
         })}
