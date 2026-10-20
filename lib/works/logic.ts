@@ -137,46 +137,56 @@ export function splitIdeas(text: string): { title: string; notes: string; format
     });
 }
 
-/** Reads the text of a .docx in the browser (a .docx is a zip; we inflate word/document.xml). */
-export async function docxText(file: File): Promise<string> {
-  const buffer = new Uint8Array(await file.arrayBuffer());
-  const view = new DataView(buffer.buffer);
-  let offset = 0;
-  while (offset < buffer.length - 30 && view.getUint32(offset, true) === 0x04034b50) {
-    const method = view.getUint16(offset + 8, true);
-    let size = view.getUint32(offset + 18, true);
-    const nameLength = view.getUint16(offset + 26, true);
-    const extraLength = view.getUint16(offset + 28, true);
-    const name = new TextDecoder().decode(buffer.slice(offset + 30, offset + 30 + nameLength));
-    const start = offset + 30 + nameLength + extraLength;
-    const flags = view.getUint16(offset + 6, true);
-    if (flags & 8 && size === 0) {
-      // Size is in a trailing descriptor: scan for the next header.
-      let next = start;
-      while (next < buffer.length - 4 && view.getUint32(next, true) !== 0x04034b50 && view.getUint32(next, true) !== 0x02014b50) next++;
-      size = next - start - (view.getUint32(next - 16, true) === 0x08074b50 ? 16 : 12);
-    }
-    if (name === "word/document.xml") {
-      const data = buffer.slice(start, start + size);
-      let xml: string;
-      if (method === 0) xml = new TextDecoder().decode(data);
-      else {
-        const stream = new Blob([data]).stream().pipeThrough(new DecompressionStream("deflate-raw"));
-        xml = await new Response(stream).text();
-      }
-      return xml
-        .replace(/<w:tab\/>/g, "\t")
-        .replace(/<\/w:p>/g, "\n")
-        .replace(/<[^>]+>/g, "")
-        .replace(/&amp;/g, "&")
-        .replace(/&lt;/g, "<")
-        .replace(/&gt;/g, ">")
-        .replace(/&quot;/g, '"')
-        .replace(/&apos;/g, "'");
-    }
-    offset = start + size;
+/** Finds one file inside a zip using the central directory, so files saved with data descriptors (Google Docs exports) work too. */
+export async function zipEntry(buffer: Uint8Array, wanted: string): Promise<Uint8Array | null> {
+  const view = new DataView(buffer.buffer, buffer.byteOffset, buffer.byteLength);
+  let end = -1;
+  for (let i = buffer.length - 22; i >= Math.max(0, buffer.length - 65557); i--) {
+    if (view.getUint32(i, true) === 0x06054b50) { end = i; break; }
   }
-  throw new Error("Could not read this Word file. Copy the text and paste it instead.");
+  if (end < 0) throw new Error("This does not look like a Word file. Save it as .docx, or paste the text.");
+  const count = view.getUint16(end + 10, true);
+  let at = view.getUint32(end + 16, true);
+  for (let n = 0; n < count; n++) {
+    if (view.getUint32(at, true) !== 0x02014b50) break;
+    const method = view.getUint16(at + 10, true);
+    const size = view.getUint32(at + 20, true);
+    const nameLength = view.getUint16(at + 28, true);
+    const extraLength = view.getUint16(at + 30, true);
+    const commentLength = view.getUint16(at + 32, true);
+    const local = view.getUint32(at + 42, true);
+    const name = new TextDecoder().decode(buffer.slice(at + 46, at + 46 + nameLength));
+    if (name === wanted) {
+      const start = local + 30 + view.getUint16(local + 26, true) + view.getUint16(local + 28, true);
+      const data = buffer.slice(start, start + size);
+      if (method === 0) return data;
+      const stream = new Blob([data]).stream().pipeThrough(new DecompressionStream("deflate-raw"));
+      return new Uint8Array(await new Response(stream).arrayBuffer());
+    }
+    at += 46 + nameLength + extraLength + commentLength;
+  }
+  return null;
+}
+
+/** The raw document.xml of a .docx. */
+export async function docxXml(file: File): Promise<string> {
+  const data = await zipEntry(new Uint8Array(await file.arrayBuffer()), "word/document.xml");
+  if (!data) throw new Error("Could not read this Word file. Save it as .docx, or paste the text.");
+  return new TextDecoder().decode(data);
+}
+
+/** Reads the text of a .docx in the browser. */
+export async function docxText(file: File): Promise<string> {
+  const xml = await docxXml(file);
+  return xml
+    .replace(/<w:tab\/>/g, "\t")
+    .replace(/<\/w:p>/g, "\n")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'");
 }
 
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { ArrowRight, Check, ChevronDown, ExternalLink, FileUp, LayoutGrid, MessageCircle, Plus, Trash2 } from "lucide-react";
+import { ArrowRight, Check, ChevronDown, ClipboardCopy, ExternalLink, FileUp, LayoutGrid, MessageCircle, Plus, Trash2 } from "lucide-react";
 import { useStore } from "@/lib/works/store";
 import { agreedFor, areaItems, monthlyAreas, docxText, inReview, needsMe, progress, stageOf, isFreelancer, isMarketing, monthName, myClients, nameOf, personById, shortDate, splitIdeas, todayIso, turnOf } from "@/lib/works/logic";
 import type { Client, Idea, IdeaDecision, Persona, Pillar, Post, ReportNumbers, Strategy } from "@/lib/works/types";
@@ -12,6 +12,7 @@ import { MonthChecklist } from "./Monthly";
 import { ReviewMode } from "./ReviewMode";
 import { PackPane, packDocs, type DocKey } from "./StarterPack";
 import { Results } from "./Results";
+import { researchFromFile, researchFromText, type Research } from "@/lib/works/research";
 import { AttachField, Avatar, Button, Card, CardHead, Chip, ClientMark, Empty, Field, Segmented, fieldClass, tone } from "./kit";
 
 const formats = ["Carousel", "Single image", "Reel", "Text post", "Newsletter"];
@@ -333,10 +334,11 @@ const decisionStyle: Record<IdeaDecision, { bar: string; label: string }> = {
   Approved: { bar: "#1D9E5A", label: "Use" },
   Maybe: { bar: "#E0A325", label: "Maybe later" },
   Rejected: { bar: "#D9D5CE", label: "Rejected" },
+  Done: { bar: "#8FBFA3", label: "Already made" },
 };
 
 function IdeasView({ client }: { client?: Client }) {
-  const { state, addIdeas, updateIdea, openPostWizard, go, ping } = useStore();
+  const { state, importResearch, updateIdea, openPostWizard, go, ping } = useStore();
   const freelancer = isFreelancer(state);
   const clients = myClients(state).filter(isMarketing);
   const [filter, setFilter] = useState<IdeaDecision | "All">(freelancer ? "Approved" : "New");
@@ -344,34 +346,43 @@ function IdeasView({ client }: { client?: Client }) {
   const [importing, setImporting] = useState(false);
   const [text, setText] = useState("");
   const [source, setSource] = useState("Pasted text");
+  const [fileResearch, setFileResearch] = useState<Research | null>(null);
+  const [include, setInclude] = useState({ facts: true, ctas: true, ideas: true });
+  const [dragging, setDragging] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
   const ideas = state.ideas.filter((idea) => (client ? idea.clientId === client.id : clients.some((c) => c.id === idea.clientId)) && (allMonths || idea.month === state.month));
   const shown = ideas.filter((idea) => filter === "All" || idea.decision === filter);
-  const preview = text.trim() ? splitIdeas(text) : [];
+  const parsed: Research | null = text.trim() ? researchFromText(text) : fileResearch;
+  const counts = (decision: string) => parsed?.ideas.filter((idea) => idea.decision === decision).length ?? 0;
+  const importable = (include.ideas ? parsed?.ideas.length ?? 0 : 0) + (include.facts ? parsed?.facts.length ?? 0 : 0) + (include.ctas ? parsed?.ctas.length ?? 0 : 0);
 
   async function readFile(file: File) {
     try {
-      setText(file.name.toLowerCase().endsWith(".docx") ? await docxText(file) : await file.text());
+      const research = await researchFromFile(file);
+      setText("");
+      setFileResearch(research);
       setSource(file.name);
+      setInclude({ facts: true, ctas: true, ideas: true });
       setImporting(true);
     } catch (error) {
       ping(error instanceof Error ? error.message : "Could not read that file");
     }
   }
+  function closeImport() { setImporting(false); setText(""); setFileResearch(null); }
 
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <Segmented value={filter} onChange={setFilter} options={(["New", "Approved", "Maybe", "Rejected", "All"] as const).map((value) => ({ value, label: value === "All" ? "All" : decisionStyle[value].label, count: value === "All" ? ideas.length : ideas.filter((idea) => idea.decision === value).length }))} />
+        <Segmented value={filter} onChange={setFilter} options={(["New", "Approved", "Maybe", "Rejected", "Done", "All"] as const).filter((value) => value !== "Done" || ideas.some((idea) => idea.decision === "Done")).map((value) => ({ value, label: value === "All" ? "All" : decisionStyle[value].label, count: value === "All" ? ideas.length : ideas.filter((idea) => idea.decision === value).length }))} />
         <div className="flex flex-wrap items-center gap-2">
           <label className="flex items-center gap-1.5 text-[13px] font-semibold text-[#55514B]"><input type="checkbox" checked={allMonths} onChange={(event) => setAllMonths(event.target.checked)} />All months</label>
           {client && (
             <>
               <Button onClick={() => fileInput.current?.click()}><FileUp size={15} />Upload document</Button>
-              <Button kind="primary" onClick={() => { setImporting(!importing); setSource("Pasted text"); }}><Plus size={15} />Add ideas</Button>
+              <Button kind="primary" onClick={() => { if (importing) closeImport(); else { setImporting(true); setSource("Pasted text"); } }}><Plus size={15} />Add ideas</Button>
             </>
           )}
-          <input ref={fileInput} type="file" accept=".docx,.txt,.md,.csv" className="sr-only" aria-label="Upload ideas document" onChange={(event) => { const file = event.target.files?.[0]; if (file) readFile(file); event.target.value = ""; }} />
+          <input ref={fileInput} type="file" accept=".docx,.txt,.md,.csv,.pdf" className="sr-only" aria-label="Upload ideas document" onChange={(event) => { const file = event.target.files?.[0]; if (file) readFile(file); event.target.value = ""; }} />
         </div>
       </div>
 
@@ -380,20 +391,62 @@ function IdeasView({ client }: { client?: Client }) {
       )}
       {importing && client && (
         <Card>
-          <div className="grid gap-4 lg:grid-cols-2">
-            <Field label={`Ideas for ${monthName(state.month)} · ${source}`} hint="A numbered or bulleted list becomes one card per idea. Without a list, each paragraph becomes a card. Word (.docx), .txt and .md work; for Google Docs, copy and paste.">
-              <textarea value={text} onChange={(event) => setText(event.target.value)} rows={9} className={fieldClass} placeholder={"1. Timber span: 4 things decide it – carousel\n2. Myth: you can always remove an internal wall – reel\n3. …"} />
-            </Field>
-            <div>
-              <div className="mb-1 text-[12px] font-semibold text-[#55514B]">{preview.length} card{preview.length === 1 ? "" : "s"}</div>
-              <div className="max-h-[230px] space-y-1.5 overflow-y-auto rounded-xl bg-[#F8F7F4] p-2">
-                {preview.map((item, index) => <div key={index} className="rounded-lg bg-white px-3 py-2 text-[13px]"><b>{item.title}</b> <span className="text-[#8B867E]">· {item.format}</span></div>)}
-                {preview.length === 0 && <p className="p-3 text-[13px] text-[#8B867E]">Paste or upload to see the cards.</p>}
+          <div className="grid gap-5 lg:grid-cols-[minmax(0,.9fr)_minmax(0,1.1fr)]">
+            <div
+              onDragOver={(event) => { event.preventDefault(); setDragging(true); }}
+              onDragLeave={() => setDragging(false)}
+              onDrop={(event) => { event.preventDefault(); setDragging(false); const file = event.dataTransfer.files?.[0]; if (file) readFile(file); }}
+              className={`rounded-2xl border-2 border-dashed p-4 transition ${dragging ? "border-[#2F6FDB] bg-[#F4F8FF]" : "border-[#D6D1C8]"}`}
+            >
+              <div className="text-[14px] font-bold">{fileResearch && !text.trim() ? source : "Drop a document here, or paste the text"}</div>
+              <p className="mt-0.5 text-[12px] text-[#6B6760]">Word (.docx), .txt and .md are read. PDFs are not read yet: save it as Word, or paste the text. A Word file also brings its highlight colours.</p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <Button size="sm" onClick={() => fileInput.current?.click()}><FileUp size={14} />Choose a file</Button>
+                {(fileResearch || text) && <Button size="sm" kind="ghost" onClick={() => { setText(""); setFileResearch(null); setSource("Pasted text"); }}>Clear</Button>}
               </div>
-              <div className="mt-3 flex gap-2">
-                <Button kind="primary" disabled={!preview.length} onClick={() => { addIdeas(client.id, preview, source); setText(""); setImporting(false); setFilter("New"); }}>Add {preview.length} cards</Button>
-                <Button kind="ghost" onClick={() => setImporting(false)}>Cancel</Button>
-              </div>
+              <textarea value={text} onChange={(event) => { setText(event.target.value); setSource("Pasted text"); }} rows={7} aria-label="Paste the text" className={`${fieldClass} mt-3`} placeholder={"Paste a list of ideas, or a whole research document.\n\n1. Timber span: 4 things decide it – carousel\n2. Myth: you can always remove an internal wall – reel"} />
+            </div>
+
+            <div className="min-w-0">
+              {!parsed || (!parsed.ideas.length && !parsed.facts.length && !parsed.ctas.length) ? (
+                <p className="rounded-xl bg-[#F8F7F4] p-4 text-[13px] text-[#8B867E]">Add a document to see how it will be filed. Facts about the business go to the Strategy tab, calls to action go to a library, and ideas become cards.</p>
+              ) : (
+                <div className="space-y-3">
+                  {parsed.facts.length > 0 && (
+                    <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-[#E9E6E0] p-3">
+                      <input type="checkbox" checked={include.facts} onChange={(event) => setInclude({ ...include, facts: event.target.checked })} className="mt-1 h-4 w-4" />
+                      <span className="min-w-0 flex-1"><b className="text-[14px]">Business profile · {parsed.facts.length} facts</b><span className="block text-[12px] text-[#6B6760]">Go to {client.name}&apos;s Strategy tab: {parsed.facts.slice(0, 4).map((fact) => fact.label).join(", ")}{parsed.facts.length > 4 ? "…" : ""}</span></span>
+                    </label>
+                  )}
+                  {parsed.ctas.length > 0 && (
+                    <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-[#E9E6E0] p-3">
+                      <input type="checkbox" checked={include.ctas} onChange={(event) => setInclude({ ...include, ctas: event.target.checked })} className="mt-1 h-4 w-4" />
+                      <span className="min-w-0 flex-1"><b className="text-[14px]">Calls to action · {parsed.ctas.length}</b><span className="block text-[12px] text-[#6B6760]">Kept in a library to add to any caption: “{parsed.ctas[0].text.slice(0, 70)}{parsed.ctas[0].text.length > 70 ? "…" : ""}”</span></span>
+                    </label>
+                  )}
+                  {parsed.ideas.length > 0 && (
+                    <div className="rounded-xl border border-[#E9E6E0] p-3">
+                      <label className="flex cursor-pointer items-start gap-3">
+                        <input type="checkbox" checked={include.ideas} onChange={(event) => setInclude({ ...include, ideas: event.target.checked })} className="mt-1 h-4 w-4" />
+                        <span className="min-w-0 flex-1"><b className="text-[14px]">Ideas · {parsed.ideas.length} cards</b><span className="block text-[12px] text-[#6B6760]">{[counts("Approved") && `${counts("Approved")} to use`, counts("Done") && `${counts("Done")} already made`, counts("Rejected") && `${counts("Rejected")} rejected`, counts("New") && `${counts("New")} to decide`].filter(Boolean).join(" · ")}{parsed.ideas.some((idea) => idea.coloured) ? ". Decisions come from the highlight colours." : ""}</span></span>
+                      </label>
+                      <div className="mt-2 max-h-[210px] space-y-1 overflow-y-auto rounded-lg bg-[#F8F7F4] p-1.5">
+                        {parsed.ideas.map((idea, index) => (
+                          <div key={index} className="flex items-center gap-2 rounded-md bg-white px-2.5 py-1.5 text-[12px]">
+                            <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: decisionStyle[idea.decision].bar }} title={decisionStyle[idea.decision].label} />
+                            <span className="min-w-0 flex-1 truncate font-semibold">{idea.title}</span>
+                            <span className="shrink-0 text-[#8B867E]">{idea.format}{idea.group ? ` · ${idea.group.split(" · ")[0]}` : ""}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  <div className="flex gap-2">
+                    <Button kind="primary" disabled={!importable} onClick={() => { importResearch(client.id, { facts: include.facts ? parsed.facts : [], ctas: include.ctas ? parsed.ctas : [], brief: include.facts ? parsed.brief : "", ideas: include.ideas ? parsed.ideas : [], source }); closeImport(); setFilter(freelancer ? "Approved" : "New"); }}>File it all</Button>
+                    <Button kind="ghost" onClick={closeImport}>Cancel</Button>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </Card>
@@ -415,22 +468,32 @@ function IdeasView({ client }: { client?: Client }) {
 
 function IdeaCard({ idea, client, showClient, canDecide, onChange, onMakePost, onOpenPost }: { idea: Idea; client: Client; showClient: boolean; canDecide: boolean; onChange: (patch: Partial<Idea>) => void; onMakePost: () => void; onOpenPost: () => void }) {
   const [note, setNote] = useState(false);
+  const [showAngle, setShowAngle] = useState(false);
   const style = decisionStyle[idea.decision];
   return (
     <article className={`flex min-w-0 flex-col rounded-2xl border border-[#E9E6E0] bg-white p-4 ${idea.decision === "Rejected" ? "opacity-60" : ""}`} style={{ borderLeft: `5px solid ${style.bar}` }}>
       <div className="flex flex-wrap items-center gap-1.5">
         {showClient && <span className="flex items-center gap-1.5 text-[12px] font-bold"><ClientMark client={client} size={18} />{client.name}</span>}
+        {idea.group && <span className="rounded-full bg-[#F1ECFC] px-2.5 py-1 text-[11px] font-bold text-[#4A3596]">{idea.group.split(" · ")[0]}</span>}
         <select value={idea.format} onChange={(event) => onChange({ format: event.target.value })} aria-label="Format" className="rounded-full border border-[#E2DED7] bg-white px-2.5 py-1 text-[12px] font-semibold outline-none">
           {formats.map((format) => <option key={format}>{format}</option>)}
         </select>
       </div>
       <h4 className="mt-2.5 text-[15px] font-bold leading-snug">{idea.title}</h4>
       {idea.notes && <p className="mt-1 line-clamp-3 text-[13px] text-[#55514B]">{idea.notes}</p>}
+      {idea.angle && (
+        <div className="mt-2">
+          <button onClick={() => setShowAngle(!showAngle)} aria-expanded={showAngle} className="text-[12px] font-bold text-[#1F5BC4]">{showAngle ? "Hide the draft copy" : "See the draft copy"}</button>
+          {showAngle && <p className="mt-1 whitespace-pre-wrap rounded-lg bg-[#F8F7F4] px-3 py-2 text-[12px] leading-relaxed text-[#3D4450]">{idea.angle}</p>}
+        </div>
+      )}
       {idea.comment && !note && <p className="mt-2 rounded-lg bg-[#F6F5F2] px-2.5 py-1.5 text-[12px] italic text-[#55514B]">“{idea.comment}”</p>}
       {note && <textarea autoFocus value={idea.comment} onChange={(event) => onChange({ comment: event.target.value })} onBlur={() => setNote(false)} rows={2} placeholder="Why? Any direction for the freelancer?" className="mt-2 w-full rounded-lg border border-[#E2DED7] px-2.5 py-2 text-[13px] outline-none" />}
       <div className="mt-auto pt-3">
         {idea.postId ? (
           <Button size="sm" className="w-full" onClick={onOpenPost}>Open the post <ArrowRight size={13} /></Button>
+        ) : idea.decision === "Done" ? (
+          <Chip t="green">Already made</Chip>
         ) : idea.decision === "Approved" ? (
           <Button size="sm" kind="primary" className="w-full" onClick={onMakePost}>Create post <ArrowRight size={13} /></Button>
         ) : canDecide ? (
@@ -456,9 +519,13 @@ function IdeaCard({ idea, client, showClient, canDecide, onChange, onMakePost, o
 
 // ─── Strategy: the client's marketing profile ───
 export function StrategyView({ client }: { client: Client }) {
-  const { state, updateClient } = useStore();
+  const { state, updateClient, ping } = useStore();
   const readOnly = isFreelancer(state);
   const s = client.strategy;
+  const facts = s.facts ?? [];
+  const ctas = s.ctas ?? [];
+  const [newCta, setNewCta] = useState("");
+  const copyText = async (value: string) => { try { await navigator.clipboard.writeText(value); ping("Copied"); } catch { ping("Copy was blocked by the browser"); } };
   const set = (patch: Partial<Strategy>) => updateClient(client.id, { strategy: { ...s, ...patch } });
   const setPersona = (id: string, patch: Partial<Persona>) => set({ personas: s.personas.map((persona) => (persona.id === id ? { ...persona, ...patch } : persona)) });
   const [pillarName, setPillarName] = useState("");
@@ -476,6 +543,51 @@ export function StrategyView({ client }: { client: Client }) {
           <textarea readOnly={readOnly} value={s.offer} onChange={(event) => set({ offer: event.target.value })} rows={2} placeholder="The offer in one or two sentences" className="mt-2 w-full resize-none bg-transparent text-[20px] font-extrabold leading-snug text-white outline-none placeholder:text-white/50" />
           <input readOnly={readOnly} value={s.services} onChange={(event) => set({ services: event.target.value })} placeholder="Services to promote" className="mt-1 w-full bg-transparent text-[14px] font-semibold text-white/85 outline-none placeholder:text-white/50" />
         </div>
+
+        <Card>
+          <CardHead title="Business profile" sub="Facts about the business, such as the target, the offer and what we never claim. Filled in when you upload a research document." right={!readOnly && <Button size="sm" onClick={() => set({ facts: [...facts, { id: `fact-${Date.now()}`, label: "New fact", value: "" }] })}><Plus size={13} />Add a fact</Button>} />
+          {facts.length === 0 ? <Empty title="Nothing here yet">Upload the research document in Ideas and the target, offer and positioning are filed here.</Empty> : (
+            <dl className="divide-y divide-[#F3F1ED]">
+              {facts.map((fact) => (
+                <div key={fact.id} className="grid gap-1 py-2.5 sm:grid-cols-[150px_1fr_auto] sm:items-start sm:gap-3">
+                  <input readOnly={readOnly} value={fact.label} onChange={(event) => set({ facts: facts.map((item) => (item.id === fact.id ? { ...item, label: event.target.value } : item)) })} aria-label="Label" className="w-full rounded-lg bg-transparent px-1 py-1 text-[12px] font-bold uppercase tracking-wide text-[#8B867E] outline-none focus:bg-[#F6F5F2]" />
+                  <textarea readOnly={readOnly} value={fact.value} onChange={(event) => set({ facts: facts.map((item) => (item.id === fact.id ? { ...item, value: event.target.value } : item)) })} aria-label={fact.label} rows={Math.max(1, Math.ceil(fact.value.length / 70))} className="w-full resize-none rounded-lg bg-transparent px-1 py-1 text-[14px] outline-none focus:bg-[#F6F5F2]" />
+                  {!readOnly && <button onClick={() => set({ facts: facts.filter((item) => item.id !== fact.id) })} aria-label={`Remove ${fact.label}`} className="p-1 text-[#B5B0A8] hover:text-[#B83232]"><Trash2 size={14} /></button>}
+                </div>
+              ))}
+            </dl>
+          )}
+          {(s.brief || !readOnly) && (
+            <label className="mt-3 block text-[11px] font-bold uppercase tracking-wide text-[#8B867E]">What the content is for
+              <textarea readOnly={readOnly} value={s.brief ?? ""} onChange={(event) => set({ brief: event.target.value })} rows={3} placeholder="The goal of the content in a few sentences" className="mt-1 w-full resize-none rounded-xl border border-[#E9E6E0] px-3 py-2 text-[14px] font-normal normal-case tracking-normal outline-none focus:border-[#2F6FDB]" />
+            </label>
+          )}
+        </Card>
+
+        <Card>
+          <CardHead title="Calls to action" sub="Ready-made endings to add to a caption. In a post, pick one from the list under the caption." />
+          {ctas.length === 0 && <p className="text-[13px] text-[#8B867E]">None yet. They are filed here when a research document has a CTA list.</p>}
+          {[...new Set(ctas.map((cta) => cta.group))].map((group) => (
+            <div key={group} className="mb-3 last:mb-0">
+              <div className="mb-1 text-[11px] font-bold uppercase tracking-wide text-[#8B867E]">{group} · {ctas.filter((cta) => cta.group === group).length}</div>
+              <ul className="divide-y divide-[#F3F1ED] rounded-xl border border-[#F0EEE9]">
+                {ctas.filter((cta) => cta.group === group).map((cta) => (
+                  <li key={cta.id} className="flex items-start gap-2 px-3 py-2">
+                    <span className="min-w-0 flex-1 text-[13px] leading-snug">{cta.text}</span>
+                    <button onClick={() => copyText(cta.text)} aria-label="Copy" className="rounded-lg p-1.5 text-[#1F5BC4] hover:bg-[#EEF2FA]"><ClipboardCopy size={14} /></button>
+                    {!readOnly && <button onClick={() => set({ ctas: ctas.filter((item) => item.id !== cta.id) })} aria-label="Remove" className="rounded-lg p-1.5 text-[#B5B0A8] hover:text-[#B83232]"><Trash2 size={14} /></button>}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+          {!readOnly && (
+            <form onSubmit={(event) => { event.preventDefault(); if (!newCta.trim()) return; set({ ctas: [...ctas, { id: `cta-${Date.now()}`, text: newCta.trim(), group: "Calls to action" }] }); setNewCta(""); }} className="mt-3 flex gap-2">
+              <input value={newCta} onChange={(event) => setNewCta(event.target.value)} placeholder="Add a call to action" aria-label="New call to action" className="min-w-0 flex-1 rounded-xl border border-[#E2DED7] px-3 py-2 text-[14px] outline-none focus:border-[#2F6FDB]" />
+              <Button type="submit" kind="primary" disabled={!newCta.trim()}>Add</Button>
+            </form>
+          )}
+        </Card>
 
         <Card>
           <CardHead title="Who we talk to" sub="One card per persona." right={!readOnly && <Button size="sm" onClick={() => set({ personas: [...s.personas, { id: `p-${Date.now()}`, name: "New persona", cares: "", pains: "", wants: "" }] })}><Plus size={13} />Persona</Button>} />

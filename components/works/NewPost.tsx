@@ -8,6 +8,7 @@ import { agreedFor, isMarketing, monthName, myClients, reviewerFor, shiftMonth }
 import type { PostFile } from "@/lib/works/types";
 import { Button, ClientMark, Field, fieldClass } from "./kit";
 import { Lightbox } from "./Lightbox";
+import { CtaPicker } from "./CtaPicker";
 
 const formats = ["Carousel", "Single image", "Reel", "Text post", "Newsletter"] as const;
 const channels = ["LinkedIn", "Instagram", "Facebook", "TikTok", "Newsletter"];
@@ -47,7 +48,7 @@ function Wizard() {
   const [title, setTitle] = useState(idea?.title ?? "");
   const [format, setFormat] = useState<(typeof formats)[number]>((formats as readonly string[]).includes(idea?.format ?? "") ? (idea!.format as (typeof formats)[number]) : "Carousel");
   const [platforms, setPlatforms] = useState<string[]>([]);
-  const [copy, setCopy] = useState("");
+  const [copy, setCopy] = useState(idea?.angle ?? "");
   const [different, setDifferent] = useState(false);
   const [captions, setCaptions] = useState<Record<string, string>>({});
   const [captionTab, setCaptionTab] = useState("");
@@ -81,6 +82,7 @@ function Wizard() {
     const found = state.ideas.find((item) => item.id === id);
     if (found) {
       setTitle(found.title);
+      if (!copy.trim() && found.angle) setCopy(found.angle);
       if ((formats as readonly string[]).includes(found.format)) setFormat(found.format as (typeof formats)[number]);
     }
   };
@@ -236,7 +238,9 @@ function Wizard() {
                     {picked.map((channel) => <button key={channel} onClick={() => setCaptionTab(channel)} aria-pressed={tab === channel} className={`rounded-lg px-3 py-1 text-[12px] font-bold ${tab === channel ? "bg-[#EAF1FD] text-[#1F5BC4]" : "text-[#6B6760] hover:bg-[#F1F0ED]"}`}>{channel}{captionFor(channel).trim() ? " ✓" : ""}</button>)}
                   </div>
                 )}
+                {idea?.angle || (ideaId && state.ideas.find((item) => item.id === ideaId)?.angle) ? <p className="mb-2 rounded-lg bg-[#F1F6FE] px-3 py-2 text-[12px] text-[#1F5BC4]">Started from the draft copy in the idea. Change anything you like.</p> : null}
                 <textarea value={useDifferent ? captionFor(tab) : copy} onChange={(event) => (useDifferent ? setCaptions({ ...captions, [tab]: event.target.value }) : setCopy(event.target.value))} aria-label={useDifferent ? `${tab} caption` : "Caption"} rows={7} placeholder={useDifferent ? `Write the ${tab} caption` : "Write the caption"} className={`${fieldClass} leading-relaxed`} />
+                <CtaPicker client={client} onPick={(cta) => (useDifferent ? setCaptions({ ...captions, [tab]: `${captionFor(tab)}${captionFor(tab).trim() ? "\n\n" : ""}${cta}` }) : setCopy(`${copy}${copy.trim() ? "\n\n" : ""}${cta}`))} />
               </div>
               <div>
                 <div className="mb-1.5 text-[12px] font-semibold text-[#55514B]">{format === "Text post" ? "Image" : "Files"} · {rule.hint}</div>

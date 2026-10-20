@@ -8,6 +8,7 @@ import type { Client, Post, PostFile, RevisionCategory } from "@/lib/works/types
 import { buildZip, safeName } from "@/lib/zip";
 import { PostArt } from "./PostArt";
 import { Lightbox } from "./Lightbox";
+import { CtaPicker } from "./CtaPicker";
 import { statusTone } from "./Marketing";
 import { asset, Avatar, Button, Chip, ClientMark, Field, fieldClass } from "./kit";
 import { Shell } from "./Shell";
@@ -280,6 +281,7 @@ function PostEditor({ post, onDone }: { post: Post; onDone: () => void }) {
         )}
         <textarea value={value} onChange={(event) => write(event.target.value)} rows={7} aria-label={different ? `${tab} caption` : "Caption"} className={`${fieldClass} leading-relaxed`} placeholder="Write the caption" />
         <div className="mt-1 text-[12px] text-[#8B867E]">{value.length} characters · limit {limit.toLocaleString()}{value.length > limit ? " (too long)" : ""}</div>
+        <CtaPicker client={store.state.clients.find((item) => item.id === post.clientId)} onPick={(cta) => write(`${value}${value.trim() ? "\n\n" : ""}${cta}`)} />
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2">

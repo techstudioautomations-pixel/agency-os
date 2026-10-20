@@ -362,6 +362,40 @@ function useStoreValue() {
         });
         ping(`${items.length} idea card${items.length === 1 ? "" : "s"} added`);
       },
+      /** Files what a research document contained: facts into the client's strategy, calls to action into the library, ideas into the deck. */
+      importResearch: (clientId: string, data: { facts: { label: string; value: string }[]; ctas: { text: string; group: string }[]; brief: string; ideas: { title: string; notes: string; angle: string; format: string; decision: "New" | "Approved" | "Rejected" | "Done"; group: string }[]; source: string }) => {
+        update((d) => {
+          const client = d.clients.find((c) => c.id === clientId)!;
+          const strategy = client.strategy;
+          if (data.facts.length) {
+            const facts = strategy.facts ?? (strategy.facts = []);
+            for (const fact of data.facts) {
+              const existing = facts.find((item) => item.label.toLowerCase() === fact.label.toLowerCase());
+              if (existing) existing.value = fact.value;
+              else facts.push({ id: uid("fact"), ...fact });
+            }
+            const pick = (...names: string[]) => data.facts.find((fact) => names.includes(fact.label.toLowerCase()))?.value;
+            if (!strategy.offer.trim()) strategy.offer = pick("offer") ?? strategy.offer;
+            if (!strategy.services.trim()) strategy.services = pick("product", "services") ?? strategy.services;
+            if (!strategy.claims.trim()) strategy.claims = pick("boundary", "claims") ?? strategy.claims;
+            const target = pick("target", "audience", "target audience");
+            if (target && !strategy.personas.some((persona) => persona.name.toLowerCase() === target.toLowerCase())) strategy.personas.push({ id: uid("persona"), name: target, cares: pick("purpose") ?? "", pains: "", wants: pick("benefits") ?? "" });
+          }
+          if (data.ctas.length) {
+            const library = strategy.ctas ?? (strategy.ctas = []);
+            for (const cta of data.ctas) if (!library.some((item) => item.text.toLowerCase() === cta.text.toLowerCase())) library.push({ id: uid("cta"), ...cta });
+          }
+          if (data.brief && !strategy.brief?.trim()) strategy.brief = data.brief;
+          const have = new Set(d.ideas.filter((idea) => idea.clientId === clientId).map((idea) => idea.title.toLowerCase()));
+          const fresh = data.ideas.filter((idea) => !have.has(idea.title.toLowerCase()));
+          d.ideas.unshift(...fresh.map((idea) => ({ id: uid("idea"), clientId, title: idea.title, notes: idea.notes, angle: idea.angle || undefined, group: idea.group || undefined, format: idea.format, decision: idea.decision, comment: "", createdBy: d.me, createdAt: todayIso(), source: data.source, month: d.month })));
+          const toDecide = fresh.filter((idea) => idea.decision === "New").length;
+          const toWrite = fresh.filter((idea) => idea.decision === "Approved").length;
+          if (toDecide) notify(d, reviewerFor(d, client), `${toDecide} new idea${toDecide === 1 ? "" : "s"} for ${client.name} to decide`, { view: "marketing", clientId, tab: "ideas" }, ["In app", "Email", "Google Chat"]);
+          if (toWrite) notify(d, client.freelancerId, `${client.name}: ${toWrite} idea${toWrite === 1 ? "" : "s"} ready to turn into posts`, { view: "marketing", clientId, tab: "ideas" });
+        });
+        ping("Document filed");
+      },
       updateIdea: (id: string, patch: Partial<Idea>) =>
         update((d) => {
           const idea = d.ideas.find((item) => item.id === id)!;

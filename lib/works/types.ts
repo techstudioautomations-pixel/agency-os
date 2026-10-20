@@ -48,6 +48,12 @@ export type Strategy = {
   /** Claims that need the client's expert to confirm. */
   claims: string;
   approved: boolean;
+  /** Facts about the business, such as target, positioning and the boundary of what we claim. */
+  facts?: { id: string; label: string; value: string }[];
+  /** Ready-made calls to action and closing lines, to add to a caption. */
+  ctas?: { id: string; text: string; group: string }[];
+  /** What the content is for. */
+  brief?: string;
 };
 
 /** What kind of work a client buys. Marketing has posts, packages and the monthly cycle. The others are projects. */
@@ -195,7 +201,8 @@ export type Attachment = { name: string; url: string; addedAt: string; addedBy: 
 export type ClientFile = Attachment & { id: string; category: "Brand" | "Contract" | "Report" | "Photos" | "Other" };
 export type ClientCost = { id: string; label: string; amount: number; month: string; recurring: boolean };
 
-export type IdeaDecision = "New" | "Approved" | "Maybe" | "Rejected";
+/** "Done" means the post was already made or scheduled before the idea was added here. */
+export type IdeaDecision = "New" | "Approved" | "Maybe" | "Rejected" | "Done";
 
 export type Idea = {
   id: string;
@@ -209,6 +216,10 @@ export type Idea = {
   createdBy: string;
   createdAt: string;
   source?: string;
+  /** Drafted wording from the research, used to start the caption. */
+  angle?: string;
+  /** Where it sits in the research, for example "Priority 1". */
+  group?: string;
   postId?: string;
   /** The month the idea is planned for. */
   month: string;
