@@ -1,4 +1,4 @@
-import type { CheckItem, Client, Freelancer, Idea, Lead, MonthReport, Person, Post, PostStatus, State, Strategy } from "./types";
+import type { AssetType, CheckItem, Client, ClientAsset, Freelancer, Idea, Lead, MonthReport, PackageDef, Person, Post, PostStatus, SectionDef, State, StepKind, Strategy } from "./types";
 
 // ─── Dates are generated around today, so the demo always looks current ───
 const pad = (value: number) => String(value).padStart(2, "0");
@@ -25,14 +25,14 @@ const ahead = (days: number) => ago(-days);
 type Template = { group: string; label: string; hint?: string; soft?: boolean; detail?: boolean; owner: string };
 
 export const clientChecklistTemplate: Template[] = [
-  { group: "1 · The deal", label: "Package: Essential or Growth", owner: "gareth" },
+  { group: "1 · The deal", label: "Package or services agreed", owner: "gareth" },
   { group: "1 · The deal", label: "Add-ons: extra newsletter, brand setup, other", soft: true, owner: "gareth" },
   { group: "1 · The deal", label: "Contract signed", owner: "gareth" },
   { group: "1 · The deal", label: "First invoice sent / paid", owner: "maria" },
   { group: "1 · The deal", label: "Billing contact", owner: "client" },
   { group: "1 · The deal", label: "Main contact and one named approver", owner: "client" },
   { group: "1 · The deal", label: "Where we talk: Google Chat or email", owner: "maria" },
-  { group: "1 · The deal", label: "Approval mode agreed (A, B or C)", hint: "A: plan and posts · B: plan only · C: internal only", owner: "maria" },
+  { group: "1 · The deal", label: "Approval route agreed", hint: "Default: we approve internally. Only if the client asks do they review the plan or posts.", owner: "maria" },
 
   { group: "2 · Questionnaire", label: "What the business does, services, typical projects", soft: true, owner: "client" },
   { group: "2 · Questionnaire", label: "Audience: who they want to reach and win", soft: true, owner: "client" },
@@ -49,7 +49,7 @@ export const clientChecklistTemplate: Template[] = [
   { group: "3 · Access", label: "LinkedIn page admin invite", hint: "Log who has access and when. Never store passwords here.", owner: "client" },
   { group: "3 · Access", label: "Meta Business / Facebook / Instagram access", owner: "client" },
   { group: "3 · Access", label: "Other platforms: TikTok, newsletter tool", soft: true, owner: "client" },
-  { group: "3 · Access", label: "Publer connected", owner: "niamh" },
+  { group: "3 · Access", label: "Publishing tool connected", owner: "niamh" },
   { group: "3 · Access", label: "Drive folder shared", owner: "niamh" },
 
   { group: "4 · Brand assets", label: "Logo files", owner: "client" },
@@ -60,7 +60,7 @@ export const clientChecklistTemplate: Template[] = [
   { group: "5 · Baseline", label: "Followers, engagement and screenshots before any changes", owner: "freelancer" },
 
   { group: "6 · Our setup", label: "Client profile created", owner: "niamh" },
-  { group: "6 · Our setup", label: "Drive folder, chat channel, Publer workspace, Canva folder and brand kit", owner: "niamh" },
+  { group: "6 · Our setup", label: "Drive folder, Google Chat space, publishing tool workspace, Canva folder and brand kit", owner: "niamh" },
   { group: "6 · Our setup", label: "Freelancer assigned", owner: "maria" },
   { group: "6 · Our setup", label: "Monthly dates set: capture by the 5th, scheduled by the 25th", owner: "niamh" },
 
@@ -158,7 +158,7 @@ export const freelancerChecklistTemplate: Template[] = [
   { group: "Trial", label: "Practical trial or sample done, with scorecard result", owner: "maria" },
   { group: "Paperwork", label: "NDA signed (date and link)", owner: "maria" },
   { group: "Paperwork", label: "Contract and payment terms signed", owner: "maria" },
-  { group: "Tools", label: "Tool access: OS login, chat, Drive folder, Canva seat, Publer role", owner: "niamh" },
+  { group: "Tools", label: "Tool access: OS login, Google Chat, Drive folder, Canva seat, publishing tool role", owner: "niamh" },
   { group: "Tools", label: "Expectations and how-we-work briefing read", owner: "niamh" },
   { group: "Work", label: "Accounts assigned", owner: "maria" },
   { group: "Work", label: "Offboarding: access removed the same day", soft: true, owner: "niamh" },
@@ -193,11 +193,115 @@ function withStatus(list: CheckItem[], overrides: Record<string, CheckItem["stat
   });
 }
 
+// ─── What we sell: assets, packages and the default checklist sections. All of it is editable in Settings. ───
+const uidPart = (value: string) => value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+export const piecesPerMonth = (assets: ClientAsset[]) => assets.filter((asset) => asset.kind === "piece" && asset.period === "month").reduce((sum, asset) => sum + asset.qty, 0);
+
+export const defaultAssets: AssetType[] = [
+  { id: "company-post", name: "Company post", kind: "piece", format: "Single image", sections: ["brain", "brand", "templates"] },
+  { id: "project-carousel", name: "Project carousel", kind: "piece", format: "Carousel", sections: ["brain", "brand", "templates"] },
+  { id: "md-post", name: "Post written for your MD", kind: "piece", format: "Text post", sections: ["brain", "brand", "templates"] },
+  { id: "short-video", name: "Short video edit", kind: "piece", format: "Video", sections: ["brain", "brand", "templates"] },
+  { id: "explainer-video", name: "Explainer video", kind: "extra", format: "Video", sections: ["brain", "brand"] },
+  { id: "newsletter", name: "Email newsletter", kind: "extra", format: "Newsletter", sections: ["newsletter"] },
+  { id: "blog-post", name: "Blog post", kind: "extra", format: "Blog post", sections: ["brand"] },
+  { id: "case-study", name: "Case study or capability sheet", kind: "extra", format: "Document", sections: ["brand"] },
+  { id: "pdf-guide", name: "PDF guide", kind: "extra", format: "Document", sections: ["brand"] },
+  { id: "flyer", name: "Flyer", kind: "extra", format: "Document", sections: ["brand", "templates"] },
+];
+
+export const defaultPackages: PackageDef[] = [
+  {
+    id: "essential",
+    name: "Essential",
+    price: 795,
+    tagline: "For smaller firms that need a consistent, professional marketing presence.",
+    blurb: "Planned content, regular publishing and simple oversight.",
+    items: [{ assetId: "company-post", qty: 8, period: "month" }, { assetId: "project-carousel", qty: 2, period: "month" }],
+    includes: ["Quarterly marketing plan and review call", "Monthly content calendar for your approval", "One round of changes per monthly batch", "We monitor comments and messages and flag enquiries to you", "One-page monthly report", "Newsletter available as an add-on"],
+    channels: "LinkedIn plus one more channel",
+    fullReport: false,
+  },
+  {
+    id: "growth",
+    name: "Growth",
+    price: 1450,
+    tagline: "For ambitious firms that want a dedicated partner planning and managing their marketing.",
+    blurb: "Strategy, content, coordination, publishing and monthly accountability.",
+    items: [
+      { assetId: "company-post", qty: 7, period: "month" },
+      { assetId: "short-video", qty: 1, period: "month" },
+      { assetId: "project-carousel", qty: 3, period: "month" },
+      { assetId: "md-post", qty: 4, period: "month" },
+      { assetId: "newsletter", qty: 1, period: "month" },
+      { assetId: "case-study", qty: 1, period: "quarter" },
+    ],
+    includes: ["Dedicated Marketing Lead", "Quarterly marketing plan and monthly review call", "Monthly content calendar for your approval", "Monthly performance report with recommendations", "We monitor comments and messages and flag enquiries to you"],
+    channels: "LinkedIn plus up to two more channels",
+    fullReport: true,
+    recommended: true,
+  },
+];
+
+const stepKind = (template: Template): StepKind => (template.soft ? "info" : template.detail ? "detail" : "key");
+const areaIdForGroup = (group: string) => areaDefs.find((area) => (area.groups as readonly string[]).includes(group))?.id ?? "onboarding";
+
+const newsletterSteps: { label: string; kind: StepKind; owner: string; group: string; hint?: string }[] = [
+  { group: "Newsletter · Setup", label: "Newsletter tool and audience list access", kind: "key", owner: "client" },
+  { group: "Newsletter · Setup", label: "Sender name, email and unsubscribe link set up, consent checked", kind: "detail", owner: "niamh", hint: "Check the client has permission to email each person on the list." },
+  { group: "Newsletter · Setup", label: "Sections and regular topics agreed with the client", kind: "detail", owner: "maria" },
+  { group: "Newsletter · Setup", label: "Newsletter template ready in the client's brand", kind: "key", owner: "freelancer" },
+  { group: "Newsletter · First issue", label: "First issue planned and drafted", kind: "detail", owner: "freelancer" },
+  { group: "Newsletter · First issue", label: "Test send checked on phone and desktop", kind: "detail", owner: "niamh" },
+];
+
+export const defaultSections = (): SectionDef[] => {
+  const all = [...clientChecklistTemplate, ...packChecklistTemplate];
+  const built: SectionDef[] = areaDefs.map((area) => ({
+    id: area.id,
+    label: area.label,
+    color: area.color,
+    blurb: area.blurb,
+    always: ["onboarding", "access", "handoff"].includes(area.id),
+    steps: all.filter((template) => (area.groups as readonly string[]).includes(template.group)).map((template, index) => ({ id: `${area.id}-${index + 1}`, label: template.label, group: template.group, kind: stepKind(template), owner: template.owner, hint: template.hint })),
+  }));
+  built.push({ id: "newsletter", label: "Newsletter setup", color: "#0F8F8F", blurb: "Tool, template and first issue.", always: false, steps: newsletterSteps.map((step, index) => ({ id: `newsletter-${index + 1}`, ...step })) });
+  return built;
+};
+
+/** Turns sections into the ticks a client starts with. Owners named "freelancer" become the client's freelancer. */
+export function buildClientChecklist(sections: SectionDef[], prefix: string, freelancerId?: string): CheckItem[] {
+  return sections.flatMap((section) =>
+    section.steps.map((step, index) => ({
+      id: `${prefix}-${section.id}-${index + 1}`,
+      group: step.group,
+      area: section.id,
+      label: step.label,
+      hint: step.hint,
+      soft: step.kind === "info",
+      detail: step.kind === "detail",
+      owner: step.owner === "freelancer" ? freelancerId ?? "niamh" : step.owner,
+      status: "Not asked" as const,
+      date: "",
+      note: "",
+    })),
+  );
+}
+
+export function packageAssets(pkg: PackageDef, assets: AssetType[] = defaultAssets, prefix = uidPart(pkg.id)): ClientAsset[] {
+  return pkg.items.flatMap((item, index) => {
+    const asset = assets.find((entry) => entry.id === item.assetId);
+    return asset ? [{ id: `${prefix}-a${index + 1}`, assetId: asset.id, name: asset.name, format: asset.format, kind: asset.kind, qty: item.qty, period: item.period, source: "package" as const }] : [];
+  });
+}
+
+export const newShare = (clientId: string, seed = 0) => ({ enabled: false, token: `${uidPart(clientId)}-${(seed * 7919 + 104729).toString(36)}`, code: String(100000 + ((seed * 48271 + 913) % 900000)), postIds: [] as string[] });
+
 // ─── People ───
 export const people: Person[] = [
   { id: "maria", name: "María", role: "owner", title: "Managing partner", email: "maria@theworks.ie", color: "#E0567A" },
   { id: "gareth", name: "Gareth", role: "owner", title: "Partner · new business", email: "gareth@theworks.ie", color: "#2F6FDB" },
-  { id: "niamh", name: "Niamh", role: "ops", title: "Operations", email: "ops@theworks.ie", color: "#1B9C85" },
+  { id: "niamh", name: "Coordinator", role: "ops", title: "Operations · to be hired", email: "coordinator@theworks.ie", color: "#1B9C85" },
 ];
 
 const serviceList: Record<string, string> = {
@@ -254,9 +358,11 @@ const pillar = (id: string, name: string, color: string) => ({ id, name, color }
 const baseClient = (c: Partial<Client> & Pick<Client, "id" | "name" | "color">): Client => ({
   sector: "Construction",
   package: "Essential",
-  addOns: [],
+  assets: [],
+  sections: [],
+  share: { enabled: false, token: "", code: "", postIds: [] },
   stage: "Live",
-  approvalMode: "A",
+  approvalMode: "C",
   mainContact: { name: "", email: "", phone: "" },
   approver: { name: "", email: "" },
   billingContact: "",
@@ -311,8 +417,8 @@ export const clients: Client[] = [
     }),
     hours: { [thisMonth]: { owner: 2, ops: 3, freelancer: 9 } },
     access: [
-      { id: "a1", platform: "LinkedIn page", account: "Marker Group company page", ownedBy: "Client", people: "Niamh (admin), Chelsie (content admin)", status: "Active", date: ago(50), vaultRef: "" },
-      { id: "a2", platform: "Publer", account: "The Works workspace · Marker Group", ownedBy: "Agency", people: "Niamh, Chelsie (editor, approval needed)", status: "Active", date: ago(48), vaultRef: "Vault · Publer" },
+      { id: "a1", platform: "LinkedIn page", account: "Marker Group company page", ownedBy: "Client", people: "Coordinator (admin), Chelsie (content admin)", status: "Active", date: ago(50), vaultRef: "" },
+      { id: "a2", platform: "Publishing tool", account: "The Works workspace · Marker Group", ownedBy: "Agency", people: "Coordinator, Chelsie (editor, approval needed)", status: "Active", date: ago(48), vaultRef: "Vault · Publishing tool" },
       { id: "a3", platform: "Canva", account: "Marker Group brand kit", ownedBy: "Agency", people: "Chelsie", status: "Active", date: ago(48), vaultRef: "" },
     ],
     files: [
@@ -331,8 +437,8 @@ export const clients: Client[] = [
     freelancerId: "velinda",
     freelancerFee: 100,
     fee: 750,
-    addOns: ["Extra newsletter"],
     addOnFee: 250,
+    approvalMode: "A",
     platforms: ["Instagram", "LinkedIn"],
     mainContact: { name: "Client contact (to add)", email: "", phone: "" },
     approver: { name: "Named approver (to add)", email: "" },
@@ -354,9 +460,9 @@ export const clients: Client[] = [
     }),
     hours: { [thisMonth]: { owner: 1, ops: 4, freelancer: 11 } },
     access: [
-      { id: "a1", platform: "Instagram", account: "@housebuild", ownedBy: "Client", people: "Niamh, Velinda (via Meta Business)", status: "Active", date: ago(55), vaultRef: "" },
-      { id: "a2", platform: "LinkedIn page", account: "House Build", ownedBy: "Client", people: "Niamh (admin)", status: "Active", date: ago(55), vaultRef: "" },
-      { id: "a3", platform: "Newsletter tool", account: "Client's Mailchimp", ownedBy: "Client", people: "Requested for Niamh", status: "Requested", date: ago(3), vaultRef: "" },
+      { id: "a1", platform: "Instagram", account: "@housebuild", ownedBy: "Client", people: "Coordinator, Velinda (via Meta Business)", status: "Active", date: ago(55), vaultRef: "" },
+      { id: "a2", platform: "LinkedIn page", account: "House Build", ownedBy: "Client", people: "Coordinator (admin)", status: "Active", date: ago(55), vaultRef: "" },
+      { id: "a3", platform: "Newsletter tool", account: "Client's Mailchimp", ownedBy: "Client", people: "Requested for Coordinator", status: "Requested", date: ago(3), vaultRef: "" },
     ],
     files: [
       { id: "cf1", name: "Service agreement (signed).pdf", url: "https://drive.google.com/", category: "Contract", addedAt: ago(58), addedBy: "gareth" },
@@ -373,7 +479,6 @@ export const clients: Client[] = [
     freelancerId: "ryan",
     freelancerFee: 120,
     fee: 500,
-    approvalMode: "B",
     checklist: withStatus(makeChecklist(clientChecklistTemplate, "buildregs", 38, [], "ryan"), { "Followers, engagement": "Requested", "Competitors": "Not asked" }),
     strategy: strategy({
       offer: "Building regulations guidance for project teams.",
@@ -392,8 +497,6 @@ export const clients: Client[] = [
     name: "Element",
     color: "#743CC5",
     sector: "Engineering",
-    package: "Growth",
-    agreedPosts: 12,
     freelancerId: "eve",
     freelancerFee: 166.67,
     fee: 1000,
@@ -438,8 +541,6 @@ export const clients: Client[] = [
     name: "CapCon",
     color: "#D65A12",
     sector: "Construction",
-    package: "Growth",
-    agreedPosts: 12,
     stage: "Onboarding",
     ownerId: "gareth",
     fee: 1000,
@@ -466,9 +567,24 @@ const packLinks: Record<string, { guide?: string; brain?: string }> = {
   buildregs: { guide: "https://docs.google.com/", brain: "https://docs.google.com/" },
   element: { brain: "https://docs.google.com/" },
 };
-clients.forEach((client) => {
+const clientPackage: Record<string, string> = { marker: "essential", housebuild: "essential", buildregs: "essential", element: "growth", energyfix: "essential", capcon: "growth" };
+const sectionDefs = defaultSections();
+clients.forEach((client, index) => {
   client.checklist = [...client.checklist, ...(packFor[client.id] ?? [])];
   client.links = { ...client.links, ...packLinks[client.id] };
+  const pkg = defaultPackages.find((item) => item.id === clientPackage[client.id]);
+  client.packageId = pkg?.id;
+  client.package = pkg?.name ?? "Custom";
+  client.assets = pkg ? packageAssets(pkg, defaultAssets, client.id) : [{ id: `${client.id}-a1`, name: "Product post", format: "Single image", kind: "piece", qty: 4, period: "month", source: "custom" }];
+  const newsletter = client.id === "housebuild";
+  if (newsletter) client.assets.push({ id: `${client.id}-a9`, assetId: "newsletter", name: "Email newsletter", format: "Newsletter", kind: "extra", qty: 1, period: "month", price: 250, source: "add-on" });
+  const wanted = new Set(sectionDefs.filter((section) => section.always || client.assets.some((asset) => defaultAssets.find((entry) => entry.id === asset.assetId)?.sections.includes(section.id) ?? ["brain", "brand", "templates"].includes(section.id))).map((section) => section.id));
+  if (newsletter) wanted.add("newsletter");
+  client.sections = sectionDefs.filter((section) => wanted.has(section.id)).map(({ id, label, color, blurb }) => ({ id, label, color, blurb }));
+  client.checklist.forEach((item) => { item.area = item.area ?? areaIdForGroup(item.group); });
+  if (newsletter) client.checklist.push(...buildClientChecklist(sectionDefs.filter((section) => section.id === "newsletter"), client.id).map((item, i) => (i === 0 ? { ...item, status: "Requested" as const, date: ago(3) } : item)));
+  client.agreedPosts = piecesPerMonth(client.assets);
+  client.share = { ...newShare(client.id, index + 1), enabled: client.id === "housebuild", postIds: client.id === "housebuild" ? ["h1", "h3", "h6"] : [] };
 });
 
 // ─── Posts ───
@@ -495,8 +611,8 @@ const img = (id: string, src: string) => ({ id, name: src.split("/").pop() ?? id
 
 export const posts: Post[] = [
   post({ id: "m1", clientId: "marker", title: "The hidden cost of a delayed fire door inspection", format: "Carousel", pillarId: "pl2", status: "Published", date: day(3), copy: "Three places small inspection delays turn into big problems, and a checklist your facilities team can use this week.", liveUrl: "https://www.linkedin.com/", art: "Fire door inspection delays" }),
-  post({ id: "m2", clientId: "marker", title: "Make compliance easier to act on", pillarId: "pl1", status: "Scheduled", date: day(21), copy: "Useful guidance your team can put to work this week.", scheduledVia: "Publer", art: "CLEAR STEPS.\nSAFER SITES." }),
-  post({ id: "m3", clientId: "marker", title: "Fire door maintenance: a 5-point checklist", format: "Carousel", pillarId: "pl1", status: "Client approval", date: day(24), copy: "Five checks that keep a fire door doing its job: gaps, seals, closers, hinges and signage.", waitingSince: ago(2), art: "5-point fire door checklist" }),
+  post({ id: "m2", clientId: "marker", title: "Make compliance easier to act on", pillarId: "pl1", status: "Scheduled", date: day(21), copy: "Useful guidance your team can put to work this week.", scheduledVia: "Publishing tool", art: "CLEAR STEPS.\nSAFER SITES." }),
+  post({ id: "m3", clientId: "marker", title: "Fire door maintenance: a 5-point checklist", format: "Carousel", pillarId: "pl1", status: "Ready to schedule", date: day(24), copy: "Five checks that keep a fire door doing its job: gaps, seals, closers, hinges and signage.", waitingSince: ago(2), art: "5-point fire door checklist" }),
   post({ id: "m4", clientId: "marker", title: "What an inspector looks for first", format: "Text post", pillarId: "pl3", status: "Design review", date: day(26), copy: "We asked our inspectors what they check in the first five minutes. The answer is rarely the door itself.", waitingSince: ago(4), art: "The first five minutes" }),
   post({
     id: "m5", clientId: "marker", title: "Winter fire-safety reminders for facilities teams", format: "Carousel", pillarId: "pl1", status: "Copy in progress", date: day(28), version: 2,
@@ -513,7 +629,7 @@ export const posts: Post[] = [
     files: [img("f2", "/posts/housebuild-span-cover.jpg"), img("f2b", "/posts/housebuild-span-four-things.jpg"), img("f3", "/posts/timber-span-4.jpg"), img("f4", "/posts/timber-span-5.jpg")],
     designLink: "https://www.canva.com/", needsExpert: true, expertOk: false,
   }),
-  post({ id: "h3", clientId: "housebuild", title: "Every opening has a structural rule behind it", platforms: ["Instagram"], pillarId: "pl2", status: "Scheduled", date: day(22), copy: "Every opening in a wall needs support above it. Review the openings guidance on HouseBuild before you cut.", files: [img("f5", "/posts/housebuild-openings.jpg")], scheduledVia: "Publer", needsExpert: true, expertOk: true }),
+  post({ id: "h3", clientId: "housebuild", title: "Every opening has a structural rule behind it", platforms: ["Instagram"], pillarId: "pl2", status: "Scheduled", date: day(22), copy: "Every opening in a wall needs support above it. Review the openings guidance on HouseBuild before you cut.", files: [img("f5", "/posts/housebuild-openings.jpg")], scheduledVia: "Publishing tool", needsExpert: true, expertOk: true }),
   post({
     id: "h5", clientId: "housebuild", title: "What will your build really cost?", format: "Carousel", platforms: ["Instagram", "LinkedIn"], pillarId: "pl1", status: "Client approval", date: day(26), waitingSince: ago(1),
     copy: "Design fees, structural sign-off, BER, site surveys: the costs most self-builders forget. Our cost calculator lists them line by line so nothing surprises you.",
@@ -533,19 +649,19 @@ export const posts: Post[] = [
     comments: [{ id: "mkc1", by: "chelsie", body: "Five slides: intro, services, fire & access, where we work, follow CTA. Copy is from their capability statement.", at: ago(2), kind: "comment" }],
   }),
   post({ id: "m6", clientId: "marker", title: "Fire door signage: what each sign means", format: "Carousel", pillarId: "pl2", status: "Published", date: day(9), copy: "Five signs, five meanings. Save this for your next walk-round.", liveUrl: "https://www.linkedin.com/", art: "What each fire door sign means" }),
-  post({ id: "m7", clientId: "marker", title: "A day on inspection with our team", format: "Reel", pillarId: "pl3", status: "Scheduled", date: day(17), copy: "From the first door to the final report.", scheduledVia: "Publer", art: "A day on inspection" }),
+  post({ id: "m7", clientId: "marker", title: "A day on inspection with our team", format: "Reel", pillarId: "pl3", status: "Scheduled", date: day(17), copy: "From the first door to the final report.", scheduledVia: "Publishing tool", art: "A day on inspection" }),
   post({ id: "b0", clientId: "buildregs", title: "Who signs off what under building control?", format: "Carousel", pillarId: "pl2", status: "Published", date: day(7), copy: "Owner, designer, builder, assigned certifier: who is responsible for what.", liveUrl: "https://www.linkedin.com/", art: "Who signs off what?" }),
   post({ id: "b3", clientId: "buildregs", title: "Commencement notice checklist", format: "Single image", pillarId: "pl2", status: "Design in progress", date: day(25), copy: "Seven things to have ready before you lodge a commencement notice.", art: "Commencement notice checklist" }),
   post({ id: "e3", clientId: "element", title: "Behind the calculation: how we check a beam", format: "Carousel", status: "Design review", date: day(24), waitingSince: ago(1), copy: "What our engineers check, step by step.", art: "How we check a beam", needsExpert: true, expertOk: true }),
-  post({ id: "e4", clientId: "element", title: "We are hiring: graduate engineer", format: "Single image", status: "Scheduled", date: day(21), copy: "Join a team that explains engineering clearly.", scheduledVia: "Publer", art: "We are hiring" }),
+  post({ id: "e4", clientId: "element", title: "We are hiring: graduate engineer", format: "Single image", status: "Scheduled", date: day(21), copy: "Join a team that explains engineering clearly.", scheduledVia: "Publishing tool", art: "We are hiring" }),
   post({ id: "b1", clientId: "buildregs", title: "Building control update: what changed?", format: "Text post", pillarId: "pl1", status: "Ready to schedule", date: day(22), copy: "The latest building control guidance, translated into three actions for project teams.", art: "Building control update" }),
   post({ id: "b2", clientId: "buildregs", title: "BCAR in plain English", format: "Carousel", pillarId: "pl2", status: "Copy in progress", date: day(29), art: "BCAR in plain English" }),
 
-  post({ id: "e1", clientId: "element", title: "Meet the engineers behind the projects", format: "Carousel", platforms: ["LinkedIn"], status: "Client approval", date: day(19), waitingSince: ago(6), copy: "A short introduction to the team.", art: "Meet the engineers" }),
+  post({ id: "e1", clientId: "element", title: "Meet the engineers behind the projects", format: "Carousel", platforms: ["LinkedIn"], status: "Design review", date: day(19), waitingSince: ago(6), copy: "A short introduction to the team.", art: "Meet the engineers" }),
   post({ id: "e2", clientId: "element", title: "Three questions to ask before you commission a survey", status: "Published", date: day(6), copy: "Save time and money with these three questions.", liveUrl: "https://www.linkedin.com/", art: "Before you commission a survey" }),
 
   post({ id: "f1", clientId: "fireregs", title: "How Firereg works", format: "Carousel", pillarId: "pl1", status: "Design review", date: day(20), waitingSince: ago(5), copy: "Four steps from your drawings to a Part B report: upload drawings, answer guided questions, get your report, then verify and download.", files: [img("ff1", "/posts/fireregs-how-it-works.png")], needsExpert: true }),
-  post({ id: "f2", clientId: "fireregs", title: "Upload your drawings", pillarId: "pl1", status: "Client approval", date: day(22), waitingSince: ago(1), copy: "Firereg reads heights, storeys and floor areas from your PDF drawings. Review and accept each suggested value.", files: [img("ff2", "/posts/fireregs-upload-drawings.png")], needsExpert: true, expertOk: true }),
+  post({ id: "f2", clientId: "fireregs", title: "Upload your drawings", pillarId: "pl1", status: "Ready to schedule", date: day(22), waitingSince: ago(1), copy: "Firereg reads heights, storeys and floor areas from your PDF drawings. Review and accept each suggested value.", files: [img("ff2", "/posts/fireregs-upload-drawings.png")], needsExpert: true, expertOk: true }),
   post({ id: "f3", clientId: "fireregs", title: "Answer guided questions", platforms: ["Instagram"], pillarId: "pl1", status: "Copy review", date: day(24), waitingSince: ago(0), copy: "Work through the questions that apply to your building, one step at a time.", files: [img("ff3", "/posts/fireregs-guided-questions.png")] }),
   post({ id: "f4", clientId: "fireregs", title: "11m vs 18m: what changes?", pillarId: "pl2", status: "Copy in progress", date: day(27), copy: "How building height affects external wall material requirements.", files: [img("ff4", "/posts/fireregs-height-rules.png")], needsExpert: true }),
 ];
@@ -593,7 +709,7 @@ export const leads: Lead[] = [
 
 export function seedState(): State {
   return {
-    version: 4,
+    version: 5,
     me: "maria",
     month: thisMonth,
     people,
@@ -613,21 +729,24 @@ export function seedState(): State {
     ],
     payouts: [{ clientId: "marker", month: thisMonth, status: "Paid", date: day(8) }],
     fixedCosts: [
-      { id: "fc1", label: "Publer", amount: 21, category: "Software" },
+      { id: "fc1", label: "Publishing tool", amount: 21, category: "Software" },
       { id: "fc2", label: "Canva Pro", amount: 15, category: "Software" },
       { id: "fc3", label: "Google Workspace", amount: 14, category: "Software" },
       { id: "fc4", label: "María's fee", amount: 0, category: "People" },
     ],
     notices: [],
     settings: {
-      defaultApprovalMode: "A",
+      assets: defaultAssets,
+      packages: defaultPackages,
+      sections: defaultSections(),
+      defaultApprovalMode: "C",
       reviewer: "ops-first",
       escalationDays: 3,
       followUpDays: 5,
       clientApprovalDays: 3,
       taxSetAside: 25,
       dates: { capture: 5, plan: 8, design: 15, approval: 20, schedule: 25 },
-      currency: "USD",
+      currency: "EUR",
     },
   };
 }

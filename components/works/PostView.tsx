@@ -12,7 +12,7 @@ import { asset, Avatar, Button, Chip, ClientMark, Field, fieldClass } from "./ki
 import { Shell } from "./Shell";
 
 const channels = ["LinkedIn", "Instagram", "Facebook", "TikTok", "Newsletter"];
-const formats = ["Carousel", "Single image", "Reel", "Text post", "Newsletter"];
+const formats = ["Carousel", "Single image", "Reel", "Video", "Text post", "Newsletter", "Blog post", "Document"];
 const limits: Record<string, number> = { LinkedIn: 3000, Instagram: 2200, Facebook: 5000, TikTok: 2200, Newsletter: 20000 };
 const categories: RevisionCategory[] = ["Copy", "Brand", "Layout", "Factual"];
 const kindOf = (file: File): PostFile["kind"] => (file.type.startsWith("image/") ? "image" : file.type === "application/pdf" ? "pdf" : file.type.startsWith("video/") ? "video" : "other");
@@ -192,7 +192,17 @@ function PostEditor({ post, onDone }: { post: Post; onDone: () => void }) {
       </div>
       <Field label="Title (internal)"><input value={post.title} onChange={(event) => set({ title: event.target.value, art: event.target.value })} className={fieldClass} /></Field>
       <div className="grid gap-3 sm:grid-cols-2">
-        <Field label="Type of post"><select value={post.format} onChange={(event) => set({ format: event.target.value })} className={fieldClass}>{formats.map((item) => <option key={item}>{item}</option>)}</select></Field>
+        <Field label="Type of post">
+          <select value={post.assetId ?? `format:${post.format}`} onChange={(event) => {
+            const picked = (store.state.clients.find((c) => c.id === post.clientId)?.assets ?? []).find((asset) => asset.id === event.target.value);
+            if (picked) set({ assetId: picked.id, format: picked.format });
+            else set({ assetId: undefined, format: event.target.value.replace("format:", "") });
+          }} className={fieldClass}>
+            {(store.state.clients.find((c) => c.id === post.clientId)?.assets ?? []).filter((asset) => asset.kind === "piece").map((asset) => <option key={asset.id} value={asset.id}>{asset.name}</option>)}
+            <option disabled>──────</option>
+            {formats.map((item) => <option key={item} value={`format:${item}`}>{item}</option>)}
+          </select>
+        </Field>
         <Field label="Goes out on"><input type="date" value={post.date} onChange={(event) => set({ date: event.target.value })} className={fieldClass} /></Field>
       </div>
       <div>
@@ -327,7 +337,7 @@ function Conversation({ post, client, mine }: { post: Post; client: Client; mine
       <div className="space-y-2">
         <div className="flex gap-2"><input type="date" value={date} onChange={(event) => setDate(event.target.value)} aria-label="Publish date" className={`${fieldClass} !mt-0`} /></div>
         {!post.driveLink && <p className="text-[12px] font-semibold text-[#94600A]">Add the Drive link to the final files first (Edit post).</p>}
-        <Button kind="primary" className="w-full" disabled={!post.driveLink || !date} onClick={() => store.schedulePost(post.id, date, "Publer")}>Scheduled in Publer</Button>
+        <Button kind="primary" className="w-full" disabled={!post.driveLink || !date} onClick={() => store.schedulePost(post.id, date, "Publer")}>Scheduled in publishing tool</Button>
       </div>
     );
   } else if (post.status === "Scheduled") {

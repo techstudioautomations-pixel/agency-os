@@ -1,4 +1,4 @@
-import type { CheckItem, Client, Freelancer, Person, Post, PostStatus, Route, State } from "./types";
+import type { CheckItem, Client, ClientAsset, Freelancer, PackageDef, Person, Post, PostStatus, Route, State } from "./types";
 import { freelancerGateLabels } from "./seed";
 
 // ─── Dates ───
@@ -176,10 +176,7 @@ export async function docxText(file: File): Promise<string> {
 
 
 // ─── Checklist areas ───
-import { areaDefs } from "./seed";
-
-export type AreaId = (typeof areaDefs)[number]["id"];
-export const areaOf = (item: CheckItem): AreaId => (item.area as AreaId | undefined) ?? areaDefs.find((area) => (area.groups as readonly string[]).includes(item.group))?.id ?? "onboarding";
+export const areaOf = (item: CheckItem): string => item.area ?? "onboarding";
 export const areaItems = (items: CheckItem[], areaId: string) => items.filter((item) => areaOf(item) === areaId);
 
 /** Areas that fill themselves in from the work. Nothing to tick by hand. */
@@ -256,3 +253,28 @@ export const qaProgress = (post: Post) => {
   const ticked = items.filter((item) => (post.qa ?? []).includes(item.id)).length;
   return { ticked, total: items.length, missing: items.length - ticked };
 };
+
+
+// ─── Packages and assets ───
+export const packageOf = (state: State, client: Client): PackageDef | undefined => state.settings.packages.find((item) => item.id === client.packageId);
+/** The fuller monthly report with recommendations, for packages that include it. */
+export const isFullReport = (state: State, client: Client) => packageOf(state, client)?.fullReport ?? false;
+
+const formatGroup = (format: string) => (format === "Reel" ? "Video" : format);
+
+/** How many of each asset has been started this month. Posts without an asset are matched by their format. */
+export function assetUsage(client: Client, posts: Post[], month: string): { asset: ClientAsset; used: number }[] {
+  const list = posts.filter((post) => post.clientId === client.id && post.date.startsWith(month));
+  const monthly = client.assets.filter((asset) => asset.period === "month");
+  const used: Record<string, number> = {};
+  for (const post of list) {
+    const asset = monthly.find((item) => item.id === post.assetId) ?? monthly.find((item) => formatGroup(item.format) === formatGroup(post.format));
+    if (asset) used[asset.id] = (used[asset.id] ?? 0) + 1;
+  }
+  return client.assets.map((asset) => ({ asset, used: asset.period === "month" ? used[asset.id] ?? 0 : 0 }));
+}
+
+export const periodLabel = (asset: Pick<ClientAsset, "qty" | "period">) => `${asset.qty} a ${asset.period}`;
+
+// ─── Reviews: the team and freelancers only, unless a client asked to see something ───
+export const inReview = (post: Post) => post.status === "Copy review" || post.status === "Design review";

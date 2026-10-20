@@ -6,15 +6,17 @@ The operating system for The Works: one place for client checklists, freelancer 
 
 | Screen | For | What it does |
 |---|---|---|
-| Today | Everyone | Greeting, the posts in review (as artwork), what goes out this week, clients at a glance with post thumbnails, and who is on which account |
-| Clients | Owners, operations | Each client card with recent artwork, onboarding light and freelancer |
-| Client page | Owners, operations (freelancers see Marketing and Reporting only) | Overview, Checklists (one card per area, open any area for its full tick-list and add steps for this client), Access, Reporting, Files & links, Finance (owners) |
+| Today | Everyone | Greeting, the posts in review (as artwork), what goes out this week, clients at a glance (name, logo, progress only), and who is on which account. "In review now" is one big number you can expand or open in full |
+| Clients | Owners, operations | Just logo, name and stage. **New client** opens a four-step pop-up (who, people, services, set-up) |
+| Client page | Owners, operations (freelancers see Marketing and Reporting only) | Overview (with what they get and Edit profile for colour and logo), Checklists (one card per area, open any area for its full tick-list and add steps for this client), Access, Reporting, Files & links, Client view (share link + code, drag posts the client can see), Finance (owners) |
 | Marketing | Everyone (freelancers see their own clients) | Pick a client or all clients: Posts (artwork grid by who acts next), Calendar (drag to move, open slots for agreed posts), Ideas (upload a document, approve / maybe / reject), Strategy (offer, personas, pillars), Results (freelancer month-end report) |
 | Post review | Everyone | Artwork and caption as they will appear, one conversation with change requests to tick off, the next action at the bottom, edit panel for the freelancer, Next for you |
 | Reports | Everyone | Month-end per client: freelancer report in, client report sent, finance statement sent (owners) |
-| Leads | Owners | Pipeline by stage. Marking a lead as won creates the client and starts onboarding |
+| Leads | Owners | Pipeline by stage. Marking a lead as won opens the New client pop-up with the lead filled in |
 | Freelancers | Owners, operations | Setup tick-list with the NDA/contract gate, accounts, services and prices |
 | Finance | Owners | Fees, invoices, payouts after the client pays, client and agency costs, profit, tax set-aside, finance statements, hours by account |
+| Settings | Owners | Packages (built from assets, with prices), Assets (post types, add-ons, prices), default Checklists (onboarding, access, strategy…), Rules, General. Changes are defaults for new clients; existing clients keep their own |
+| Client view | Client, with code | Read-only calendar of the posts you chose. The client only answers if you asked them to review |
 | How we work | Everyone | The SOPs as visual flows and the agreed rules |
 
 Use the name at the bottom of the sidebar to preview the OS as María, Gareth, Niamh (operations) or a freelancer.

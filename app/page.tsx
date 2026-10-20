@@ -9,6 +9,9 @@ import { Leads } from "@/components/works/Leads";
 import { Freelancers } from "@/components/works/Freelancers";
 import { Finance } from "@/components/works/Finance";
 import { How } from "@/components/works/How";
+import { Settings } from "@/components/works/Settings";
+import { ShareView } from "@/components/works/ShareView";
+import { NewClientWizard } from "@/components/works/NewClient";
 
 function Screen() {
   const { ready, route } = useStore();
@@ -19,7 +22,7 @@ function Screen() {
     case "client":
       return <ClientProfile clientId={route.clientId} tab={route.tab} sub={route.sub} />;
     case "marketing":
-      return <MarketingPage clientId={route.clientId} tab={route.tab} postId={route.postId} />;
+      return <MarketingPage clientId={route.clientId} tab={route.tab} postId={route.postId} filter={route.filter} />;
     case "reports":
       return <ReportsPage />;
     case "leads":
@@ -30,6 +33,10 @@ function Screen() {
       return <Finance />;
     case "how":
       return <How />;
+    case "settings":
+      return <Settings tab={route.tab} />;
+    case "view":
+      return <ShareView token={route.token} />;
     default:
       return <Today />;
   }
@@ -39,6 +46,7 @@ export default function Page() {
   return (
     <StoreProvider>
       <Screen />
+      <NewClientWizard />
     </StoreProvider>
   );
 }

@@ -1,11 +1,11 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { newClientChecklist, seedState } from "./seed";
+import { buildClientChecklist, newShare, piecesPerMonth, seedState } from "./seed";
 import { canBeAssigned, nameOf, reviewerFor, todayIso } from "./logic";
-import type { CheckItem, Client, Idea, Lead, MonthReport, Notice, Post, ReportNumbers, RevisionCategory, Route, State } from "./types";
+import type { CheckItem, Client, ClientAsset, ClientSection, ClientShare, Idea, Lead, MonthReport, NewClientDraft, Notice, Post, ReportNumbers, RevisionCategory, Route, State } from "./types";
 
-const KEY = "theworks-os-v4";
+const KEY = "theworks-os-v5";
 const uid = (prefix: string) => `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
 const stamp = () => new Date().toISOString();
 
@@ -13,18 +13,24 @@ const stamp = () => new Date().toISOString();
 export function routeToHash(route: Route) {
   const parts: string[] = [route.view];
   if (route.view === "client") parts.push(route.clientId, route.tab ?? "", route.sub ?? "", route.postId ?? "");
-  if (route.view === "marketing") parts.push(route.clientId ?? "all", route.tab ?? "", route.postId ?? "");
+  if (route.view === "marketing") parts.push(route.clientId ?? "all", route.tab ?? "", route.postId ?? "", route.filter ?? "");
+  if (route.view === "settings" && route.tab) parts.push(route.tab);
+  if (route.view === "view") parts.push(route.token);
   if (route.view === "leads" && route.leadId) parts.push(route.leadId);
   if (route.view === "freelancers" && route.freelancerId) parts.push(route.freelancerId);
   return `#/${parts.join("/").replace(/\/+$/, "")}`;
 }
 export function hashToRoute(hash: string): Route {
-  const [view, a, b, c, d] = hash.replace(/^#\/?/, "").split("/");
+  const [view, a, b, c, d, e] = hash.replace(/^#\/?/, "").split("/");
   switch (view) {
     case "client":
       return a ? { view, clientId: a, tab: b || undefined, sub: c || undefined, postId: d || undefined } : { view: "clients" };
     case "marketing":
-      return { view, clientId: a || undefined, tab: b || undefined, postId: c || undefined };
+      return { view, clientId: a || undefined, tab: b || undefined, postId: c || undefined, filter: e || undefined };
+    case "settings":
+      return { view, tab: a || undefined };
+    case "view":
+      return a ? { view, token: a } : { view: "today" };
     case "leads":
       return { view, leadId: a || undefined };
     case "freelancers":
@@ -54,6 +60,7 @@ function useStoreValue() {
   const [route, setRoute] = useState<Route>({ view: "today" });
   const [toast, setToast] = useState("");
   const toastTimer = useRef<number | undefined>(undefined);
+  const [wizard, setWizard] = useState<{ open: boolean; leadId?: string }>({ open: false });
   const stateRef = useRef(state);
   stateRef.current = state;
 
@@ -63,7 +70,7 @@ function useStoreValue() {
       const saved = window.localStorage.getItem(KEY);
       if (saved) {
         const parsed = JSON.parse(saved) as State;
-        if (parsed.version === 4) setState(parsed);
+        if (parsed.version === 5) setState(parsed);
       }
     } catch {
       /* private mode or corrupt data: start from the sample */
@@ -183,22 +190,93 @@ function useStoreValue() {
       },
 
       // Clients
-      addClient: (name: string) => {
-        let id = name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || uid("client");
+      createClient: (draft: NewClientDraft) => {
+        let id = draft.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || uid("client");
         if (stateRef.current.clients.some((client) => client.id === id)) id = `${id}-${Date.now().toString(36)}`;
         update((d) => {
-          const checklist = newClientChecklist(id);
-          checklist.forEach((item) => { if (item.label === "Client profile created") { item.status = "Received"; item.date = todayIso(); } });
+          const pkg = d.settings.packages.find((item) => item.id === draft.packageId);
+          const sections = d.settings.sections.filter((section) => draft.sectionIds.includes(section.id));
+          const checklist = buildClientChecklist(sections, id, draft.freelancerId);
+          const done = (item: CheckItem, note = "") => { item.status = "Received"; item.date = todayIso(); if (note) item.note = note; };
+          checklist.forEach((item) => {
+            if (item.label === "Client profile created") done(item);
+            if (item.label.startsWith("Package")) done(item, pkg?.name ?? "Custom");
+            if (item.label.startsWith("Main contact") && draft.mainContact.name.trim() && draft.approver.name.trim()) done(item, `${draft.mainContact.name} · approver ${draft.approver.name}`);
+            if (item.label === "Billing contact" && draft.billingContact.trim()) done(item, draft.billingContact);
+            if (item.label.startsWith("Approval route")) done(item, draft.approvalMode === "C" ? "Internal" : "Client reviews if they ask");
+            if (item.label === "Freelancer assigned" && draft.freelancerId) done(item);
+          });
           d.clients.push({
-            id, name, color: "#5A6B7D", sector: "Construction", package: "Essential", addOns: [], stage: "Onboarding", approvalMode: d.settings.defaultApprovalMode,
-            mainContact: { name: "", email: "", phone: "" }, approver: { name: "", email: "" }, billingContact: "", channel: "Email", expertReviewer: "", ownerId: "maria", opsId: "niamh",
-            freelancerFee: 0, fee: 0, addOnFee: 0, agreedPosts: 8, platforms: ["LinkedIn"], startDate: todayIso(), links: { drive: "", canva: "", publer: "", chat: "", brandKit: "" }, checklist,
+            id, name: draft.name, color: draft.color, logo: draft.logo, sector: draft.sector, package: pkg?.name ?? "Custom", packageId: pkg?.id, assets: draft.assets,
+            sections: sections.map(({ id: sectionId, label, color, blurb }) => ({ id: sectionId, label, color, blurb })),
+            share: newShare(id, Date.now() % 1000), stage: "Onboarding", approvalMode: draft.approvalMode, mainContact: draft.mainContact, approver: draft.approver, billingContact: draft.billingContact,
+            channel: "Google Chat", expertReviewer: "", ownerId: "maria", opsId: "niamh", freelancerId: draft.freelancerId, freelancerFee: 0, fee: draft.fee, addOnFee: draft.addOnFee,
+            agreedPosts: piecesPerMonth(draft.assets), platforms: ["LinkedIn"], startDate: todayIso(), links: { drive: "", canva: "", publer: "", chat: "", brandKit: "", guide: "", brain: "" }, checklist,
             strategy: { offer: "", services: "", personas: [], pillars: [], tone: "", avoid: "", claims: "", approved: false }, hours: {}, planApproval: {}, access: [], files: [], costs: [],
           });
-          notify(d, "niamh", `New client to set up: ${name}`, { view: "client", clientId: id, tab: "checklists" });
+          d.invoices.push({ clientId: id, month: d.month, status: "Not sent", date: "" });
+          if (draft.leadId) {
+            const lead = d.leads.find((item) => item.id === draft.leadId);
+            if (lead) { lead.stage = "Won"; lead.clientId = id; lead.followUp = ""; }
+          }
+          notify(d, "niamh", `New client to set up: ${draft.name}`, { view: "client", clientId: id, tab: "checklists" });
+          if (draft.freelancerId) notify(d, draft.freelancerId, `You have been assigned to ${draft.name}`, { view: "marketing", clientId: id });
         });
-        ping(`${name} created with the onboarding checklist`);
+        ping(`${draft.name} created with its checklists`);
         return id;
+      },
+      setClientAssets: (clientId: string, assets: ClientAsset[]) =>
+        update((d) => {
+          const client = d.clients.find((c) => c.id === clientId)!;
+          client.assets = assets;
+          client.agreedPosts = piecesPerMonth(assets);
+        }),
+      /** Adds an asset to one client and the checklist sections it needs. Defaults in Settings are not touched. */
+      addClientAsset: (clientId: string, asset: ClientAsset) => {
+        update((d) => {
+          const client = d.clients.find((c) => c.id === clientId)!;
+          client.assets.push(asset);
+          client.agreedPosts = piecesPerMonth(client.assets);
+          const needed = d.settings.assets.find((item) => item.id === asset.assetId)?.sections ?? [];
+          for (const sectionId of needed) {
+            const def = d.settings.sections.find((section) => section.id === sectionId);
+            if (!def || client.sections.some((section) => section.id === sectionId)) continue;
+            client.sections.push({ id: def.id, label: def.label, color: def.color, blurb: def.blurb });
+            client.checklist.push(...buildClientChecklist([def], client.id, client.freelancerId));
+          }
+        });
+        ping(`${asset.name} added for this client`);
+      },
+      addClientSection: (clientId: string, opts: { fromId?: string; label?: string }) => {
+        update((d) => {
+          const client = d.clients.find((c) => c.id === clientId)!;
+          const def = opts.fromId ? d.settings.sections.find((section) => section.id === opts.fromId) : undefined;
+          const palette = ["#2F6FDB", "#1D9E5A", "#7C5CD6", "#D6457A", "#E08A1E", "#0F8F8F"];
+          const section: ClientSection = def ? { id: def.id, label: def.label, color: def.color, blurb: def.blurb } : { id: uid("sec"), label: opts.label?.trim() || "New section", color: palette[client.sections.length % palette.length], blurb: "Added for this client." };
+          if (client.sections.some((item) => item.id === section.id)) return;
+          client.sections.push(section);
+          if (def) client.checklist.push(...buildClientChecklist([def], client.id, client.freelancerId));
+        });
+        ping("Section added for this client");
+      },
+      removeClientSection: (clientId: string, sectionId: string) =>
+        update((d) => {
+          const client = d.clients.find((c) => c.id === clientId)!;
+          client.sections = client.sections.filter((section) => section.id !== sectionId);
+          client.checklist = client.checklist.filter((item) => item.area !== sectionId);
+        }),
+      renameClientSection: (clientId: string, sectionId: string, label: string) => update((d) => { const section = d.clients.find((c) => c.id === clientId)!.sections.find((item) => item.id === sectionId); if (section) section.label = label; }),
+      updateShare: (clientId: string, patch: Partial<ClientShare>) => update((d) => { Object.assign(d.clients.find((c) => c.id === clientId)!.share, patch); }),
+      /** The client's answer, when they have asked to review something. */
+      clientDecide: (postId: string, decision: "Approved" | "Changes requested", note: string) => {
+        update((d) => {
+          const { post, client } = withPost(d, postId);
+          post.clientDecision = { status: decision, via: "Client view", date: todayIso(), note };
+          if (decision === "Approved") { post.status = "Ready to schedule"; log(d, post, "Client approved"); }
+          else { post.comments.push({ id: uid("c"), by: "client", body: note || "The client asked for changes.", at: stamp(), kind: "change", category: "Copy" }); post.status = "Design in progress"; log(d, post, "Client requested changes"); }
+          notify(d, client.freelancerId, `${client.name}: client ${decision === "Approved" ? "approved" : "asked for changes on"} ${post.title}`, postRoute(post));
+          notify(d, client.opsId, `${client.name}: client ${decision === "Approved" ? "approved" : "asked for changes on"} ${post.title}`, postRoute(post));
+        });
       },
       updateClient: (id: string, patch: Partial<Client>) => update((d) => { Object.assign(d.clients.find((item) => item.id === id)!, patch); }),
       updateCheck: (clientId: string, itemId: string, patch: Partial<CheckItem>) =>
@@ -230,7 +308,7 @@ function useStoreValue() {
         update((d) => {
           const client = d.clients.find((c) => c.id === clientId)!;
           d.ideas.unshift(...items.map((item) => ({ ...item, id: uid("idea"), clientId, decision: "New" as const, comment: "", createdBy: d.me, createdAt: todayIso(), source, month: d.month })));
-          notify(d, reviewerFor(d, client), `${items.length} new idea${items.length === 1 ? "" : "s"} for ${client.name} to decide`, { view: "marketing", clientId, tab: "ideas" }, ["In app", "Email", "Slack"]);
+          notify(d, reviewerFor(d, client), `${items.length} new idea${items.length === 1 ? "" : "s"} for ${client.name} to decide`, { view: "marketing", clientId, tab: "ideas" }, ["In app", "Email", "Google Chat"]);
         });
         ping(`${items.length} idea card${items.length === 1 ? "" : "s"} added`);
       },
@@ -277,7 +355,7 @@ function useStoreValue() {
           post.waitingSince = todayIso();
           if (post.comments.some((comment) => comment.kind === "change")) post.version += 1;
           log(d, post, `Submitted ${stage} for review (v${post.version})`);
-          notify(d, reviewerFor(d, client), `${client.name}: ${stage} ready to review · ${post.title}`, postRoute(post), ["In app", "Email", "Slack"]);
+          notify(d, reviewerFor(d, client), `${client.name}: ${stage} ready to review · ${post.title}`, postRoute(post), ["In app", "Email", "Google Chat"]);
         });
         ping("Submitted. The reviewer has been notified.");
       },
@@ -400,34 +478,6 @@ function useStoreValue() {
           }
           Object.assign(lead, patch);
         }),
-      winLead: (id: string) => {
-        const company = stateRef.current.leads.find((item) => item.id === id)!.company;
-        let clientId = company.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || uid("client");
-        if (stateRef.current.clients.some((client) => client.id === clientId)) clientId = `${clientId}-${Date.now().toString(36)}`;
-        update((d) => {
-          const lead = d.leads.find((item) => item.id === id)!;
-          const checklist = newClientChecklist(clientId);
-          checklist.forEach((item) => {
-            if (item.label.startsWith("Package") && lead.package !== "Not sure") { item.status = "Received"; item.date = todayIso(); item.note = lead.package; }
-            if (item.label === "Client profile created") { item.status = "Received"; item.date = todayIso(); }
-          });
-          d.clients.push({
-            id: clientId, name: lead.company, color: "#5A6B7D", sector: lead.sector || "Construction", package: lead.package === "Growth" ? "Growth" : "Essential", addOns: [], stage: "Onboarding",
-            approvalMode: d.settings.defaultApprovalMode, mainContact: { name: lead.contact, email: lead.email, phone: "" }, approver: { name: "", email: "" }, billingContact: "", channel: "Email", expertReviewer: "",
-            ownerId: "maria", opsId: "niamh", freelancerFee: 0, fee: lead.value, addOnFee: 0, agreedPosts: lead.package === "Growth" ? 12 : 8, platforms: ["LinkedIn"], startDate: todayIso(),
-            links: { drive: "", canva: "", publer: "", chat: "", brandKit: "" }, checklist,
-            strategy: { offer: "", services: "", personas: [], pillars: [], tone: "", avoid: "", claims: "", approved: false }, hours: {}, planApproval: {}, access: [], files: [], costs: [],
-          });
-          d.invoices.push({ clientId, month: d.month, status: "Not sent", date: "" });
-          lead.stage = "Won";
-          lead.clientId = clientId;
-          notify(d, "maria", `${lead.company} is won. Over to you for onboarding.`, { view: "client", clientId, tab: "checklists" });
-          notify(d, "niamh", `New client to set up: ${lead.company}`, { view: "client", clientId, tab: "checklists" });
-        });
-        ping("Client created. María and operations have been notified.");
-        return clientId;
-      },
-
       // Freelancers
       updateFreelancer: (id: string, patch: Partial<State["freelancers"][number]>) => update((d) => { Object.assign(d.freelancers.find((item) => item.id === id)!, patch); }),
       updateFreelancerCheck: (freelancerId: string, itemId: string, patch: Partial<CheckItem>) =>
@@ -455,7 +505,7 @@ function useStoreValue() {
     };
   }, [update, go, ping]);
 
-  return { state, ready, route, go, toast, ping, ...actions };
+  return { state, ready, route, go, toast, ping, wizard, openWizard: (leadId?: string) => setWizard({ open: true, leadId }), closeWizard: () => setWizard({ open: false }), ...actions };
 }
 
 export function StoreProvider({ children }: { children: ReactNode }) {

@@ -56,14 +56,21 @@ export type Client = {
   color: string;
   logo?: string;
   sector: string;
-  package: "Essential" | "Growth";
-  addOns: string[];
+  /** Name of the package they bought, or "Custom". */
+  package: string;
+  packageId?: string;
+  /** What they get: copied from the package at onboarding, then editable for this client only. */
+  assets: ClientAsset[];
+  /** The checklist sections this client has. Copied from the defaults, then editable for this client only. */
+  sections: ClientSection[];
+  /** A read-only link and code for the client to see what we choose to show. */
+  share: ClientShare;
   stage: "Onboarding" | "Live" | "Paused";
   approvalMode: ApprovalMode;
   mainContact: { name: string; email: string; phone: string };
   approver: { name: string; email: string };
   billingContact: string;
-  channel: "Email" | "Slack" | "Google Chat";
+  channel: "Email" | "Google Chat";
   expertReviewer: string;
   ownerId: string;
   opsId: string;
@@ -87,6 +94,72 @@ export type Client = {
   /** Extra costs on this client. They also appear in Finance. */
   costs: ClientCost[];
 };
+
+/** "piece" counts towards the pieces a month in a package. "extra" is reviewed too but counted separately, like a newsletter. */
+export type AssetKind = "piece" | "extra";
+export type AssetPeriod = "month" | "quarter";
+
+/** A kind of work we make, kept in Settings. */
+export type AssetType = {
+  id: string;
+  name: string;
+  kind: AssetKind;
+  /** Post format used for the artwork and the post type. */
+  format: string;
+  /** What we charge when it is sold as an add-on, per month. Leave blank if not set. */
+  price?: number;
+  /** Checklist sections a client needs when they get this asset. */
+  sections: string[];
+};
+
+export type PackageItem = { assetId: string; qty: number; period: AssetPeriod };
+
+export type PackageDef = {
+  id: string;
+  name: string;
+  /** "From" price per month. */
+  price: number;
+  tagline: string;
+  blurb: string;
+  items: PackageItem[];
+  /** Everything else included that is not an asset, for example calls and monitoring. */
+  includes: string[];
+  channels: string;
+  /** Monthly report is the fuller version with recommendations. */
+  fullReport: boolean;
+  recommended?: boolean;
+};
+
+export type StepKind = "key" | "detail" | "info";
+export type SectionStep = { id: string; label: string; group: string; kind: StepKind; owner: string; hint?: string };
+
+/** A default checklist section kept in Settings. Changing it affects new clients only. */
+export type SectionDef = {
+  id: string;
+  label: string;
+  color: string;
+  blurb: string;
+  /** Always added to a new client, whatever they buy. */
+  always: boolean;
+  steps: SectionStep[];
+};
+
+export type ClientSection = { id: string; label: string; color: string; blurb: string };
+
+export type ClientAsset = {
+  id: string;
+  /** The asset in Settings this was copied from. Custom assets have none. */
+  assetId?: string;
+  name: string;
+  format: string;
+  kind: AssetKind;
+  qty: number;
+  period: AssetPeriod;
+  price?: number;
+  source: "package" | "add-on" | "custom";
+};
+
+export type ClientShare = { enabled: boolean; token: string; code: string; postIds: string[] };
 
 export type AccessItem = {
   id: string;
@@ -152,6 +225,8 @@ export type Post = {
   ideaId?: string;
   title: string;
   format: string;
+  /** The client's asset this post counts against, such as "Project carousel". */
+  assetId?: string;
   pillarId?: string;
   platforms: string[];
   date: string;
@@ -219,7 +294,8 @@ export type Lead = {
   email: string;
   sector: string;
   source: string;
-  package: "Essential" | "Growth" | "Not sure";
+  /** Name of a package in Settings, or "Not sure". */
+  package: string;
   value: number;
   stage: LeadStage;
   followUp: string;
@@ -250,11 +326,14 @@ export type Notice = {
   text: string;
   at: string;
   read: boolean;
-  channels: ("In app" | "Email" | "Slack")[];
+  channels: ("In app" | "Email" | "Google Chat")[];
   link: Route;
 };
 
 export type Settings = {
+  assets: AssetType[];
+  packages: PackageDef[];
+  sections: SectionDef[];
   defaultApprovalMode: ApprovalMode;
   reviewer: "ops-first" | "maria-all";
   escalationDays: number;
@@ -269,11 +348,13 @@ export type Route =
   | { view: "today" }
   | { view: "clients" }
   | { view: "client"; clientId: string; tab?: string; sub?: string; postId?: string }
-  | { view: "marketing"; clientId?: string; tab?: string; postId?: string }
+  | { view: "marketing"; clientId?: string; tab?: string; postId?: string; filter?: string }
   | { view: "reports" }
   | { view: "leads"; leadId?: string }
   | { view: "freelancers"; freelancerId?: string }
   | { view: "finance" }
+  | { view: "settings"; tab?: string }
+  | { view: "view"; token: string }
   | { view: "how" };
 
 export type State = {
@@ -292,4 +373,25 @@ export type State = {
   fixedCosts: FixedCost[];
   notices: Notice[];
   settings: Settings;
+};
+
+/** Everything the new-client wizard collects. */
+export type NewClientDraft = {
+  name: string;
+  color: string;
+  logo?: string;
+  sector: string;
+  mainContact: { name: string; email: string; phone: string };
+  approver: { name: string; email: string };
+  billingContact: string;
+  /** Id of a package in Settings, or "custom". */
+  packageId: string;
+  assets: ClientAsset[];
+  /** Checklist sections to set up for this client. */
+  sectionIds: string[];
+  approvalMode: ApprovalMode;
+  freelancerId?: string;
+  fee: number;
+  addOnFee: number;
+  leadId?: string;
 };

@@ -54,7 +54,7 @@ export function PostArt({ post, client, className = "", rounded = "rounded-xl", 
   const headline = post.art || post.title;
   const size = headline.length > 46 ? "text-[7.2cqw]" : headline.length > 28 ? "text-[8.6cqw]" : "text-[10.5cqw]";
 
-  if (post.format === "Reel") {
+  if ((post.format === "Reel" || post.format === "Video")) {
     return (
       <div className={base} style={{ background: `linear-gradient(160deg, ${shade(color, -0.55)}, ${shade(color, -0.2)})` }}>
         <div className="absolute inset-0 opacity-30" style={{ backgroundImage: `radial-gradient(circle at 80% 15%, ${shade(color, 0.4)} 0, transparent 45%)` }} />

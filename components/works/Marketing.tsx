@@ -3,7 +3,7 @@
 import { useRef, useState } from "react";
 import { ArrowRight, Check, ExternalLink, FileUp, MessageCircle, Plus, Trash2 } from "lucide-react";
 import { useStore } from "@/lib/works/store";
-import { areaItems, docxText, isFreelancer, monthName, myClients, nameOf, personById, progress, shortDate, splitIdeas, stageOf, todayIso, turnOf } from "@/lib/works/logic";
+import { areaItems, docxText, inReview, isFreelancer, monthName, myClients, nameOf, personById, progress, shortDate, splitIdeas, stageOf, todayIso, turnOf } from "@/lib/works/logic";
 import type { Client, Idea, IdeaDecision, Persona, Pillar, Post, ReportNumbers, Strategy } from "@/lib/works/types";
 import { Shell } from "./Shell";
 import { PostArt } from "./PostArt";
@@ -25,7 +25,7 @@ export const statusTone = (post: Post) => {
 };
 
 // ─── Page ───
-export function MarketingPage({ clientId, tab, postId }: { clientId?: string; tab?: string; postId?: string }) {
+export function MarketingPage({ clientId, tab, postId, filter }: { clientId?: string; tab?: string; postId?: string; filter?: string }) {
   const { state, go } = useStore();
   const clients = myClients(state);
   const client = clients.find((item) => item.id === clientId);
@@ -70,7 +70,7 @@ export function MarketingPage({ clientId, tab, postId }: { clientId?: string; ta
           </button>
         ))}
       </div>
-      {current === "posts" && <PostBoard client={client} scope={scope} />}
+      {current === "posts" && <PostBoard client={client} scope={scope} initial={filter} />}
       {current === "calendar" && <PlanCalendar client={client} scope={scope} />}
       {current === "ideas" && <IdeasView client={client} />}
       {current === "strategy" && (client ? <StrategyView client={client} /> : <PickClient what="the strategy" />)}
@@ -158,25 +158,26 @@ export function PostTile({ post, showClient, scope }: { post: Post; showClient: 
   );
 }
 
-function PostBoard({ client, scope }: { client?: Client; scope: string }) {
+function PostBoard({ client, scope, initial }: { client?: Client; scope: string; initial?: string }) {
   const { state, go, addPost } = useStore();
   const freelancer = isFreelancer(state);
   const clients = myClients(state);
-  const [filter, setFilter] = useState(() => (state.posts.some((post) => (client ? post.clientId === client.id : clients.some((c) => c.id === post.clientId)) && post.date.startsWith(state.month) && turnOf(state, post).who === state.me) ? "mine" : "all"));
+  const [filter, setFilter] = useState(() => initial ?? (state.posts.some((post) => (client ? post.clientId === client.id : clients.some((c) => c.id === post.clientId)) && post.date.startsWith(state.month) && turnOf(state, post).who === state.me) ? "mine" : "all"));
   const posts = state.posts
     .filter((post) => (client ? post.clientId === client.id : clients.some((c) => c.id === post.clientId)) && post.date.startsWith(state.month))
     .sort((a, b) => a.date.localeCompare(b.date));
   const groups: Record<string, (post: Post) => boolean> = {
     mine: (post) => turnOf(state, post).who === state.me,
+    review: (post) => inReview(post),
     progress: (post) => stageOf(post.status) < 2 && turnOf(state, post).who !== state.me,
-    client: (post) => post.status === "Client approval",
+    ...(clients.some((c) => c.approvalMode !== "C") ? { client: (post: Post) => post.status === "Client approval" } : {}),
     approved: (post) => ["Ready to schedule", "Scheduled", "Published"].includes(post.status),
     all: () => true,
   };
   const labels: Record<string, string> = freelancer
-    ? { mine: "My to-do", progress: "In review", client: "With client", approved: "Approved & live", all: "All" }
-    : { mine: "Needs me", progress: "In progress", client: "With client", approved: "Approved & live", all: "All" };
-  const shown = posts.filter(groups[filter]);
+    ? { mine: "My to-do", review: "In review", progress: "Being made", client: "With client", approved: "Approved & live", all: "All" }
+    : { mine: "Needs me", review: "In review", progress: "Being made", client: "With client", approved: "Approved & live", all: "All" };
+  const shown = posts.filter(groups[filter] ?? groups.all);
   const agreed = client ? client.agreedPosts : clients.filter((c) => c.stage === "Live").reduce((sum, c) => sum + c.agreedPosts, 0);
 
   return (
@@ -549,7 +550,7 @@ function ResultsForm({ client }: { client: Client }) {
         </Card>
       </div>
       <Card>
-        <CardHead title="Key numbers (optional)" sub="From LinkedIn / Instagram analytics or Publer." />
+        <CardHead title="Key numbers (optional)" sub="From LinkedIn / Instagram analytics or the publishing tool." />
         <form onSubmit={(event) => { event.preventDefault(); saveNumbers(client.id, state.month, numbers); }} className="space-y-3">
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
             {([["followers", "Followers"], ["followerChange", "Change"], ["reach", "Reach"], ["impressions", "Impressions"], ["engagementRate", "Engagement %"], ["postsPublished", "Posts published"]] as [keyof ReportNumbers, string][]).map(([key, label]) => (

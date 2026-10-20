@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import { Bell, BookOpen, ChevronDown, ChevronLeft, ChevronRight, CircleDollarSign, FileBarChart, Home, LayoutGrid, Menu, Send, Sparkles, Users, X } from "lucide-react";
+import { Bell, BookOpen, ChevronDown, ChevronLeft, ChevronRight, CircleDollarSign, FileBarChart, Home, LayoutGrid, Menu, Send, Settings as SettingsIcon, Sparkles, Users, X } from "lucide-react";
 import { useStore } from "@/lib/works/store";
 import { ago, everyone, gate, isFreelancer, me, monthName, myClients, shiftMonth, turnOf } from "@/lib/works/logic";
 import type { Route } from "@/lib/works/types";
@@ -27,6 +27,7 @@ export function Shell({ title, sub, actions, children }: { title: ReactNode; sub
         { view: "marketing", label: "Marketing", icon: Sparkles, badge: contentWaiting },
         { view: "reports", label: "Monthly reports", icon: FileBarChart },
         { view: "how", label: "How we work", icon: BookOpen },
+        ...(person.role === "owner" ? [{ view: "settings" as const, label: "Settings", icon: SettingsIcon }] : []),
       ]
     : [
         { view: "today", label: "Today", icon: Home },
@@ -37,6 +38,7 @@ export function Shell({ title, sub, actions, children }: { title: ReactNode; sub
         { view: "freelancers", label: "Freelancers", icon: Users },
         ...(person.role === "owner" ? [{ view: "finance" as const, label: "Finance", icon: CircleDollarSign }] : []),
         { view: "how", label: "How we work", icon: BookOpen },
+        ...(person.role === "owner" ? [{ view: "settings" as const, label: "Settings", icon: SettingsIcon }] : []),
       ];
 
   const active = route.view === "client" ? "clients" : route.view;
@@ -136,13 +138,13 @@ export function Shell({ title, sub, actions, children }: { title: ReactNode; sub
                         <span className="block text-[13px] font-semibold leading-snug">{notice.text}</span>
                         <span className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[11px] text-[#8B867E]">
                           {ago(notice.at)}
-                          {notice.channels.map((channel) => <Chip key={channel} t={channel === "Email" ? "blue" : channel === "Slack" ? "purple" : "grey"} className="!px-2 !py-0.5 !text-[10px]">{channel}</Chip>)}
+                          {notice.channels.map((channel) => <Chip key={channel} t={channel === "Email" ? "blue" : channel === "Google Chat" ? "purple" : "grey"} className="!px-2 !py-0.5 !text-[10px]">{channel}</Chip>)}
                         </span>
                       </button>
                     ))}
                     {notices.length === 0 && <p className="p-4 text-[13px] text-[#6B6760]">Nothing yet. Submissions, approvals and changes will appear here.</p>}
                   </div>
-                  <p className="border-t border-[#F0EEE9] px-4 py-2.5 text-[11px] text-[#8B867E]">Preview: email and Slack sending switches on when the database is connected.</p>
+                  <p className="border-t border-[#F0EEE9] px-4 py-2.5 text-[11px] text-[#8B867E]">Preview: email and Google Chat sending switches on when the database is connected.</p>
                 </div>
               )}
             </div>

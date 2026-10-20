@@ -76,7 +76,7 @@ function MonthRibbon() {
 }
 
 const notifications = [
-  ["Freelancer submits copy or design", "Reviewer", "Email + in app + short Slack ping"],
+  ["Freelancer submits copy or design", "Reviewer", "Email + in app + short Google Chat ping"],
   ["Changes requested", "Freelancer", "Email + in app"],
   ["Approved", "Freelancer, and whoever schedules", "Email + in app"],
   ["Client approval due in 1 day", "Operations for that client", "In app"],
@@ -134,7 +134,7 @@ export function How() {
               { icon: <Handshake size={17} />, title: "Lead to proposal", who: "Gareth", color: "#2F6FDB", rule: "New → contacted → discovery call → proposal. Follow-up reminder after the agreed days." },
               { icon: <UserCheck size={17} />, title: "Won: hand over", who: "Gareth → María", color: "#1D9E5A", rule: "Mark as won. The client and its checklist are created with the package filled in." },
               { icon: <ClipboardCheck size={17} />, title: "Kick-off and questionnaire", who: "María + client", color: "#7C5CD6", rule: "Call or questionnaire. Agree the one approver and the approval mode." },
-              { icon: <Users size={17} />, title: "Set up the workspace", who: "Operations", color: "#E08A1E", rule: "Drive, chat channel, Publer, Canva. Assign a freelancer with NDA and contract signed." },
+              { icon: <Users size={17} />, title: "Set up the workspace", who: "Operations", color: "#E08A1E", rule: "Drive, chat channel, publishing tool, Canva. Assign a freelancer with NDA and contract signed." },
               { icon: <Rocket size={17} />, title: "Ready for production", who: "Everyone", color: "#E0567A", rule: "Green light: every essential item is in. Soft questions only inform the strategy." },
             ]}
           />
@@ -148,7 +148,7 @@ export function How() {
             { icon: <PenLine size={17} />, title: "Copy, then review", who: "Freelancer → reviewer", color: "#2F6FDB", rule: "Copy is approved before design starts. Changes come back as a ticklist with a category." },
             { icon: <Palette size={17} />, title: "Design, then review", who: "Freelancer → reviewer", color: "#E08A1E", rule: "Upload artwork and the editable Canva link. Technical claims need the expert tick first." },
             { icon: <Send size={17} />, title: "Client approves", who: "Operations logs it", color: "#E0567A", rule: `Mode A only. ${state.settings.clientApprovalDays} working days, one consolidated round per batch.` },
-            { icon: <CalendarDays size={17} />, title: "Scheduled, then live", who: "Freelancer", color: "#1D9E5A", rule: "Schedule in Publer, final files in the client's Drive, then add the live link." },
+            { icon: <CalendarDays size={17} />, title: "Scheduled, then live", who: "Freelancer", color: "#1D9E5A", rule: "Schedule in the publishing tool, final files in the client's Drive, then add the live link." },
           ]}
         />
 
@@ -171,7 +171,7 @@ export function How() {
                 <li key={event} className="grid gap-1 py-2.5 text-[13px] sm:grid-cols-[1.3fr_1fr_1fr]"><b>{event}</b><span>{who}</span><span className="text-[#6B6760]">{how}</span></li>
               ))}
             </ul>
-            <p className="mt-3 text-[12px] text-[#8B867E]">In this preview, notifications appear in the bell. Email and Slack sending switch on once the database is connected.</p>
+            <p className="mt-3 text-[12px] text-[#8B867E]">In this preview, notifications appear in the bell. Email and Google Chat sending switch on once the database is connected.</p>
           </Card>
           <Card>
             <h3 className="text-[18px] font-extrabold">Approval modes</h3>

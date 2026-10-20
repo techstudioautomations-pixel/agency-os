@@ -14,9 +14,9 @@ export function monthFacts(client: Client, month: string, posts: Post[]): MonthF
 }
 
 /** Client-ready report. Essential: one page. Growth: adds recommendations and the post list. */
-export function reportHtml(client: Client, report: MonthReport, facts: MonthFacts) {
+export function reportHtml(client: Client, report: MonthReport, facts: MonthFacts, full = false) {
   const n = report.numbers;
-  const growth = client.package === "Growth";
+  const growth = full;
   const tile = (label: string, value: string, note = "") => `<div class="tile"><small>${esc(label)}</small><b>${esc(value || "—")}</b>${note ? `<span>${esc(note)}</span>` : ""}</div>`;
   const delivered = Math.max(facts.published, Number(n?.postsPublished) || 0);
   return `<!doctype html><html><head><meta charset="utf-8"><title>${esc(client.name)} · ${esc(monthName(report.month))}</title><style>

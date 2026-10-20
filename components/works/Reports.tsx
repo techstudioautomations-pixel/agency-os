@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Check, ChevronLeft, ChevronRight, Download } from "lucide-react";
 import { useStore } from "@/lib/works/store";
-import { isFreelancer, isOwner, monthName, myClients, nameOf, shiftMonth, shortDate, todayIso } from "@/lib/works/logic";
+import { isFreelancer, isFullReport, isOwner, monthName, myClients, nameOf, shiftMonth, shortDate, todayIso } from "@/lib/works/logic";
 import { monthFacts, reportHtml } from "@/lib/works/report";
 import type { Client } from "@/lib/works/types";
 import { Shell } from "./Shell";
@@ -35,7 +35,7 @@ export function ReportsPage() {
   const download = (client: Client) => {
     const row = rows.find((item) => item.client.id === client.id)!;
     const report = row.report ?? { id: "", clientId: client.id, month, checked: false, summary: "", recommendations: "", approved: false, sentAt: "", reportLink: "" };
-    const url = URL.createObjectURL(new Blob([reportHtml(client, report, row.facts)], { type: "text/html" }));
+    const url = URL.createObjectURL(new Blob([reportHtml(client, report, row.facts, isFullReport(state, client))], { type: "text/html" }));
     const a = document.createElement("a");
     a.href = url;
     a.download = `${client.name.replace(/\W+/g, "-")}-${month}-report.html`;

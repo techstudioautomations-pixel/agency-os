@@ -8,28 +8,26 @@ import type { AccessItem, ApprovalMode, Client, ClientFile } from "@/lib/works/t
 import { Shell } from "./Shell";
 import { GateBanner } from "./Checklist";
 import { AreaDetail, AreaGrid, AreaStrip } from "./Areas";
-import { PostArt } from "./PostArt";
+import { ClientShare, ProfileEditor, ServicesCard } from "./ClientServices";
 import { AttachField, Avatar, Bar, Button, Card, CardHead, Chip, ClientMark, Empty, Field, Light, Ring, Segmented, fieldClass, tone } from "./kit";
 
 export const modeText: Record<ApprovalMode, string> = {
-  A: "Client approves the plan and every post",
-  B: "Client approves the plan only",
+  A: "Client reviews the plan and posts, if they ask",
+  B: "Client reviews the plan, if they ask",
   C: "We approve internally",
 };
 
-// ─── List ───
+// ─── List: just the clients ───
 export function ClientsList() {
-  const { state, go, addClient } = useStore();
+  const { state, go, openWizard } = useStore();
   const [filter, setFilter] = useState<"all" | "Onboarding" | "Live" | "attention">("all");
-  const [adding, setAdding] = useState(false);
-  const [name, setName] = useState("");
   const clients = state.clients;
   const needs = (client: Client) => gate(client.checklist).light !== "green" || !client.freelancerId;
   const shown = clients.filter((client) => filter === "all" || (filter === "attention" ? needs(client) : client.stage === filter));
   if (isFreelancer(state)) return <Shell title="Clients"><Empty title="Your clients are in Marketing" /></Shell>;
 
   return (
-    <Shell title="Clients" sub={`${clients.filter((c) => c.stage === "Live").length} live · ${clients.filter((c) => c.stage === "Onboarding").length} onboarding`} actions={<Button kind="primary" onClick={() => setAdding(true)}><Plus size={15} />New client</Button>}>
+    <Shell title="Clients" sub={`${clients.filter((c) => c.stage === "Live").length} live · ${clients.filter((c) => c.stage === "Onboarding").length} onboarding`} actions={<Button kind="primary" onClick={() => openWizard()}><Plus size={15} />New client</Button>}>
       <div className="mb-4">
         <Segmented value={filter} onChange={setFilter} options={[
           { value: "all", label: "All", count: clients.length },
@@ -38,38 +36,17 @@ export function ClientsList() {
           { value: "attention", label: "Needs attention", count: clients.filter(needs).length },
         ]} />
       </div>
-      {adding && (
-        <Card className="mb-4">
-          <form onSubmit={(event) => { event.preventDefault(); if (!name.trim()) return; const id = addClient(name.trim()); setAdding(false); setName(""); go({ view: "client", clientId: id, tab: "checklists" }); }} className="flex flex-wrap items-end gap-3">
-            <div className="min-w-[240px] flex-1"><Field label="Client name"><input autoFocus value={name} onChange={(event) => setName(event.target.value)} className={fieldClass} placeholder="Company name" /></Field></div>
-            <Button kind="primary" type="submit">Create and start onboarding</Button>
-            <Button type="button" kind="ghost" onClick={() => setAdding(false)}>Cancel</Button>
-          </form>
-        </Card>
-      )}
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
         {shown.map((client) => {
           const g = gate(client.checklist);
-          const p = progress(client.checklist);
-          const posts = state.posts.filter((post) => post.clientId === client.id && post.date.startsWith(state.month));
-          const fl = personById(state, client.freelancerId);
           return (
-            <button key={client.id} onClick={() => go({ view: "client", clientId: client.id })} className="group min-w-0 overflow-hidden rounded-2xl border border-[#E9E6E0] bg-white text-left transition hover:border-[#D2CCC2] hover:shadow-[0_8px_24px_rgba(30,36,48,.07)]">
-              <div className="h-2" style={{ background: client.color }} />
-              <div className="p-4">
-                <div className="flex items-center gap-3">
-                  <ClientMark client={client} size={44} />
-                  <div className="min-w-0 flex-1"><div className="truncate text-[16px] font-bold">{client.name}</div><div className="truncate text-[12px] text-[#8B867E]">{client.sector}</div></div>
-                  <Chip t={client.stage === "Live" ? "green" : "blue"}>{client.stage}</Chip>
-                </div>
-                <div className="mt-3 grid grid-cols-4 gap-1.5">
-                  {Array.from({ length: 4 }, (_, index) => posts[index] ? <PostArt key={posts[index].id} post={posts[index]} client={client} rounded="rounded-lg" /> : <span key={index} className="aspect-[4/5] rounded-lg bg-[#F6F5F2]" />)}
-                </div>
-                <div className="mt-3 flex items-center gap-2 text-[12px] font-semibold" style={{ color: tone[g.light].ink }}>
-                  <Light light={g.light} size={7} />{g.light === "green" ? "Onboarded" : `Onboarding ${p.percent}%`}
-                  <span className="ml-auto flex items-center gap-1.5 text-[#55514B]">{fl ? <><Avatar name={fl.name} color={fl.color} size={20} />{fl.name}</> : <Chip t="red">No freelancer</Chip>}</span>
-                </div>
-              </div>
+            <button key={client.id} onClick={() => go({ view: "client", clientId: client.id })} className="group flex min-w-0 items-center gap-4 rounded-2xl border border-[#E9E6E0] bg-white p-4 text-left transition hover:border-[#D2CCC2] hover:shadow-[0_8px_24px_rgba(30,36,48,.07)]">
+              <ClientMark client={client} size={56} />
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-[17px] font-bold">{client.name}</span>
+                <span className="block truncate text-[13px] text-[#8B867E]">{client.sector}</span>
+              </span>
+              <span className="flex flex-col items-end gap-2"><Chip t={client.stage === "Live" ? "green" : client.stage === "Paused" ? "grey" : "blue"}>{client.stage}</Chip>{g.light !== "green" && <span title={g.label}><Light light={g.light} size={9} /></span>}</span>
             </button>
           );
         })}
@@ -82,6 +59,7 @@ export function ClientsList() {
 // ─── Profile ───
 export function ClientProfile({ clientId, tab, sub }: { clientId: string; tab?: string; sub?: string }) {
   const { state, go } = useStore();
+  const [editingProfile, setEditingProfile] = useState(false);
   const client = state.clients.find((item) => item.id === clientId);
   const owner = isOwner(state);
   if (!client || isFreelancer(state)) return <Shell title="Client"><Empty title="This client is not available to you." /></Shell>;
@@ -92,10 +70,11 @@ export function ClientProfile({ clientId, tab, sub }: { clientId: string; tab?: 
     { value: "access", label: "Access" },
     { value: "reporting", label: "Reporting" },
     { value: "files", label: "Files & links" },
+    { value: "share", label: "Client view" },
     ...(owner ? [{ value: "finance", label: "Finance" }] : []),
   ];
   const current = tabs.some((item) => item.value === tab) ? tab! : "overview";
-  const links: [string, string, ReactNode][] = [["Drive", client.links.drive, <FolderOpen key="d" size={15} />], ["Canva", client.links.canva, <Sparkles key="c" size={15} />], ["Publer", client.links.publer, <Link2 key="p" size={15} />]];
+  const links: [string, string, ReactNode][] = [["Drive", client.links.drive, <FolderOpen key="d" size={15} />], ["Canva", client.links.canva, <Sparkles key="c" size={15} />], ["Publishing tool", client.links.publer, <Link2 key="p" size={15} />]];
 
   return (
     <Shell title={client.name} sub={client.sector}>
@@ -105,15 +84,17 @@ export function ClientProfile({ clientId, tab, sub }: { clientId: string; tab?: 
           <div className="-mt-9 rounded-2xl bg-white p-1 shadow-sm"><ClientMark client={client} size={64} /></div>
           <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2 pt-2">
             <Chip t={client.stage === "Live" ? "green" : "blue"}>{client.stage}</Chip>
-            <Chip>{client.package}{client.addOns.length ? ` + ${client.addOns.join(", ")}` : ""}</Chip>
-            <Chip t="purple">{modeText[client.approvalMode]}</Chip>
+            <Chip>{client.package}</Chip>
+            {client.approvalMode !== "C" && <Chip t="purple">{modeText[client.approvalMode]}</Chip>}
           </div>
           <div className="flex flex-wrap items-center gap-2 pt-2">
             {links.filter(([, url]) => url).map(([label, url, icon]) => <a key={label} href={url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 rounded-xl border border-[#E2DED7] px-3 py-2 text-[12px] font-semibold hover:border-[#C9C3B8]">{icon}{label}</a>)}
+            <Button onClick={() => setEditingProfile(!editingProfile)}><Pencil size={14} />Edit profile</Button>
             <Button kind="primary" onClick={() => go({ view: "marketing", clientId: client.id })}>Open marketing <ArrowRight size={15} /></Button>
           </div>
         </div>
       </div>
+      {editingProfile && <ProfileEditor client={client} onClose={() => setEditingProfile(false)} />}
       <div className="mb-5 flex gap-1 overflow-x-auto border-b border-[#E9E6E0]">
         {tabs.map((item) => (
           <button key={item.value} onClick={() => go({ view: "client", clientId, tab: item.value })} className={`-mb-px shrink-0 border-b-2 px-4 py-2.5 text-[14px] font-semibold ${current === item.value ? "border-[#1E2430] text-[#1E2430]" : "border-transparent text-[#8B867E] hover:text-[#1E2430]"}`}>
@@ -127,6 +108,7 @@ export function ClientProfile({ clientId, tab, sub }: { clientId: string; tab?: 
       {current === "access" && <Access client={client} />}
       {current === "reporting" && <Reporting client={client} />}
       {current === "files" && <Files client={client} />}
+      {current === "share" && <ClientShare client={client} />}
       {current === "finance" && owner && <ClientFinance client={client} />}
     </Shell>
   );
@@ -148,7 +130,7 @@ function Overview({ client }: { client: Client }) {
   const owner = isOwner(state);
   const g = gate(client.checklist);
   const p = progress(client.checklist);
-  const posts = state.posts.filter((post) => post.clientId === client.id && post.date.startsWith(state.month)).sort((a, b) => a.date.localeCompare(b.date));
+  const posts = state.posts.filter((post) => post.clientId === client.id && post.date.startsWith(state.month));
   const approved = posts.filter((post) => ["Ready to schedule", "Scheduled", "Published"].includes(post.status)).length;
   const lastMonth = shiftMonth(state.month, -1);
   const report = state.reports.find((item) => item.clientId === client.id && item.month === lastMonth);
@@ -167,7 +149,7 @@ function Overview({ client }: { client: Client }) {
         <button onClick={() => go({ view: "marketing", clientId: client.id })} className="rounded-2xl border border-[#E9E6E0] bg-white p-4 text-left">
           <span className="block text-[12px] font-semibold text-[#8B867E]">{monthName(state.month).split(" ")[0]} posts approved</span>
           <span className="text-[22px] font-extrabold">{approved}<span className="text-[14px] text-[#8B867E]"> / {client.agreedPosts}</span></span>
-          <Bar value={(approved / client.agreedPosts) * 100} color={tone.green.dot} />
+          <Bar value={client.agreedPosts ? (approved / client.agreedPosts) * 100 : 0} color={tone.green.dot} />
         </button>
         <div className="rounded-2xl border border-[#E9E6E0] bg-white p-4">
           <span className="block text-[12px] font-semibold text-[#8B867E]">Freelancer</span>
@@ -180,21 +162,7 @@ function Overview({ client }: { client: Client }) {
       </div>
 
       <AreaStrip client={client} />
-
-      <Card>
-        <CardHead title={`${monthName(state.month)} posts`} sub={`${posts.length} of ${client.agreedPosts} agreed posts planned`} right={<Button size="sm" onClick={() => go({ view: "marketing", clientId: client.id })}>Open marketing <ArrowRight size={13} /></Button>} />
-        {posts.length === 0 ? <Empty title="No posts planned yet">Approve ideas in Marketing to fill the month.</Empty> : (
-          <div className="-mx-1 flex gap-3 overflow-x-auto px-1 pb-1">
-            {posts.map((post) => (
-              <button key={post.id} onClick={() => go({ view: "marketing", clientId: client.id, postId: post.id })} className="w-[132px] shrink-0 text-left">
-                <PostArt post={post} client={client} />
-                <div className="mt-1.5 line-clamp-2 text-[12px] font-semibold leading-snug">{post.title}</div>
-                <div className="text-[11px] text-[#8B867E]">{shortDate(post.date)} · {post.status}</div>
-              </button>
-            ))}
-          </div>
-        )}
-      </Card>
+      <ServicesCard client={client} />
 
       <div className="grid gap-5 lg:grid-cols-2">
         <Card>
@@ -204,7 +172,7 @@ function Overview({ client }: { client: Client }) {
           <Row label="Approver" value={client.approver.name} editing={editing}>{input(client.approver.name, (value) => set({ approver: { ...client.approver, name: value } }))}</Row>
           <Row label="Billing contact" value={client.billingContact} editing={editing}>{input(client.billingContact, (value) => set({ billingContact: value }))}</Row>
           <Row label="Technical expert" value={client.expertReviewer} editing={editing}>{input(client.expertReviewer, (value) => set({ expertReviewer: value }))}</Row>
-          <Row label="We talk on" value={client.channel} editing={editing}><select value={client.channel} onChange={(event) => set({ channel: event.target.value as Client["channel"] })} className={select}><option>Email</option><option>Slack</option><option>Google Chat</option></select></Row>
+          <Row label="We talk on" value={client.channel} editing={editing}><select value={client.channel} onChange={(event) => set({ channel: event.target.value as Client["channel"] })} className={select}><option>Google Chat</option><option>Email</option></select></Row>
           <Row label="Freelancer" value={fl?.name} editing={editing}>
             <select value={client.freelancerId ?? ""} onChange={(event) => assignFreelancer(client.id, event.target.value)} className={select}>
               <option value="">Not assigned</option>
@@ -213,11 +181,8 @@ function Overview({ client }: { client: Client }) {
           </Row>
         </Card>
         <Card>
-          <CardHead title="Agreement" sub={editing ? "Editing" : undefined} />
-          <Row label="Package" value={client.package} editing={editing}><select value={client.package} onChange={(event) => set({ package: event.target.value as Client["package"], agreedPosts: event.target.value === "Growth" ? 12 : 8 })} className={select}><option>Essential</option><option>Growth</option></select></Row>
-          <Row label="Posts a month" value={client.agreedPosts} editing={editing}><input type="number" min={1} value={client.agreedPosts} onChange={(event) => set({ agreedPosts: Number(event.target.value) })} className="w-24 rounded-lg border border-[#E2DED7] px-2.5 py-1.5 text-[14px]" /></Row>
-          <Row label="Add-ons" value={client.addOns.join(", ")} editing={editing}>{input(client.addOns.join(", "), (value) => set({ addOns: value.split(",").map((part) => part.trim()).filter(Boolean) }))}</Row>
-          <Row label="Approval" value={modeText[client.approvalMode]} editing={editing}><select value={client.approvalMode} onChange={(event) => set({ approvalMode: event.target.value as ApprovalMode })} className={select}>{(Object.keys(modeText) as ApprovalMode[]).map((mode) => <option key={mode} value={mode}>{mode} · {modeText[mode]}</option>)}</select></Row>
+          <CardHead title="How we run it" />
+          <Row label="Approval" value={modeText[client.approvalMode]} editing={editing}><select value={client.approvalMode} onChange={(event) => set({ approvalMode: event.target.value as ApprovalMode })} className={select}>{(["C", "B", "A"] as ApprovalMode[]).map((mode) => <option key={mode} value={mode}>{modeText[mode]}</option>)}</select></Row>
           <Row label="Stage" value={client.stage} editing={editing}><select value={client.stage} onChange={(event) => set({ stage: event.target.value as Client["stage"] })} className={select}><option>Onboarding</option><option>Live</option><option>Paused</option></select></Row>
           <Row label="Client since" value={shortDate(client.startDate)} editing={false} />
           {owner && <Row label="Monthly fee" value={money(client.fee + client.addOnFee, state.settings.currency)} editing={false} />}
@@ -243,7 +208,7 @@ function Checklists({ client, sub }: { client: Client; sub?: string }) {
 }
 
 // ─── Access ───
-const platforms = ["LinkedIn page", "Instagram", "Facebook", "Meta Business", "TikTok", "Publer", "Canva", "Newsletter tool", "Google Drive", "Website", "Other"];
+const platforms = ["LinkedIn page", "Instagram", "Facebook", "Meta Business", "TikTok", "Publishing tool", "Canva", "Newsletter tool", "Google Drive", "Website", "Other"];
 
 function Access({ client }: { client: Client }) {
   const { addAccess, updateAccess, removeAccess } = useStore();
@@ -253,7 +218,7 @@ function Access({ client }: { client: Client }) {
     <div className="space-y-4">
       <div className="flex items-start gap-3 rounded-2xl bg-[#FFF3D9] p-4 text-[13px] text-[#6B4A06]">
         <KeyRound size={18} className="mt-0.5 shrink-0" />
-        <span><b>Never store passwords here.</b> Use platform roles (page admin, Meta Business partner, Publer editor) and keep any password in the agency vault. Record who has access and since when, and remove it the day work ends.</span>
+        <span><b>Never store passwords here.</b> Use platform roles (page admin, Meta Business partner, publishing-tool editor) and keep any password in the agency vault. Record who has access and since when, and remove it the day work ends.</span>
       </div>
       {client.access.length === 0 ? <Empty title="No accounts recorded yet">Add each platform as access is granted.</Empty> : (
         <div className="grid gap-3 md:grid-cols-2">

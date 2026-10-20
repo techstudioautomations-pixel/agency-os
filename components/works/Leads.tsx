@@ -108,7 +108,7 @@ function LeadPanel({ lead, onClose }: { lead: Lead; onClose: () => void }) {
           <div className="mt-1 flex items-center gap-2 text-[13px] text-[#6B6760]">{owner && <Avatar name={owner.name} color={owner.color} size={20} />}Owner: {nameOf(state, lead.ownerId)} · {lead.stage}</div>
         </div>
         {lead.stage !== "Won" && (
-          <Button kind="good" onClick={() => { const id = store.winLead(lead.id); go({ view: "client", clientId: id, tab: "checklists" }); }}><Trophy size={15} />Mark as won</Button>
+          <Button kind="good" onClick={() => store.openWizard(lead.id)}><Trophy size={15} />Mark as won</Button>
         )}
         {lead.stage !== "Lost" && lead.stage !== "Won" && <Button kind="danger" onClick={() => set({ stage: "Lost", followUp: "" })}>Lost</Button>}
         <button onClick={onClose} aria-label="Close" className="rounded-lg p-2 text-[#8B867E] hover:bg-[#F1F0ED]"><X size={18} /></button>
@@ -118,7 +118,7 @@ function LeadPanel({ lead, onClose }: { lead: Lead; onClose: () => void }) {
         <Field label="Email"><input value={lead.email} onChange={(event) => set({ email: event.target.value })} className={fieldClass} /></Field>
         <Field label="Sector"><input value={lead.sector} onChange={(event) => set({ sector: event.target.value })} className={fieldClass} /></Field>
         <Field label="Source"><input value={lead.source} onChange={(event) => set({ source: event.target.value })} className={fieldClass} placeholder="Referral, LinkedIn, event…" /></Field>
-        <Field label="Package"><select value={lead.package} onChange={(event) => set({ package: event.target.value as Lead["package"] })} className={fieldClass}><option>Not sure</option><option>Essential</option><option>Growth</option></select></Field>
+        <Field label="Package"><select value={lead.package} onChange={(event) => set({ package: event.target.value })} className={fieldClass}><option>Not sure</option>{state.settings.packages.map((pack) => <option key={pack.id}>{pack.name}</option>)}</select></Field>
         <Field label={`Value per month · ${state.settings.currency}`}><input type="number" min={0} value={lead.value} onChange={(event) => set({ value: Number(event.target.value) })} className={fieldClass} /></Field>
         <Field label="Stage"><select value={lead.stage} onChange={(event) => set({ stage: event.target.value as LeadStage })} className={fieldClass}>{[...columns, "Lost"].map((stage) => <option key={stage}>{stage}</option>)}</select></Field>
         <Field label="Next follow-up" hint={`Moving stage sets it ${state.settings.followUpDays} days out.`}><input type="date" value={lead.followUp} onChange={(event) => set({ followUp: event.target.value })} className={fieldClass} /></Field>
@@ -132,7 +132,7 @@ function LeadPanel({ lead, onClose }: { lead: Lead; onClose: () => void }) {
           {lead.notes.map((item, index) => <li key={index} className="rounded-lg bg-[#F8F7F4] px-3 py-2 text-[13px]"><span className="text-[12px] font-semibold text-[#8B867E]">{shortDate(item.at)}</span> · {item.body}</li>)}
         </ul>
       </div>
-      <p className="mt-4 text-[12px] text-[#8B867E]">Marking as won creates the client, starts the onboarding checklist with the package filled in, and notifies María and operations.</p>
+      <p className="mt-4 text-[12px] text-[#8B867E]">Marking as won opens the new-client set-up, with this lead's details filled in.</p>
     </Card>
   );
 }
