@@ -242,6 +242,8 @@ export type Post = {
   id: string;
   clientId: string;
   ideaId?: string;
+  /** Who the freelancer chose to review it. Falls back to the usual reviewer. */
+  reviewerId?: string;
   title: string;
   format: string;
   /** The client's asset this post counts against, such as "Project carousel". */
@@ -269,6 +271,21 @@ export type Post = {
   clientDecision?: { status: "Approved" | "Changes requested"; via: string; date: string; note: string };
   scheduledVia?: string;
   liveUrl?: string;
+};
+
+/** What the create-post flow collects. */
+export type PostDraft = {
+  clientId: string;
+  ideaId?: string;
+  title: string;
+  format: string;
+  platforms: string[];
+  date: string;
+  copy: string;
+  files: PostFile[];
+  reviewerId?: string;
+  /** Send it for review now, or keep it as a draft to finish later. */
+  send: boolean;
 };
 
 export type ReportNumbers = {

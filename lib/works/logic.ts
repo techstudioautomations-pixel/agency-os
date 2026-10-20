@@ -31,7 +31,7 @@ export const isFreelancer = (state: State) => me(state).role === "freelancer";
 export const myClients = (state: State) => (isFreelancer(state) ? state.clients.filter((client) => client.freelancerId === state.me) : state.clients);
 
 /** Who reviews copy and design for a client. */
-export const reviewerFor = (state: State, client?: Client) => (state.settings.reviewer === "maria-all" ? "maria" : client?.opsId ?? "niamh");
+export const reviewerFor = (state: State, client?: Client, post?: Post) => post?.reviewerId || (state.settings.reviewer === "maria-all" ? "maria" : client?.opsId ?? "niamh");
 
 // ─── Checklists ───
 const done = (item: CheckItem) => item.status === "Received" || item.status === "N/A";
@@ -76,11 +76,11 @@ export function turnOf(state: State, post: Post): Turn {
     case "Copy in progress":
       return { who: freelancer, verb: openChanges ? `Fix copy${fix}` : "Write copy", tone: "freelancer" };
     case "Copy review":
-      return { who: reviewerFor(state, client), verb: "Review copy", tone: "review" };
+      return { who: reviewerFor(state, client, post), verb: "Review copy", tone: "review" };
     case "Design in progress":
       return { who: freelancer, verb: openChanges ? `Fix design${fix}` : "Make design", tone: "freelancer" };
     case "Design review":
-      return { who: reviewerFor(state, client), verb: post.needsExpert && !post.expertOk ? "Review design · expert check" : "Review design", tone: "review" };
+      return { who: reviewerFor(state, client, post), verb: post.needsExpert && !post.expertOk ? "Review design · expert check" : "Review design", tone: "review" };
     case "Client approval":
       return { who: client?.opsId ?? "niamh", verb: "Log client decision", tone: "client" };
     case "Ready to schedule":

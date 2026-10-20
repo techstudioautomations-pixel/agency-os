@@ -294,7 +294,7 @@ function Conversation({ post, client, mine }: { post: Post; client: Client; mine
   const [date, setDate] = useState(post.date);
   const [url, setUrl] = useState("");
   const end = useRef<HTMLDivElement>(null);
-  const reviewer = reviewerFor(state, client);
+  const reviewer = reviewerFor(state, client, post);
   const isReviewer = state.me === reviewer || isOwner(state);
   const isMaker = state.me === client.freelancerId || (!client.freelancerId && !isFreelancer(state));
   const reviewing = post.status === "Copy review" || post.status === "Design review";

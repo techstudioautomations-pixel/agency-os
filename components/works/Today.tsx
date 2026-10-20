@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ArrowRight, CheckCircle2, ChevronDown } from "lucide-react";
+import { ArrowRight, BarChart3, CheckCircle2, ChevronDown, Lightbulb, Plus } from "lucide-react";
 import { useStore } from "@/lib/works/store";
 import { agreedFor, canBeAssigned, gate, inReview, isFreelancer, isMarketing, me, monthName, monthlyAreas, myClients, personById, progress, shiftMonth, todayIso, turnOf } from "@/lib/works/logic";
 import type { Post } from "@/lib/works/types";
@@ -81,6 +81,32 @@ function ReviewBlock({ title, sub, posts, empty, onAll }: { title: string; sub: 
   );
 }
 
+/** What a freelancer does most, one click away. */
+function QuickActions() {
+  const { state, go, openPostWizard } = useStore();
+  const clients = myClients(state).filter(isMarketing);
+  const only = clients.length === 1 ? clients[0].id : "all";
+  return (
+    <section className="rounded-3xl border border-[#E9E6E0] bg-white p-5 sm:p-6">
+      <h2 className="text-[18px] font-extrabold">What do you want to do?</h2>
+      <div className="mt-4 grid gap-3 sm:grid-cols-3">
+        <button onClick={() => openPostWizard()} className="flex items-center gap-3 rounded-2xl bg-[#1E2430] p-4 text-left text-white transition hover:bg-[#2E3542] sm:col-span-1">
+          <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-white/15"><Plus size={22} /></span>
+          <span><span className="block text-[16px] font-extrabold">Create post</span><span className="block text-[12px] opacity-75">Step by step, from an idea or new</span></span>
+        </button>
+        <button onClick={() => go({ view: "marketing", clientId: only, tab: "ideas" })} className="flex items-center gap-3 rounded-2xl border border-[#E2DED7] p-4 text-left transition hover:border-[#C9C3B8]">
+          <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-[#FFF3D9] text-[#94600A]"><Lightbulb size={20} /></span>
+          <span><span className="block text-[15px] font-bold">Ideas deck</span><span className="block text-[12px] text-[#6B6760]">Add ideas or pick an approved one</span></span>
+        </button>
+        <button onClick={() => go({ view: "marketing", clientId: only, tab: "results" })} className="flex items-center gap-3 rounded-2xl border border-[#E2DED7] p-4 text-left transition hover:border-[#C9C3B8]">
+          <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-[#E8F0FD] text-[#1F5BC4]"><BarChart3 size={20} /></span>
+          <span><span className="block text-[15px] font-bold">Month-end report</span><span className="block text-[12px] text-[#6B6760]">Numbers and the report</span></span>
+        </button>
+      </div>
+    </section>
+  );
+}
+
 export function Today() {
   const { state, go } = useStore();
   const person = me(state);
@@ -105,13 +131,15 @@ export function Today() {
   return (
     <Shell title={`${greeting}, ${person.name.split(" ")[0]}`} sub={dateLine}>
       <div className="space-y-8">
-        <ReviewBlock
-          title={freelancer ? "Your to-do" : "In review now"}
-          sub={freelancer ? "Posts waiting on you to write, fix or schedule." : "Posts waiting for a team or freelancer review, across all clients."}
-          posts={forMe}
-          empty={freelancer ? "Nothing on your desk. Nice." : "Nothing in review right now."}
-          onAll={() => go(freelancer ? { view: "marketing", clientId: "all", tab: "posts" } : { view: "marketing", clientId: "all", tab: "posts", filter: "review" })}
-        />
+        {freelancer ? <QuickActions /> : (
+          <ReviewBlock
+            title="In review now"
+            sub="Posts waiting for a team or freelancer review, across all clients."
+            posts={forMe}
+            empty="Nothing in review right now."
+            onAll={() => go({ view: "marketing", clientId: "all", tab: "posts", filter: "review" })}
+          />
+        )}
         <Strip title="Going out this week" sub="Approved and scheduled posts for the next 7 days." posts={thisWeek} empty="Nothing scheduled for the next 7 days." onAll={() => go({ view: "marketing", clientId: "all", tab: "calendar" })} />
 
         <section>
@@ -145,6 +173,12 @@ export function Today() {
                     <div className="mt-3">
                       <div className="mb-1 flex justify-between text-[12px] font-semibold text-[#55514B]"><span>Approved this month</span><span>{approved} / {agreedFor(client, state.month)}</span></div>
                       <Bar value={agreedFor(client, state.month) ? (approved / agreedFor(client, state.month)) * 100 : 0} color={tone.green.dot} />
+                      <div className="mt-2 flex flex-wrap gap-x-3 gap-y-0.5 text-[12px] text-[#6B6760]">
+                        <span><b>{posts.filter((post) => post.status.endsWith("in progress")).length}</b> to write</span>
+                        <span><b>{posts.filter((post) => post.status.endsWith("review") || post.status === "Client approval").length}</b> in review</span>
+                        <span><b>{posts.filter((post) => post.status === "Ready to schedule").length}</b> to schedule</span>
+                        <span><b>{posts.filter((post) => ["Scheduled", "Published"].includes(post.status)).length}</b> posted</span>
+                      </div>
                     </div>
                   )}
                   <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1.5 border-t border-[#F0EEE9] pt-3 text-[12px] font-semibold text-[#55514B]">

@@ -3,7 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { buildClientChecklist, defaultMonthLine, defaultMonthly, defaultPlaybook, defaultSections, newShare, piecesPerMonth, seedState } from "./seed";
 import { canBeAssigned, monthlyAreas, nameOf, reviewerFor, todayIso } from "./logic";
-import type { CheckItem, Client, ClientAsset, ClientSection, ClientShare, Idea, Lead, MonthReport, NewClientDraft, Notice, Post, ReportNumbers, RevisionCategory, Route, SectionStep, State } from "./types";
+import type { CheckItem, Client, ClientAsset, ClientSection, ClientShare, Idea, Lead, MonthReport, NewClientDraft, Notice, Post, PostDraft, ReportNumbers, RevisionCategory, Route, SectionStep, State } from "./types";
 
 const KEY = "theworks-os-v5";
 const uid = (prefix: string) => `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
@@ -80,6 +80,7 @@ function useStoreValue() {
   const [toast, setToast] = useState("");
   const toastTimer = useRef<number | undefined>(undefined);
   const [wizard, setWizard] = useState<{ open: boolean; leadId?: string }>({ open: false });
+  const [postWizard, setPostWizard] = useState<{ open: boolean; clientId?: string; ideaId?: string }>({ open: false });
   const stateRef = useRef(state);
   stateRef.current = state;
 
@@ -351,7 +352,37 @@ function useStoreValue() {
         });
         ping(`${items.length} idea card${items.length === 1 ? "" : "s"} added`);
       },
-      updateIdea: (id: string, patch: Partial<Idea>) => update((d) => { Object.assign(d.ideas.find((item) => item.id === id)!, patch); }),
+      updateIdea: (id: string, patch: Partial<Idea>) =>
+        update((d) => {
+          const idea = d.ideas.find((item) => item.id === id)!;
+          const was = idea.decision;
+          Object.assign(idea, patch);
+          const client = d.clients.find((item) => item.id === idea.clientId);
+          if (patch.decision === "Approved" && was !== "Approved" && client) notify(d, client.freelancerId, `${client.name}: idea approved, create the post · ${idea.title}`, { view: "marketing", clientId: client.id, tab: "ideas" });
+        }),
+      /** Creates a post from the create-post flow, as a draft or sent straight for review. */
+      createPost: (draft: PostDraft) => {
+        const id = uid("post");
+        update((d) => {
+          const client = d.clients.find((item) => item.id === draft.clientId)!;
+          const idea = draft.ideaId ? d.ideas.find((item) => item.id === draft.ideaId) : undefined;
+          const withArt = draft.files.length > 0;
+          const status: Post["status"] = !draft.send ? "Copy in progress" : withArt ? "Design review" : "Copy review";
+          const post: Post = {
+            id, clientId: client.id, ideaId: idea?.id, reviewerId: draft.reviewerId, title: draft.title, format: draft.format, platforms: draft.platforms.length ? draft.platforms : [client.platforms[0] ?? "LinkedIn"],
+            date: draft.date, status, copy: draft.copy, captions: {}, files: draft.files, art: draft.title, designLink: "", driveLink: "", version: 1,
+            comments: idea?.notes ? [{ id: uid("c"), by: idea.createdBy, body: `From the idea: ${idea.notes}`, at: stamp(), kind: "system" }] : [],
+            history: [{ at: stamp(), by: d.me, text: idea ? "Created from an idea" : "Post created" }],
+            needsExpert: /regulation|part [a-z]|span|load|fire|compliance|certif/i.test(`${draft.title} ${idea?.notes ?? ""}`), expertOk: false, waitingSince: todayIso(),
+          };
+          if (draft.send) post.history.unshift({ at: stamp(), by: d.me, text: withArt ? "Sent copy and artwork for review (v1)" : "Sent copy for review (v1)" });
+          d.posts.push(post);
+          if (idea) { idea.postId = id; idea.decision = "Approved"; }
+          if (draft.send) notify(d, reviewerFor(d, client, post), `${client.name}: ${withArt ? "post" : "copy"} ready to review · ${post.title}`, postRoute(post), ["In app", "Email", "Google Chat"]);
+        });
+        ping(draft.send ? "Sent for review. The reviewer has been notified." : "Saved as a draft");
+        return id;
+      },
       ideaToPost: (ideaId: string) => {
         update((d) => {
           const idea = d.ideas.find((item) => item.id === ideaId)!;
@@ -394,7 +425,7 @@ function useStoreValue() {
           post.waitingSince = todayIso();
           if (post.comments.some((comment) => comment.kind === "change")) post.version += 1;
           log(d, post, `Submitted ${stage} for review (v${post.version})`);
-          notify(d, reviewerFor(d, client), `${client.name}: ${stage} ready to review · ${post.title}`, postRoute(post), ["In app", "Email", "Google Chat"]);
+          notify(d, reviewerFor(d, client, post), `${client.name}: ${stage} ready to review · ${post.title}`, postRoute(post), ["In app", "Email", "Google Chat"]);
         });
         ping("Submitted. The reviewer has been notified.");
       },
@@ -465,7 +496,7 @@ function useStoreValue() {
           const { post, client } = withPost(d, id);
           post.comments.push({ id: uid("c"), by: d.me, body, at: stamp(), kind: "comment" });
           const mentioned = [...d.people, ...d.freelancers].filter((person) => body.includes(`@${person.name.split(" ")[0]}`)).map((person) => person.id);
-          const recipients = new Set([...mentioned, d.me === client.freelancerId ? reviewerFor(d, client) : client.freelancerId ?? ""]);
+          const recipients = new Set([...mentioned, d.me === client.freelancerId ? reviewerFor(d, client, post) : client.freelancerId ?? ""]);
           recipients.forEach((to) => notify(d, to, `${nameOf(d, d.me)} commented on ${post.title}`, postRoute(post)));
         }),
       resolveChange: (id: string, commentId: string) =>
@@ -567,7 +598,7 @@ function useStoreValue() {
     };
   }, [update, go, ping]);
 
-  return { state, ready, route, go, toast, ping, wizard, openWizard: (leadId?: string) => setWizard({ open: true, leadId }), closeWizard: () => setWizard({ open: false }), ...actions };
+  return { state, ready, route, go, toast, ping, wizard, openWizard: (leadId?: string) => setWizard({ open: true, leadId }), closeWizard: () => setWizard({ open: false }), postWizard, openPostWizard: (opts: { clientId?: string; ideaId?: string } = {}) => setPostWizard({ open: true, ...opts }), closePostWizard: () => setPostWizard({ open: false }), ...actions };
 }
 
 export function StoreProvider({ children }: { children: ReactNode }) {

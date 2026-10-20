@@ -33,7 +33,7 @@ const packTabs: Record<string, DocKey> = { "pack-brand": "brand", "pack-brain": 
 
 export function MarketingPage({ clientId, tab, postId, filter }: { clientId?: string; tab?: string; postId?: string; filter?: string }) {
   const { state, go } = useStore();
-  const [packOpen, setPackOpen] = useState(true);
+  const [packOpen, setPackOpen] = useState(false);
   const clients = myClients(state).filter(isMarketing);
   // Someone with only one client has nothing to switch between, so open that client straight away.
   const client = clients.find((item) => item.id === clientId) ?? (clients.length === 1 ? clients[0] : undefined);
@@ -44,7 +44,8 @@ export function MarketingPage({ clientId, tab, postId, filter }: { clientId?: st
     return <PostReview key={post.id} post={post} client={postClient} backScope={scope} />;
   }
 
-  const requested = tab ?? "posts";
+  // Freelancers start with ideas, which is where a post begins. Reviewers start with the posts waiting for them.
+  const requested = tab ?? (isFreelancer(state) ? "ideas" : "posts");
   const current = !client && (requested in packTabs || requested === "month") ? "posts" : requested === "strategy" ? "posts" : requested;
   const inScope = (item: { clientId: string }) => (client ? item.clientId === client.id : clients.some((c) => c.id === item.clientId));
   const mineCount = (id?: string) => state.posts.filter((item) => (id ? item.clientId === id : inScope(item)) && item.date.startsWith(state.month) && needsMe(state, item)).length;
@@ -72,23 +73,23 @@ export function MarketingPage({ clientId, tab, postId, filter }: { clientId?: st
         <nav aria-label="Marketing sections" className="-mx-1 flex gap-1 overflow-x-auto px-1 pb-1 lg:sticky lg:top-4 lg:mx-0 lg:flex-col lg:self-start lg:overflow-visible lg:px-0 lg:pb-0">
           {client && (
             <>
-              <button onClick={() => setPackOpen(!packOpen)} aria-expanded={packOpen} className="flex shrink-0 items-center gap-2 rounded-xl px-3.5 py-2.5 text-left text-[14px] font-bold text-[#1E2430] hover:bg-white lg:w-full">
+              <button onClick={() => setPackOpen(!packOpen)} aria-expanded={packOpen || current in packTabs} className="flex shrink-0 items-center gap-2 rounded-xl px-3.5 py-2.5 text-left text-[14px] font-bold text-[#1E2430] hover:bg-white lg:w-full">
                 <span className="flex-1 whitespace-nowrap lg:whitespace-normal">{isFreelancer(state) ? "Your starter pack" : "Freelancer starter pack"}</span>
                 {packProgress && packProgress.percent < 100 && <span className="text-[11px] font-semibold text-[#B7864B]">{packProgress.percent}%</span>}
-                <ChevronDown size={15} className={`text-[#8B867E] transition ${packOpen ? "" : "-rotate-90"}`} />
+                <ChevronDown size={15} className={`text-[#8B867E] transition ${packOpen || current in packTabs ? "" : "-rotate-90"}`} />
               </button>
-              {packOpen && packDocs(client).map((doc) => {
+              {(packOpen || current in packTabs) && packDocs(client).map((doc) => {
                 const items = areaItems(client.checklist, doc.key);
                 return railItem(`pack-${doc.key}`, doc.label, undefined, { color: doc.color, ready: items.length > 0 && items.every((item) => item.status === "Received" || item.status === "N/A") });
               })}
               <div className="mx-2 my-1 hidden border-t border-[#E9E6E0] lg:block" />
             </>
           )}
+          {railItem("ideas", "Ideas", state.ideas.filter((idea) => inScope(idea) && idea.month === state.month && idea.decision === "New").length)}
           {railItem("posts", "Posts", state.posts.filter((item) => inScope(item) && item.date.startsWith(state.month)).length)}
           {railItem("calendar", "Calendar")}
-          {railItem("ideas", "Ideas", state.ideas.filter((idea) => inScope(idea) && idea.month === state.month && idea.decision === "New").length)}
-          {client && monthAreas.length > 0 && railItem("month", isFreelancer(state) ? "My checklist" : "This month", monthOpen)}
           {railItem("results", "Results")}
+          {client && monthAreas.length > 0 && railItem("month", isFreelancer(state) ? "My checklist" : "This month", monthOpen)}
         </nav>
 
         <div className="min-w-0">
@@ -188,7 +189,7 @@ export function PostTile({ post, showClient, scope, onOpen }: { post: Post; show
 }
 
 function PostBoard({ client, scope, initial }: { client?: Client; scope: string; initial?: string }) {
-  const { state, go, addPost } = useStore();
+  const { state, go, openPostWizard } = useStore();
   const freelancer = isFreelancer(state);
   const clients = myClients(state).filter(isMarketing);
   const posts = state.posts
@@ -222,7 +223,7 @@ function PostBoard({ client, scope, initial }: { client?: Client; scope: string;
         <Segmented value={filter} onChange={setFilter} options={order.map((key) => ({ value: key, label: labels[key], count: posts.filter(groups[key]).length }))} />
         <div className="flex items-center gap-3 text-[13px]">
           <span className="font-semibold text-[#55514B]">{posts.length} of {agreed} agreed posts planned</span>
-          {client && <Button kind="primary" onClick={() => { const id = addPost(client.id, "New post"); go({ view: "marketing", clientId: scope, postId: id }); }}><Plus size={15} />New post</Button>}
+          <Button kind="primary" onClick={() => openPostWizard({ clientId: client?.id })}><Plus size={15} />Create post</Button>
         </div>
       </div>
       {reviewing && <ReviewMode ids={reviewing.ids} start={reviewing.start} onClose={() => setReviewing(null)} />}
@@ -330,16 +331,16 @@ function PlanCalendar({ client, scope }: { client?: Client; scope: string }) {
 // ─── Ideas ───
 const decisionStyle: Record<IdeaDecision, { bar: string; label: string }> = {
   New: { bar: "#C9C3B8", label: "To decide" },
-  Approved: { bar: "#1D9E5A", label: "Approved" },
+  Approved: { bar: "#1D9E5A", label: "Use" },
   Maybe: { bar: "#E0A325", label: "Maybe later" },
   Rejected: { bar: "#D9D5CE", label: "Rejected" },
 };
 
 function IdeasView({ client }: { client?: Client }) {
-  const { state, addIdeas, updateIdea, ideaToPost, go, ping } = useStore();
+  const { state, addIdeas, updateIdea, openPostWizard, go, ping } = useStore();
   const freelancer = isFreelancer(state);
   const clients = myClients(state).filter(isMarketing);
-  const [filter, setFilter] = useState<IdeaDecision | "All">("New");
+  const [filter, setFilter] = useState<IdeaDecision | "All">(freelancer ? "Approved" : "New");
   const [allMonths, setAllMonths] = useState(false);
   const [importing, setImporting] = useState(false);
   const [text, setText] = useState("");
@@ -376,7 +377,7 @@ function IdeasView({ client }: { client?: Client }) {
       </div>
 
       {freelancer && client && (
-        <p className="rounded-xl bg-[#F1F6FE] px-4 py-2.5 text-[13px] text-[#1F5BC4]">Add your ideas here. Operations decides on each one: approve, maybe later or reject. An approved idea becomes a post for you to write.</p>
+        <p className="rounded-xl bg-[#F1F6FE] px-4 py-2.5 text-[13px] text-[#1F5BC4]">Add your ideas here. Operations decides on each one: use, maybe later or reject. Press Create post on a “Use” idea to turn it into a post.</p>
       )}
       {importing && client && (
         <Card>
@@ -405,7 +406,7 @@ function IdeasView({ client }: { client?: Client }) {
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           {shown.map((idea) => {
             const ideaClient = state.clients.find((item) => item.id === idea.clientId)!;
-            return <IdeaCard key={idea.id} idea={idea} client={ideaClient} showClient={!client} canDecide={!freelancer} onChange={(patch) => updateIdea(idea.id, patch)} onMakePost={() => ideaToPost(idea.id)} onOpenPost={() => go({ view: "marketing", clientId: client?.id ?? "all", postId: idea.postId })} />;
+            return <IdeaCard key={idea.id} idea={idea} client={ideaClient} showClient={!client} canDecide={!freelancer} onChange={(patch) => updateIdea(idea.id, patch)} onMakePost={() => openPostWizard({ clientId: idea.clientId, ideaId: idea.id })} onOpenPost={() => go({ view: "marketing", clientId: client?.id ?? "all", postId: idea.postId })} />;
           })}
         </div>
       )}
@@ -414,18 +415,12 @@ function IdeasView({ client }: { client?: Client }) {
 }
 
 function IdeaCard({ idea, client, showClient, canDecide, onChange, onMakePost, onOpenPost }: { idea: Idea; client: Client; showClient: boolean; canDecide: boolean; onChange: (patch: Partial<Idea>) => void; onMakePost: () => void; onOpenPost: () => void }) {
-  const pillars: Pillar[] = client.strategy.pillars;
-  const pillar = pillars.find((item) => item.id === idea.pillarId);
   const [note, setNote] = useState(false);
   const style = decisionStyle[idea.decision];
   return (
     <article className={`flex min-w-0 flex-col rounded-2xl border border-[#E9E6E0] bg-white p-4 ${idea.decision === "Rejected" ? "opacity-60" : ""}`} style={{ borderLeft: `5px solid ${style.bar}` }}>
       <div className="flex flex-wrap items-center gap-1.5">
         {showClient && <span className="flex items-center gap-1.5 text-[12px] font-bold"><ClientMark client={client} size={18} />{client.name}</span>}
-        <select value={idea.pillarId ?? ""} onChange={(event) => onChange({ pillarId: event.target.value || undefined })} aria-label="Pillar" className="rounded-full border-0 px-2.5 py-1 text-[12px] font-semibold text-white outline-none" style={{ background: pillar?.color ?? "#A8A39B" }}>
-          <option value="">Pick a pillar</option>
-          {pillars.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
-        </select>
         <select value={idea.format} onChange={(event) => onChange({ format: event.target.value })} aria-label="Format" className="rounded-full border border-[#E2DED7] bg-white px-2.5 py-1 text-[12px] font-semibold outline-none">
           {formats.map((format) => <option key={format}>{format}</option>)}
         </select>
@@ -437,24 +432,23 @@ function IdeaCard({ idea, client, showClient, canDecide, onChange, onMakePost, o
       <div className="mt-auto pt-3">
         {idea.postId ? (
           <Button size="sm" className="w-full" onClick={onOpenPost}>Open the post <ArrowRight size={13} /></Button>
+        ) : idea.decision === "Approved" ? (
+          <Button size="sm" kind="primary" className="w-full" onClick={onMakePost}>Create post <ArrowRight size={13} /></Button>
         ) : canDecide ? (
-          <>
-            <div className="flex gap-1.5">
-              {(["Approved", "Maybe", "Rejected"] as const).map((decision) => {
-                const active = idea.decision === decision;
-                const colors = decision === "Approved" ? tone.green : decision === "Maybe" ? tone.amber : tone.grey;
-                return (
-                  <button key={decision} onClick={() => (!active && decision === "Approved" && !idea.postId ? onMakePost() : onChange({ decision: active ? "New" : decision }))} aria-pressed={active} className="flex-1 rounded-lg px-2 py-1.5 text-[12px] font-bold transition" style={active ? { background: colors.dot, color: "#fff" } : { background: colors.bg, color: colors.ink }}>
-                    {decision === "Approved" ? "Approve" : decision === "Maybe" ? "Maybe" : "Reject"}
-                  </button>
-                );
-              })}
-              <button onClick={() => setNote(true)} aria-label="Comment" className="rounded-lg px-2 text-[#55514B] hover:bg-[#F1F0ED]"><MessageCircle size={15} /></button>
-            </div>
-            {idea.decision === "Approved" && <Button size="sm" kind="primary" className="mt-2 w-full" onClick={onMakePost}>Turn into a post <ArrowRight size={13} /></Button>}
-          </>
+          <div className="flex gap-1.5">
+            {(["Approved", "Maybe", "Rejected"] as const).map((decision) => {
+              const active = idea.decision === decision;
+              const colors = decision === "Approved" ? tone.green : decision === "Maybe" ? tone.amber : tone.grey;
+              return (
+                <button key={decision} onClick={() => onChange({ decision: active ? "New" : decision })} aria-pressed={active} className="flex-1 rounded-lg px-2 py-1.5 text-[12px] font-bold transition" style={active ? { background: colors.dot, color: "#fff" } : { background: colors.bg, color: colors.ink }}>
+                  {decision === "Approved" ? "Use" : decision === "Maybe" ? "Maybe" : "Reject"}
+                </button>
+              );
+            })}
+            <button onClick={() => setNote(true)} aria-label="Comment" className="rounded-lg px-2 text-[#55514B] hover:bg-[#F1F0ED]"><MessageCircle size={15} /></button>
+          </div>
         ) : (
-          <Chip t={idea.decision === "Approved" ? "green" : idea.decision === "Maybe" ? "amber" : idea.decision === "Rejected" ? "grey" : "purple"}>{style.label}</Chip>
+          <Chip t={idea.decision === "Maybe" ? "amber" : idea.decision === "Rejected" ? "grey" : "purple"}>{style.label}</Chip>
         )}
       </div>
     </article>

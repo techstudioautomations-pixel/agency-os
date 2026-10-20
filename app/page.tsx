@@ -12,6 +12,7 @@ import { How } from "@/components/works/How";
 import { Settings } from "@/components/works/Settings";
 import { ShareView } from "@/components/works/ShareView";
 import { NewClientWizard } from "@/components/works/NewClient";
+import { NewPostWizard } from "@/components/works/NewPost";
 
 function Screen() {
   const { ready, route } = useStore();
@@ -47,6 +48,7 @@ export default function Page() {
     <StoreProvider>
       <Screen />
       <NewClientWizard />
+      <NewPostWizard />
     </StoreProvider>
   );
 }

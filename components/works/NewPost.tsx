@@ -1,0 +1,278 @@
+"use client";
+
+import { useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, FilePlus2, Lightbulb, Send, Trash2, UploadCloud, X } from "lucide-react";
+import { useStore } from "@/lib/works/store";
+import { agreedFor, isMarketing, monthName, myClients, reviewerFor, shiftMonth } from "@/lib/works/logic";
+import type { PostFile } from "@/lib/works/types";
+import { Button, ClientMark, Field, fieldClass } from "./kit";
+
+const formats = ["Carousel", "Single image", "Reel", "Text post", "Newsletter"] as const;
+const channels = ["LinkedIn", "Instagram", "Facebook", "TikTok", "Newsletter"];
+const steps = ["For", "From", "What", "Content", "Review"];
+const titles = ["What is this post for?", "Where does it come from?", "What kind of post is it?", "Add the words and the files", "Who reviews it?"];
+
+/** What can be attached for each kind of post. */
+const attach: Record<(typeof formats)[number], { accept: string; multiple: boolean; label: string; hint: string }> = {
+  Carousel: { accept: "image/*,application/pdf", multiple: true, label: "Upload the slides", hint: "Several images in order, or one PDF." },
+  "Single image": { accept: "image/*", multiple: false, label: "Upload the image", hint: "One image." },
+  Reel: { accept: "video/*", multiple: false, label: "Upload the video", hint: "One video file." },
+  "Text post": { accept: "image/*", multiple: false, label: "Add an image (optional)", hint: "A text post does not need one." },
+  Newsletter: { accept: "application/pdf,image/*,.doc,.docx", multiple: true, label: "Upload the newsletter files", hint: "A PDF, a document or images." },
+};
+
+const kindOf = (file: File): PostFile["kind"] => (file.type.startsWith("image/") ? "image" : file.type === "application/pdf" ? "pdf" : file.type.startsWith("video/") ? "video" : "other");
+const pad = (value: number) => String(value).padStart(2, "0");
+
+export function NewPostWizard() {
+  const { postWizard } = useStore();
+  if (!postWizard.open || typeof document === "undefined") return null;
+  return createPortal(<Wizard key={`${postWizard.clientId ?? ""}-${postWizard.ideaId ?? ""}`} />, document.body);
+}
+
+function Wizard() {
+  const { state, postWizard, closePostWizard, createPost, go } = useStore();
+  const clients = myClients(state).filter(isMarketing);
+  const idea = state.ideas.find((item) => item.id === postWizard.ideaId);
+  const firstClient = idea?.clientId ?? postWizard.clientId ?? (clients.length === 1 ? clients[0].id : "");
+
+  const [step, setStep] = useState(0);
+  const [clientId, setClientId] = useState(firstClient);
+  const [month, setMonth] = useState(state.month);
+  const [date, setDate] = useState(`${state.month}-${pad(state.settings.dates.schedule)}`);
+  const [source, setSource] = useState<"idea" | "new">(idea ? "idea" : "new");
+  const [ideaId, setIdeaId] = useState(idea?.id ?? "");
+  const [title, setTitle] = useState(idea?.title ?? "");
+  const [format, setFormat] = useState<(typeof formats)[number]>((formats as readonly string[]).includes(idea?.format ?? "") ? (idea!.format as (typeof formats)[number]) : "Carousel");
+  const [platforms, setPlatforms] = useState<string[]>([]);
+  const [copy, setCopy] = useState("");
+  const [files, setFiles] = useState<PostFile[]>([]);
+  const [reviewerId, setReviewerId] = useState("");
+  const fileInput = useRef<HTMLInputElement>(null);
+
+  const client = clients.find((item) => item.id === clientId);
+  const approved = state.ideas.filter((item) => item.clientId === clientId && item.decision === "Approved" && !item.postId);
+  const planned = client ? state.posts.filter((post) => post.clientId === client.id && post.date.startsWith(month)).length : 0;
+  const reviewers = state.people.filter((person) => person.role !== "freelancer");
+  const defaultReviewer = client ? reviewerFor(state, client) : "";
+  const channelList = client ? [...new Set([...client.platforms, ...channels])] : channels;
+  const picked = platforms.length ? platforms : client?.platforms.slice(0, 1) ?? [];
+  const rule = attach[format];
+  const day = Number(date.slice(8, 10)) || 1;
+
+  const chooseMonth = (value: string) => {
+    setMonth(value);
+    setDate(`${value}-${pad(Math.min(state.settings.dates.schedule, 28))}`);
+  };
+  const chooseIdea = (id: string) => {
+    setIdeaId(id);
+    const found = state.ideas.find((item) => item.id === id);
+    if (found) {
+      setTitle(found.title);
+      if ((formats as readonly string[]).includes(found.format)) setFormat(found.format as (typeof formats)[number]);
+    }
+  };
+  const addFiles = (list: FileList | null) => {
+    if (!list) return;
+    const chosen = rule.multiple ? Array.from(list) : Array.from(list).slice(0, 1);
+    if (!rule.multiple) setFiles([]);
+    chosen.forEach((file) => {
+      const base = { id: `f-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, name: file.name, kind: kindOf(file) };
+      if (file.size < 1_500_000) {
+        const reader = new FileReader();
+        reader.onload = () => setFiles((current) => (rule.multiple ? [...current, { ...base, src: String(reader.result) }] : [{ ...base, src: String(reader.result) }]));
+        reader.readAsDataURL(file);
+      } else {
+        const entry = { ...base, src: URL.createObjectURL(file) };
+        setFiles((current) => (rule.multiple ? [...current, entry] : [entry]));
+      }
+    });
+  };
+  const move = (index: number, delta: number) => setFiles((current) => { const next = [...current]; const to = index + delta; if (to < 0 || to >= next.length) return current; [next[index], next[to]] = [next[to], next[index]]; return next; });
+
+  const valid = [
+    Boolean(client) && Boolean(date),
+    source === "new" ? title.trim().length > 0 : Boolean(ideaId),
+    true,
+    true,
+    true,
+  ];
+  const finish = (send: boolean) => {
+    if (!client) return;
+    const id = createPost({ clientId: client.id, ideaId: source === "idea" ? ideaId : undefined, title: title.trim() || "Untitled post", format, platforms: picked, date, copy: copy.trim(), files, reviewerId: reviewerId || undefined, send });
+    closePostWizard();
+    go({ view: "marketing", clientId: client.id, postId: id });
+  };
+
+  if (clients.length === 0) {
+    return (
+      <div className="fixed inset-0 z-[70] grid place-items-center bg-[#1E2430]/50 p-4" role="dialog" aria-modal="true" aria-label="Create post">
+        <div className="max-w-sm rounded-3xl bg-white p-6 text-center"><p className="text-[15px] font-bold">No clients to post for yet.</p><Button className="mt-4" onClick={closePostWizard}>Close</Button></div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="fixed inset-0 z-[70] grid place-items-end bg-[#1E2430]/50 sm:place-items-center sm:p-4" role="dialog" aria-modal="true" aria-label="Create post">
+      <div className="flex max-h-[96vh] w-full max-w-[680px] flex-col overflow-hidden rounded-t-3xl bg-white shadow-2xl sm:rounded-3xl">
+        <div className="flex items-start gap-3 border-b border-[#F0EEE9] px-6 pb-4 pt-5">
+          <div className="flex-1">
+            <div className="text-[12px] font-bold uppercase tracking-[.12em] text-[#8B867E]">Create post</div>
+            <h2 className="mt-0.5 text-[22px] font-extrabold">{titles[step]}</h2>
+          </div>
+          <button onClick={closePostWizard} aria-label="Close" className="rounded-xl p-2 text-[#8B867E] hover:bg-[#F1F0ED]"><X size={18} /></button>
+        </div>
+        <ol className="flex gap-1.5 px-6 pt-4">
+          {steps.map((label, index) => (
+            <li key={label} className="flex-1"><span className="block h-1.5 rounded-full" style={{ background: index <= step ? "#2F6FDB" : "#E7E4DE" }} /><span className={`mt-1 block text-[11px] font-semibold ${index === step ? "text-[#1F5BC4]" : "text-[#9A958D]"}`}>{label}</span></li>
+          ))}
+        </ol>
+
+        <div className="flex-1 overflow-y-auto px-6 py-5">
+          {step === 0 && (
+            <div className="space-y-4">
+              <Field label="Client">
+                <select value={clientId} onChange={(event) => { setClientId(event.target.value); setIdeaId(""); }} className={fieldClass}>
+                  {!clientId && <option value="">Choose a client…</option>}
+                  {clients.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+                </select>
+              </Field>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Field label="Month" hint="The post counts towards this month.">
+                  <select value={month} onChange={(event) => chooseMonth(event.target.value)} className={fieldClass}>
+                    {[0, 1, 2].map((delta) => <option key={delta} value={shiftMonth(state.month, delta)}>{monthName(shiftMonth(state.month, delta))}</option>)}
+                  </select>
+                </Field>
+                <Field label="Goes out on" hint={`Week ${Math.ceil(day / 7)} of ${monthName(month).split(" ")[0]}`}>
+                  <input type="date" value={date} min={`${month}-01`} max={`${month}-31`} onChange={(event) => setDate(event.target.value)} className={fieldClass} />
+                </Field>
+              </div>
+              {client && (
+                <div className="flex items-center gap-3 rounded-2xl bg-[#F8F7F4] p-4">
+                  <ClientMark client={client} size={38} />
+                  <p className="text-[14px]"><b>{client.name}</b> has <b>{planned}</b> of <b>{agreedFor(client, month)}</b> posts planned for {monthName(month)}. This one will be number {planned + 1}.</p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {step === 1 && (
+            <div className="space-y-4">
+              <div className="grid gap-3 sm:grid-cols-2">
+                <button onClick={() => setSource("idea")} aria-pressed={source === "idea"} className={`rounded-2xl border-2 p-4 text-left ${source === "idea" ? "border-[#2F6FDB] bg-[#F4F8FF]" : "border-[#E9E6E0]"}`}>
+                  <Lightbulb size={20} className="text-[#2F6FDB]" />
+                  <div className="mt-2 text-[15px] font-extrabold">From the ideas deck</div>
+                  <div className="text-[13px] text-[#6B6760]">Pick an idea that was approved.</div>
+                </button>
+                <button onClick={() => { setSource("new"); setIdeaId(""); }} aria-pressed={source === "new"} className={`rounded-2xl border-2 p-4 text-left ${source === "new" ? "border-[#2F6FDB] bg-[#F4F8FF]" : "border-[#E9E6E0]"}`}>
+                  <FilePlus2 size={20} className="text-[#2F6FDB]" />
+                  <div className="mt-2 text-[15px] font-extrabold">A new post</div>
+                  <div className="text-[13px] text-[#6B6760]">Start from your own idea.</div>
+                </button>
+              </div>
+              {source === "idea" ? (
+                approved.length === 0 ? (
+                  <p className="rounded-xl bg-[#FFF3D9] px-4 py-3 text-[13px] text-[#6B4A06]">No approved ideas for {client?.name ?? "this client"} yet. Add ideas in the Ideas deck, or start a new post.</p>
+                ) : (
+                  <Field label="Idea">
+                    <select value={ideaId} onChange={(event) => chooseIdea(event.target.value)} className={fieldClass}>
+                      <option value="">Pick an idea…</option>
+                      {approved.map((item) => <option key={item.id} value={item.id}>{item.title} · {item.format}</option>)}
+                    </select>
+                  </Field>
+                )
+              ) : (
+                <Field label="Name of the post"><input autoFocus value={title} onChange={(event) => setTitle(event.target.value)} placeholder="e.g. 5 things to check before you appoint a certifier" className={fieldClass} /></Field>
+              )}
+              {source === "idea" && ideaId && <p className="rounded-xl bg-[#F8F7F4] px-4 py-3 text-[13px]"><b>{title}</b>{state.ideas.find((item) => item.id === ideaId)?.notes ? <span className="block text-[#55514B]">{state.ideas.find((item) => item.id === ideaId)?.notes}</span> : null}</p>}
+            </div>
+          )}
+
+          {step === 2 && (
+            <div className="space-y-4">
+              <Field label="Type of post">
+                <select value={format} onChange={(event) => { setFormat(event.target.value as (typeof formats)[number]); setFiles([]); }} className={fieldClass}>
+                  {formats.map((item) => <option key={item}>{item}</option>)}
+                </select>
+              </Field>
+              <div>
+                <div className="mb-1.5 text-[12px] font-semibold text-[#55514B]">Where it goes</div>
+                <div className="flex flex-wrap gap-1.5">
+                  {channelList.map((item) => {
+                    const on = picked.includes(item);
+                    return <button key={item} onClick={() => setPlatforms(on ? picked.filter((value) => value !== item) : [...picked, item])} aria-pressed={on} className={`rounded-full px-3.5 py-2 text-[13px] font-semibold ${on ? "bg-[#1E2430] text-white" : "bg-[#F1F0ED] text-[#6B6760]"}`}>{item}</button>;
+                  })}
+                </div>
+              </div>
+              {source === "new" && <p className="text-[13px] text-[#6B6760]">Name: <b>{title || "not set"}</b></p>}
+            </div>
+          )}
+
+          {step === 3 && (
+            <div className="space-y-4">
+              <Field label="Caption" hint="You can finish it later if you save a draft.">
+                <textarea value={copy} onChange={(event) => setCopy(event.target.value)} rows={7} placeholder="Write the caption" className={`${fieldClass} leading-relaxed`} />
+              </Field>
+              <div>
+                <div className="mb-1.5 text-[12px] font-semibold text-[#55514B]">{format === "Text post" ? "Image" : "Files"} · {rule.hint}</div>
+                {files.length > 0 && (
+                  <ul className="mb-2 space-y-1.5">
+                    {files.map((file, index) => (
+                      <li key={file.id} className="flex items-center gap-2.5 rounded-xl bg-[#F6F5F2] p-1.5">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        {file.kind === "image" ? <img src={file.src} alt="" className="h-11 w-9 rounded-md object-cover" /> : <span className="grid h-11 w-9 place-items-center rounded-md bg-white text-[10px] font-bold uppercase text-[#6B6760]">{file.kind === "pdf" ? "PDF" : file.kind === "video" ? "Vid" : "File"}</span>}
+                        <span className="min-w-0 flex-1 truncate text-[13px] font-semibold">{rule.multiple ? `${index + 1}. ` : ""}{file.name}</span>
+                        {rule.multiple && <button onClick={() => move(index, -1)} disabled={index === 0} aria-label="Move earlier" className="rounded-lg p-1.5 disabled:opacity-30"><ArrowUp size={14} /></button>}
+                        {rule.multiple && <button onClick={() => move(index, 1)} disabled={index === files.length - 1} aria-label="Move later" className="rounded-lg p-1.5 disabled:opacity-30"><ArrowDown size={14} /></button>}
+                        <button onClick={() => setFiles(files.filter((item) => item.id !== file.id))} aria-label={`Remove ${file.name}`} className="rounded-lg p-1.5 text-[#B83232]"><Trash2 size={14} /></button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {(rule.multiple || files.length === 0) && (
+                  <label className="flex cursor-pointer items-center justify-center gap-2 rounded-xl border-2 border-dashed border-[#C9D6EE] bg-[#F7FAFF] p-4 text-[13px] font-semibold text-[#1F5BC4] hover:bg-[#EEF4FF]">
+                    <UploadCloud size={18} />{rule.label}
+                    <input ref={fileInput} type="file" multiple={rule.multiple} accept={rule.accept} className="sr-only" onChange={(event) => { addFiles(event.target.files); event.target.value = ""; }} />
+                  </label>
+                )}
+                <p className="mt-1.5 text-[12px] text-[#8B867E]">With the files attached, the words and the design are reviewed together.</p>
+              </div>
+            </div>
+          )}
+
+          {step === 4 && (
+            <div className="space-y-4">
+              <Field label="Review by" hint="They are notified when you send it.">
+                <select value={reviewerId || defaultReviewer} onChange={(event) => setReviewerId(event.target.value)} className={fieldClass}>
+                  {reviewers.map((person) => <option key={person.id} value={person.id}>{person.name}{person.id === defaultReviewer ? " (usual)" : ""}</option>)}
+                </select>
+              </Field>
+              <ul className="space-y-1.5 rounded-2xl bg-[#F8F7F4] p-4 text-[13px]">
+                <li><b>{title || "Untitled post"}</b></li>
+                <li>{client?.name} · {format} · {picked.join(", ") || "no channel"}</li>
+                <li>Goes out {new Date(`${date}T12:00:00`).toLocaleDateString("en-IE", { weekday: "short", day: "numeric", month: "long" })} · counts for {monthName(month)}</li>
+                <li>{copy.trim() ? `${copy.trim().length} characters of caption` : "No caption yet"} · {files.length} file{files.length === 1 ? "" : "s"}</li>
+              </ul>
+              {!copy.trim() && <p className="rounded-xl bg-[#FFF3D9] px-4 py-3 text-[13px] text-[#6B4A06]">Add a caption to send it for review, or save it as a draft.</p>}
+            </div>
+          )}
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2 border-t border-[#F0EEE9] bg-[#FBFAF8] px-6 py-4">
+          {step > 0 ? <Button kind="ghost" onClick={() => setStep(step - 1)}><ArrowLeft size={15} />Back</Button> : <Button kind="ghost" onClick={closePostWizard}>Cancel</Button>}
+          <span className="ml-auto text-[12px] text-[#8B867E]">Step {step + 1} of {steps.length}</span>
+          {step < steps.length - 1 ? (
+            <Button kind="primary" onClick={() => setStep(step + 1)} disabled={!valid[step]}>Continue <ArrowRight size={15} /></Button>
+          ) : (
+            <>
+              <Button onClick={() => finish(false)}>Save draft</Button>
+              <Button kind="good" onClick={() => finish(true)} disabled={!copy.trim()}><Send size={14} />Send for review</Button>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
