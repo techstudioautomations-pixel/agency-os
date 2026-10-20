@@ -1,4 +1,4 @@
-import type { CheckItem, Client, Freelancer, Person, Post, PostStatus, State } from "./types";
+import type { CheckItem, Client, Freelancer, Person, Post, PostStatus, Route, State } from "./types";
 import { freelancerGateLabels } from "./seed";
 
 // ─── Dates ───
@@ -44,7 +44,7 @@ export const missing = (items: CheckItem[]) => items.filter((item) => !done(item
 
 /** Green: every hard item is in. Amber: everything hard has at least been asked for. Red: something hard has not even been asked for. */
 export function gate(items: CheckItem[]) {
-  const hard = items.filter((item) => !item.soft && !done(item));
+  const hard = items.filter((item) => !item.soft && !item.detail && !done(item));
   if (hard.length === 0) return { light: "green" as const, label: "Ready for production", blocking: hard };
   if (hard.every((item) => item.status === "Requested")) return { light: "amber" as const, label: `Waiting on ${hard.length}`, blocking: hard };
   return { light: "red" as const, label: `${hard.length} missing`, blocking: hard };
@@ -173,3 +173,86 @@ export async function docxText(file: File): Promise<string> {
   throw new Error("Could not read this Word file. Copy the text and paste it instead.");
 }
 
+
+
+// ─── Checklist areas ───
+import { areaDefs } from "./seed";
+
+export type AreaId = (typeof areaDefs)[number]["id"];
+export const areaOf = (item: CheckItem): AreaId => (item.area as AreaId | undefined) ?? areaDefs.find((area) => (area.groups as readonly string[]).includes(item.group))?.id ?? "onboarding";
+export const areaItems = (items: CheckItem[], areaId: string) => items.filter((item) => areaOf(item) === areaId);
+
+/** Areas that fill themselves in from the work. Nothing to tick by hand. */
+export type AutoStep = { label: string; done: boolean; go: Route };
+export function autoAreas(state: State, client: Client): { id: "content" | "report"; label: string; color: string; blurb: string; steps: AutoStep[] }[] {
+  const month = state.month;
+  const lastMonth = shiftMonth(month, -1);
+  const posts = state.posts.filter((post) => post.clientId === client.id && post.date.startsWith(month));
+  const ideas = state.ideas.filter((idea) => idea.clientId === client.id && idea.month === month);
+  const approved = posts.filter((post) => ["Ready to schedule", "Scheduled", "Published"].includes(post.status)).length;
+  const scheduled = posts.filter((post) => ["Scheduled", "Published"].includes(post.status)).length;
+  const plan = client.planApproval[month];
+  const report = state.reports.find((item) => item.clientId === client.id && item.month === lastMonth);
+  const invoice = state.invoices.find((item) => item.clientId === client.id && item.month === month);
+  const marketing = (tab: string): Route => ({ view: "marketing", clientId: client.id, tab });
+  const reporting: Route = { view: "client", clientId: client.id, tab: "reporting" };
+  const content: AutoStep[] = [
+    { label: "Ideas for the month decided", done: ideas.length > 0 && !ideas.some((idea) => idea.decision === "New"), go: marketing("ideas") },
+    ...(client.approvalMode !== "C" ? [{ label: "Month plan agreed with the client", done: plan?.status === "Approved", go: marketing("ideas") }] : []),
+    { label: `All ${client.agreedPosts} agreed posts started`, done: posts.length >= client.agreedPosts, go: marketing("posts") },
+    { label: "All posts approved", done: approved >= client.agreedPosts, go: marketing("posts") },
+    { label: `All scheduled by the ${state.settings.dates.schedule}th`, done: scheduled >= client.agreedPosts, go: marketing("calendar") },
+  ];
+  const money: AutoStep[] = [
+    { label: `${monthName(lastMonth).split(" ")[0]}: freelancer report in`, done: Boolean(report?.freelancerReport || report?.numbers), go: reporting },
+    { label: `${monthName(lastMonth).split(" ")[0]}: client report sent`, done: Boolean(report?.sentAt), go: reporting },
+    { label: `${monthName(lastMonth).split(" ")[0]}: finance statement sent`, done: Boolean(report?.financeSentAt), go: reporting },
+    { label: `${monthName(month).split(" ")[0]}: invoice paid`, done: invoice?.status === "Paid", go: { view: "client", clientId: client.id, tab: "finance" } },
+    { label: `${monthName(month).split(" ")[0]}: freelancer paid`, done: state.payouts.some((item) => item.clientId === client.id && item.month === month), go: { view: "client", clientId: client.id, tab: "finance" } },
+  ];
+  return [
+    { id: "content", label: "Content this month", color: "#E08A1E", blurb: "Fills itself in from the posts.", steps: content },
+    { id: "report", label: "Reports & money", color: "#1E2430", blurb: "Fills itself in from reports and finance.", steps: money },
+  ];
+}
+
+// ─── Quality checklist on every post (from the freelancer quality checklist in the brand guide) ───
+export type QaItem = { id: string; text: string; technical?: boolean; carousel?: boolean };
+export const qaGroups: { title: string; items: QaItem[] }[] = [
+  {
+    title: "Before you start",
+    items: [
+      { id: "q1", text: "Brand assets loaded: logo, fonts, colour values" },
+      { id: "q2", text: "Brief names the buyer, the one message, the template and the format" },
+      { id: "q3", text: "Image and drawing rights, and the client's real involvement, confirmed" },
+      { id: "q4", text: "Technical notes and credentials sent for checking", technical: true },
+    ],
+  },
+  {
+    title: "Design check",
+    items: [
+      { id: "q5", text: "Headline is clear and readable at phone size" },
+      { id: "q6", text: "Right approved treatment and template used" },
+      { id: "q7", text: "Original logo with clear space; accent colour kept restrained" },
+      { id: "q8", text: "Portrait (1080×1350) and square (1080×1080) both exported and checked on a phone" },
+      { id: "q9", text: "Carousel: one point per slide, clear cover and close", carousel: true },
+    ],
+  },
+  {
+    title: "Content and publishing gate",
+    items: [
+      { id: "q10", text: "Services, names and claimed outcomes fact-checked" },
+      { id: "q11", text: "Regulatory or dimensional advice reviewed by the client's expert", technical: true },
+      { id: "q12", text: "No generated imagery shown as real evidence" },
+      { id: "q13", text: "Permissions in place for photos, quotes and client logos" },
+      { id: "q14", text: "Our review done, and the client's approval recorded if they review" },
+      { id: "q15", text: "Final files saved with template ID, date, topic, format and version" },
+    ],
+  },
+];
+export const qaItemsFor = (post: Post) => qaGroups.flatMap((group) => group.items).filter((item) => (!item.technical || post.needsExpert) && (!item.carousel || post.format === "Carousel"));
+export const qaProgress = (post: Post) => {
+  const items = qaItemsFor(post);
+  const ticked = items.filter((item) => (post.qa ?? []).includes(item.id)).length;
+  return { ticked, total: items.length, missing: items.length - ticked };
+};

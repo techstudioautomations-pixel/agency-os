@@ -20,6 +20,10 @@ export type CheckItem = {
   hint?: string;
   /** Soft checks are information, not blockers. */
   soft?: boolean;
+  /** Detail steps track the work inside an area. Only the milestones decide "ready for production". */
+  detail?: boolean;
+  /** The area this step belongs to. Steps from the templates are placed by their group instead. */
+  area?: string;
   /** Owner: a person id, or "client". */
   owner: string;
   status: CheckStatus;
@@ -70,7 +74,7 @@ export type Client = {
   agreedPosts: number;
   platforms: string[];
   startDate: string;
-  links: { drive: string; canva: string; publer: string; chat: string; brandKit: string };
+  links: { drive: string; canva: string; publer: string; chat: string; brandKit: string; guide?: string; brain?: string };
   checklist: CheckItem[];
   strategy: Strategy;
   /** Light time tracking: hours per month per role. */
@@ -163,6 +167,8 @@ export type Post = {
   comments: PostComment[];
   history: { at: string; by: string; text: string }[];
   needsExpert: boolean;
+  /** Ticked items of the quality checklist the freelancer works through. */
+  qa?: string[];
   expertOk: boolean;
   /** When the current review or client step started, for escalation. */
   waitingSince: string;

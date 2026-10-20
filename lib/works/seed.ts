@@ -22,7 +22,7 @@ const ago = (days: number) => {
 const ahead = (days: number) => ago(-days);
 
 // ─── Checklist templates (the brief, section 3) ───
-type Template = { group: string; label: string; hint?: string; soft?: boolean; owner: string };
+type Template = { group: string; label: string; hint?: string; soft?: boolean; detail?: boolean; owner: string };
 
 export const clientChecklistTemplate: Template[] = [
   { group: "1 · The deal", label: "Package: Essential or Growth", owner: "gareth" },
@@ -31,7 +31,7 @@ export const clientChecklistTemplate: Template[] = [
   { group: "1 · The deal", label: "First invoice sent / paid", owner: "maria" },
   { group: "1 · The deal", label: "Billing contact", owner: "client" },
   { group: "1 · The deal", label: "Main contact and one named approver", owner: "client" },
-  { group: "1 · The deal", label: "Where we talk: email, Slack or Google Chat", owner: "maria" },
+  { group: "1 · The deal", label: "Where we talk: Google Chat or email", owner: "maria" },
   { group: "1 · The deal", label: "Approval mode agreed (A, B or C)", hint: "A: plan and posts · B: plan only · C: internal only", owner: "maria" },
 
   { group: "2 · Questionnaire", label: "What the business does, services, typical projects", soft: true, owner: "client" },
@@ -71,6 +71,84 @@ export const clientChecklistTemplate: Template[] = [
   { group: "7 · Kick-off and first plan", label: "First calendar built", owner: "freelancer" },
 ];
 
+
+// The starter pack every client gets before a freelancer starts: strategy brain, brand and creative direction guide,
+// Canva templates and the handoff. Based on the Marker Group Brand Positioning & Creative Direction Guide.
+export const packChecklistTemplate: Template[] = [
+  // Strategy brain: the research done at the start
+  { group: "Strategy brain · Research", label: "Business, services and typical projects researched", detail: true, owner: "maria" },
+  { group: "Strategy brain · Research", label: "Audiences and buyer personas defined, with their pains", detail: true, owner: "maria" },
+  { group: "Strategy brain · Research", label: "3–5 competitors and peers reviewed", detail: true, owner: "maria" },
+  { group: "Strategy brain · Research", label: "Regulations and standards that matter, checked against official sources", detail: true, owner: "maria" },
+  { group: "Strategy brain · Research", label: "Current social accounts audited, gaps listed", detail: true, owner: "freelancer" },
+  { group: "Strategy brain · Research", label: "Content pillars proposed", detail: true, owner: "maria" },
+  { group: "Strategy brain · Research", label: "Claims register: what we may and may not say", detail: true, owner: "maria" },
+  { group: "Strategy brain · Research", label: "Questions for the client's expert listed", detail: true, owner: "maria" },
+  { group: "Strategy brain · Sign-off", label: "Strategy brain document saved and linked", detail: true, owner: "maria" },
+  { group: "Strategy brain · Sign-off", label: "Strategy brain approved", hint: "The brain is the research the freelancer builds ideas from.", owner: "maria" },
+
+  // Brand positioning & creative direction guide: sections 1 to 6 of Garrett's template
+  { group: "Brand guide · 1 Positioning & audience", label: "Working positioning statement (internal, not a public tagline)", detail: true, owner: "maria" },
+  { group: "Brand guide · 1 Positioning & audience", label: "Audiences listed with their main concern and the message to lead with", detail: true, owner: "maria" },
+  { group: "Brand guide · 1 Positioning & audience", label: "Message hierarchy set (what comes first, second, third)", detail: true, owner: "maria" },
+  { group: "Brand guide · 1 Positioning & audience", label: "Brand personality and tone written", detail: true, owner: "maria" },
+  { group: "Brand guide · 1 Positioning & audience", label: "Creative emphasis agreed (for example architectural, technical, people)", hint: "Visual emphasis, not a monthly quota.", detail: true, owner: "maria" },
+  { group: "Brand guide · 2 Visual identity", label: "Approved visual treatments chosen", detail: true, owner: "maria" },
+  { group: "Brand guide · 2 Visual identity", label: "Logo rules: original artwork, spacing, no recolouring", detail: true, owner: "freelancer" },
+  { group: "Brand guide · 2 Visual identity", label: "Typefaces and exact colour values recorded", detail: true, owner: "freelancer" },
+  { group: "Brand guide · 2 Visual identity", label: "Image policy: only real, approved projects, drawings and people", detail: true, owner: "maria" },
+  { group: "Brand guide · 3 Social treatments", label: "Six creative studies produced (two for each treatment)", detail: true, owner: "freelancer" },
+  { group: "Brand guide · 3 Social treatments", label: "Studies approved by the strategy lead", detail: true, owner: "maria" },
+  { group: "Brand guide · 4 Freelancer rules", label: "Writing rules: lead with value, one clear claim, correct project and role", detail: true, owner: "maria" },
+  { group: "Brand guide · 4 Freelancer rules", label: "Design rules: photography, whitespace, restrained accents, phone-size legibility", detail: true, owner: "maria" },
+  { group: "Brand guide · 4 Freelancer rules", label: "Do and do-not list", detail: true, owner: "maria" },
+  { group: "Brand guide · 4 Freelancer rules", label: "Practical examples of headlines", detail: true, owner: "maria" },
+  { group: "Brand guide · 5 Quality & sign-off", label: "Quality checklist agreed for this client", detail: true, owner: "niamh" },
+  { group: "Brand guide · 5 Quality & sign-off", label: "Responsibilities set: strategy lead, designer, coordinator, client's technical contact", detail: true, owner: "maria" },
+  { group: "Brand guide · 5 Quality & sign-off", label: "Brand guide approved and shared", hint: "Creative direction every freelancer works from.", owner: "maria" },
+
+  // Canva templates
+  { group: "Canva templates · Setup", label: "Brand kit loaded in Canva: logo, fonts, colours", detail: true, owner: "freelancer" },
+  { group: "Canva templates · Setup", label: "Client Canva folder created and shared", detail: true, owner: "niamh" },
+  { group: "Canva templates · Masters", label: "P1 Project hero", hint: "Portrait 1080×1350 and square 1080×1080, each exported and checked.", detail: true, owner: "freelancer" },
+  { group: "Canva templates · Masters", label: "P2 Project story", hint: "Portrait 1080×1350 and square 1080×1080, each exported and checked.", detail: true, owner: "freelancer" },
+  { group: "Canva templates · Masters", label: "T1 Technical explainer", hint: "Portrait 1080×1350 and square 1080×1080, each exported and checked.", detail: true, owner: "freelancer" },
+  { group: "Canva templates · Masters", label: "T2 Design consideration", hint: "Portrait 1080×1350 and square 1080×1080, each exported and checked.", detail: true, owner: "freelancer" },
+  { group: "Canva templates · Masters", label: "E1 Expert perspective", hint: "Portrait 1080×1350 and square 1080×1080, each exported and checked.", detail: true, owner: "freelancer" },
+  { group: "Canva templates · Masters", label: "E2 On-site expertise", hint: "Portrait 1080×1350 and square 1080×1080, each exported and checked.", detail: true, owner: "freelancer" },
+  { group: "Canva templates · Masters", label: "K1 Knowledge carousel", hint: "Portrait 1080×1350 and square 1080×1080, each exported and checked.", detail: true, owner: "freelancer" },
+  { group: "Canva templates · Masters", label: "K2 Engineering insight", hint: "Portrait 1080×1350 and square 1080×1080, each exported and checked.", detail: true, owner: "freelancer" },
+  { group: "Canva templates · Masters", label: "N1 Announcement", hint: "Portrait 1080×1350 and square 1080×1080, each exported and checked.", detail: true, owner: "freelancer" },
+  { group: "Canva templates · Masters", label: "N2 Achievement or event", hint: "Portrait 1080×1350 and square 1080×1080, each exported and checked.", detail: true, owner: "freelancer" },
+  { group: "Canva templates · Masters", label: "Five-slide knowledge carousel populated as an example", detail: true, owner: "freelancer" },
+  { group: "Canva templates · Masters", label: "Canva templates ready", hint: "All masters checked, saved by template ID.", owner: "maria" },
+
+  // Handoff
+  { group: "Freelancer handoff · The pack", label: "Strategy brain, brand guide and Canva folder linked on the client's page", detail: true, owner: "niamh" },
+  { group: "Freelancer handoff · The pack", label: "Freelancer briefed on the pack", detail: true, owner: "maria" },
+  { group: "Freelancer handoff · The pack", label: "Freelancer can pick a master, swap text and assets, export both sizes and pass the checklist without reinterpreting the strategy", detail: true, owner: "maria" },
+  { group: "Freelancer handoff · The pack", label: "Pack handed to the freelancer", hint: "From here the freelancer builds ideas, posts and captions.", owner: "maria" },
+];
+
+/** The six checklist areas that are ticked off by hand. Group names place each step in an area. */
+export const areaDefs = [
+  { id: "onboarding", label: "Onboarding", color: "#2F6FDB", blurb: "The deal, the questionnaire and our setup.", groups: ["1 · The deal", "2 · Questionnaire", "5 · Baseline", "6 · Our setup"] },
+  { id: "access", label: "Access", color: "#1D9E5A", blurb: "Who can get into which account.", groups: ["3 · Access"] },
+  { id: "brain", label: "Strategy brain", color: "#7C5CD6", blurb: "The research the freelancer builds ideas from.", groups: ["Strategy brain · Research", "Strategy brain · Sign-off"] },
+  { id: "brand", label: "Brand & creative guide", color: "#D6457A", blurb: "Positioning, visual identity, rules and quality sign-off.", groups: ["4 · Brand assets", "Brand guide · 1 Positioning & audience", "Brand guide · 2 Visual identity", "Brand guide · 3 Social treatments", "Brand guide · 4 Freelancer rules", "Brand guide · 5 Quality & sign-off"] },
+  { id: "templates", label: "Canva templates", color: "#E08A1E", blurb: "Editable masters in portrait and square.", groups: ["Canva templates · Setup", "Canva templates · Masters"] },
+  { id: "handoff", label: "Freelancer handoff", color: "#0F8F8F", blurb: "Kick-off, first plan and handing over the pack.", groups: ["7 · Kick-off and first plan", "Freelancer handoff · The pack"] },
+] as const;
+
+/** Everything a brand-new client starts with. */
+export const newClientChecklist = (prefix: string, freelancerId?: string): CheckItem[] => [
+  ...makeChecklist(clientChecklistTemplate, prefix, 0, [], freelancerId),
+  ...makeChecklist(packChecklistTemplate, `${prefix}p`, 0, [], freelancerId),
+];
+
+/** Sample clients: the first `received` pack steps are done, in template order, and a few more are marked as asked. */
+const withPack = (prefix: string, received: number, requested: number[] = [], freelancerId?: string) => makeChecklist(packChecklistTemplate, `${prefix}p`, received, requested, freelancerId);
+
 export const freelancerChecklistTemplate: Template[] = [
   { group: "Profile", label: "Contact details, role and speciality", owner: "niamh" },
   { group: "Profile", label: "Rate, currency and payment method", owner: "maria" },
@@ -96,6 +174,7 @@ export function makeChecklist(template: Template[], prefix: string, received = 0
     label: item.label,
     hint: item.hint,
     soft: item.soft,
+    detail: item.detail,
     owner: item.owner === "freelancer" ? freelancerId ?? "niamh" : item.owner,
     status: index < received ? "Received" : requested.includes(index) ? "Requested" : "Not asked",
     date: index < received ? ago(Math.max(1, Math.min(received, 40) - index)) : requested.includes(index) ? ago(4) : "",
@@ -191,7 +270,7 @@ const baseClient = (c: Partial<Client> & Pick<Client, "id" | "name" | "color">):
   agreedPosts: 8,
   platforms: ["LinkedIn"],
   startDate: ago(60),
-  links: { drive: "", canva: "", publer: "", chat: "", brandKit: "" },
+  links: { drive: "", canva: "", publer: "", chat: "", brandKit: "", guide: "", brain: "" },
   checklist: [],
   strategy: strategy({}),
   hours: {},
@@ -370,6 +449,28 @@ export const clients: Client[] = [
   }),
 ];
 
+// New areas for the sample clients. Clients that started before this process was written are being backfilled.
+const handedOver = { "Strategy brain, brand guide": "Received", "Freelancer briefed": "Received", "Pack handed": "Received" } as const;
+const packFor: Record<string, CheckItem[]> = {
+  marker: withStatus(withPack("marker", 36, [36, 37, 38], "chelsie"), { ...handedOver, "Canva templates ready": "Requested" }),
+  housebuild: withPack("housebuild", 46, [], "velinda"),
+  buildregs: withStatus(withPack("buildregs", 33, [33, 34], "ryan"), { ...handedOver, "Canva templates ready": "Requested" }),
+  element: withPack("element", 22, [22, 23], "eve"),
+  fireregs: withPack("fireregs", 6, [6, 7], "eve"),
+  energyfix: withPack("energyfix", 0, [], undefined),
+  capcon: withPack("capcon", 0, [0, 1], undefined),
+};
+const packLinks: Record<string, { guide?: string; brain?: string }> = {
+  marker: { guide: "https://docs.google.com/", brain: "https://docs.google.com/" },
+  housebuild: { guide: "https://docs.google.com/", brain: "https://docs.google.com/" },
+  buildregs: { guide: "https://docs.google.com/", brain: "https://docs.google.com/" },
+  element: { brain: "https://docs.google.com/" },
+};
+clients.forEach((client) => {
+  client.checklist = [...client.checklist, ...(packFor[client.id] ?? [])];
+  client.links = { ...client.links, ...packLinks[client.id] };
+});
+
 // ─── Posts ───
 const post = (p: Partial<Post> & Pick<Post, "id" | "clientId" | "title" | "status">): Post => ({
   format: "Single image",
@@ -428,6 +529,7 @@ export const posts: Post[] = [
     captions: { Instagram: "One partner. Multiple areas of expertise. Swipe to see what we do and where we work. Follow for practical updates on building safety, Gateway approvals and fire strategy." },
     files: [img("mk1", "/posts/marker-01-hero.webp"), img("mk2", "/posts/marker-02-what-we-do.webp"), img("mk3", "/posts/marker-03-fire-access.webp"), img("mk4", "/posts/marker-04-where-we-work.png"), img("mk5", "/posts/marker-05-stay-informed.webp")],
     designLink: "https://www.canva.com/", needsExpert: true, expertOk: false,
+    qa: ["q1", "q2", "q3", "q4", "q5", "q6", "q7", "q8", "q9"],
     comments: [{ id: "mkc1", by: "chelsie", body: "Five slides: intro, services, fire & access, where we work, follow CTA. Copy is from their capability statement.", at: ago(2), kind: "comment" }],
   }),
   post({ id: "m6", clientId: "marker", title: "Fire door signage: what each sign means", format: "Carousel", pillarId: "pl2", status: "Published", date: day(9), copy: "Five signs, five meanings. Save this for your next walk-round.", liveUrl: "https://www.linkedin.com/", art: "What each fire door sign means" }),
@@ -491,7 +593,7 @@ export const leads: Lead[] = [
 
 export function seedState(): State {
   return {
-    version: 3,
+    version: 4,
     me: "maria",
     month: thisMonth,
     people,

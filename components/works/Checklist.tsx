@@ -31,15 +31,23 @@ export function PhaseChecklist({
   onToggle,
   onUpdate,
   copyGroup,
+  onAdd,
+  onRemove,
+  addLabel = "Add a step for this client…",
 }: {
   items: CheckItem[];
   onToggle: (id: string) => void;
   onUpdate: (id: string, patch: Partial<CheckItem>) => void;
   copyGroup?: string;
+  onAdd?: (title: string) => void;
+  onRemove?: (id: string) => void;
+  addLabel?: string;
 }) {
   const { state, ping } = useStore();
   const [hideDone, setHideDone] = useState(false);
   const [open, setOpen] = useState("");
+  const [draft, setDraft] = useState("");
+  const hasDetail = items.some((item) => item.detail);
   const phases = [...new Set(items.map((item) => item.group))];
 
   return (
@@ -81,6 +89,7 @@ export function PhaseChecklist({
                       <button onClick={() => setOpen(expanded ? "" : item.id)} className="flex min-w-0 flex-1 items-center gap-2 text-left">
                         <span className={`text-[14px] ${done ? "text-[#9A958D] line-through" : "font-semibold"}`}>{item.label}</span>
                         {item.soft && <Chip className="!py-0 !text-[10px]">info</Chip>}
+                        {hasDetail && !item.soft && !item.detail && <Chip t="purple" className="!py-0 !text-[10px]">key step</Chip>}
                         {item.status === "Requested" && <Chip t="amber" className="!py-0 !text-[10px]">asked</Chip>}
                         {item.status === "N/A" && <Chip className="!py-0 !text-[10px]">N/A</Chip>}
                         <ChevronDown size={14} className={`shrink-0 text-[#B5B0A8] transition ${expanded ? "rotate-180" : ""}`} />
@@ -102,6 +111,7 @@ export function PhaseChecklist({
                           </select>
                           {!done && <button onClick={() => onUpdate(item.id, { status: item.status === "Requested" ? "Not asked" : "Requested" })} className="rounded-lg bg-[#FFF3D9] px-2.5 py-1 font-semibold text-[#94600A]">{item.status === "Requested" ? "Undo “asked”" : "Mark as asked / waiting"}</button>}
                           <button onClick={() => onUpdate(item.id, { status: item.status === "N/A" ? "Not asked" : "N/A" })} className="rounded-lg bg-[#F1F0ED] px-2.5 py-1 font-semibold text-[#55514B]">{item.status === "N/A" ? "Undo N/A" : "Not applicable"}</button>
+                          {onRemove && <button onClick={() => onRemove(item.id)} className="rounded-lg px-2.5 py-1 font-semibold text-[#B83232] hover:bg-[#FDECEC]">Remove step</button>}
                         </div>
                       </div>
                     )}
@@ -112,6 +122,12 @@ export function PhaseChecklist({
           </section>
         );
       })}
+      {onAdd && (
+        <form onSubmit={(event) => { event.preventDefault(); if (!draft.trim()) return; onAdd(draft.trim()); setDraft(""); }} className="flex flex-wrap gap-2 rounded-2xl border border-dashed border-[#D6D1C8] bg-[#FBFAF8] p-3">
+          <input value={draft} onChange={(event) => setDraft(event.target.value)} placeholder={addLabel} aria-label="New step" className="min-w-[220px] flex-1 rounded-xl border border-[#E2DED7] bg-white px-3 py-2 text-[13px] outline-none focus:border-[#2F6FDB]" />
+          <Button kind="primary" size="sm" type="submit">Add step</Button>
+        </form>
+      )}
     </div>
   );
 }

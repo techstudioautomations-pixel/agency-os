@@ -8,7 +8,7 @@ The operating system for The Works: one place for client checklists, freelancer 
 |---|---|---|
 | Today | Everyone | Greeting, the posts in review (as artwork), what goes out this week, clients at a glance with post thumbnails, and who is on which account |
 | Clients | Owners, operations | Each client card with recent artwork, onboarding light and freelancer |
-| Client page | Owners, operations | Overview, Onboarding (tick-list by phase), Access (who can get in, never passwords), Reporting (attach and tick each month), Files & links, Finance (owners: fee, invoice, payout, costs on this client) |
+| Client page | Owners, operations (freelancers see Marketing and Reporting only) | Overview, Checklists (one card per area, open any area for its full tick-list and add steps for this client), Access, Reporting, Files & links, Finance (owners) |
 | Marketing | Everyone (freelancers see their own clients) | Pick a client or all clients: Posts (artwork grid by who acts next), Calendar (drag to move, open slots for agreed posts), Ideas (upload a document, approve / maybe / reject), Strategy (offer, personas, pillars), Results (freelancer month-end report) |
 | Post review | Everyone | Artwork and caption as they will appear, one conversation with change requests to tick off, the next action at the bottom, edit panel for the freelancer, Next for you |
 | Reports | Everyone | Month-end per client: freelancer report in, client report sent, finance statement sent (owners) |
@@ -18,6 +18,10 @@ The operating system for The Works: one place for client checklists, freelancer 
 | How we work | Everyone | The SOPs as visual flows and the agreed rules |
 
 Use the name at the bottom of the sidebar to preview the OS as María, Gareth, Niamh (operations) or a freelancer.
+
+## Checklist areas on every client
+
+Each client has eight areas. Six are ticked by hand: Onboarding, Access, Strategy brain (the research), Brand & creative guide (positioning, visual identity, social treatments, freelancer rules, quality sign-off, following Garrett's guide), Canva templates (ten editable masters in portrait and square) and Freelancer handoff. Two fill themselves in from the work: Content this month, and Reports & money. Key steps decide whether a client is ready for production; the detail steps track the work inside an area. Steps can be added or removed per client. The freelancer sees a starter pack (guide, brain, Canva templates) at the top of Marketing, and a quality checklist on every post.
 
 ## How a post moves
 

@@ -6,7 +6,8 @@ import { useStore } from "@/lib/works/store";
 import { canBeAssigned, gate, isFreelancer, isOwner, missing, money, monthName, nameOf, personById, progress, shiftMonth, shortDate, todayIso } from "@/lib/works/logic";
 import type { AccessItem, ApprovalMode, Client, ClientFile } from "@/lib/works/types";
 import { Shell } from "./Shell";
-import { GateBanner, PhaseChecklist } from "./Checklist";
+import { GateBanner } from "./Checklist";
+import { AreaDetail, AreaGrid, AreaStrip } from "./Areas";
 import { PostArt } from "./PostArt";
 import { AttachField, Avatar, Bar, Button, Card, CardHead, Chip, ClientMark, Empty, Field, Light, Ring, Segmented, fieldClass, tone } from "./kit";
 
@@ -39,7 +40,7 @@ export function ClientsList() {
       </div>
       {adding && (
         <Card className="mb-4">
-          <form onSubmit={(event) => { event.preventDefault(); if (!name.trim()) return; const id = addClient(name.trim()); setAdding(false); setName(""); go({ view: "client", clientId: id, tab: "onboarding" }); }} className="flex flex-wrap items-end gap-3">
+          <form onSubmit={(event) => { event.preventDefault(); if (!name.trim()) return; const id = addClient(name.trim()); setAdding(false); setName(""); go({ view: "client", clientId: id, tab: "checklists" }); }} className="flex flex-wrap items-end gap-3">
             <div className="min-w-[240px] flex-1"><Field label="Client name"><input autoFocus value={name} onChange={(event) => setName(event.target.value)} className={fieldClass} placeholder="Company name" /></Field></div>
             <Button kind="primary" type="submit">Create and start onboarding</Button>
             <Button type="button" kind="ghost" onClick={() => setAdding(false)}>Cancel</Button>
@@ -79,7 +80,7 @@ export function ClientsList() {
 }
 
 // ─── Profile ───
-export function ClientProfile({ clientId, tab }: { clientId: string; tab?: string }) {
+export function ClientProfile({ clientId, tab, sub }: { clientId: string; tab?: string; sub?: string }) {
   const { state, go } = useStore();
   const client = state.clients.find((item) => item.id === clientId);
   const owner = isOwner(state);
@@ -87,7 +88,7 @@ export function ClientProfile({ clientId, tab }: { clientId: string; tab?: strin
 
   const tabs = [
     { value: "overview", label: "Overview" },
-    { value: "onboarding", label: "Onboarding", count: missing(client.checklist).filter((item) => !item.soft).length },
+    { value: "checklists", label: "Checklists", count: missing(client.checklist).filter((item) => !item.soft && !item.detail).length },
     { value: "access", label: "Access" },
     { value: "reporting", label: "Reporting" },
     { value: "files", label: "Files & links" },
@@ -122,7 +123,7 @@ export function ClientProfile({ clientId, tab }: { clientId: string; tab?: strin
         ))}
       </div>
       {current === "overview" && <Overview client={client} />}
-      {current === "onboarding" && <Onboarding client={client} />}
+      {current === "checklists" && <Checklists client={client} sub={sub} />}
       {current === "access" && <Access client={client} />}
       {current === "reporting" && <Reporting client={client} />}
       {current === "files" && <Files client={client} />}
@@ -159,9 +160,9 @@ function Overview({ client }: { client: Client }) {
   return (
     <div className="space-y-5">
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <button onClick={() => go({ view: "client", clientId: client.id, tab: "onboarding" })} className="flex items-center gap-3 rounded-2xl border border-[#E9E6E0] bg-white p-4 text-left">
+        <button onClick={() => go({ view: "client", clientId: client.id, tab: "checklists" })} className="flex items-center gap-3 rounded-2xl border border-[#E9E6E0] bg-white p-4 text-left">
           <Ring value={p.percent} size={48} color={tone[g.light].dot} />
-          <span><span className="block text-[12px] font-semibold text-[#8B867E]">Onboarding</span><span className="text-[14px] font-bold">{g.light === "green" ? "Complete" : `${g.blocking.length} to do`}</span></span>
+          <span><span className="block text-[12px] font-semibold text-[#8B867E]">Checklists</span><span className="text-[14px] font-bold">{g.light === "green" ? "Ready for production" : `${g.blocking.length} key step${g.blocking.length === 1 ? "" : "s"} open`}</span></span>
         </button>
         <button onClick={() => go({ view: "marketing", clientId: client.id })} className="rounded-2xl border border-[#E9E6E0] bg-white p-4 text-left">
           <span className="block text-[12px] font-semibold text-[#8B867E]">{monthName(state.month).split(" ")[0]} posts approved</span>
@@ -177,6 +178,8 @@ function Overview({ client }: { client: Client }) {
           <span className={`mt-1 block text-[14px] font-bold ${report?.sentAt ? "text-[#17804A]" : client.startDate.slice(0, 7) > lastMonth ? "text-[#8B867E]" : "text-[#B83232]"}`}>{report?.sentAt ? `✓ Sent ${shortDate(report.sentAt)}` : client.startDate.slice(0, 7) > lastMonth ? "Not due yet" : "Not sent yet"}</span>
         </button>
       </div>
+
+      <AreaStrip client={client} />
 
       <Card>
         <CardHead title={`${monthName(state.month)} posts`} sub={`${posts.length} of ${client.agreedPosts} agreed posts planned`} right={<Button size="sm" onClick={() => go({ view: "marketing", clientId: client.id })}>Open marketing <ArrowRight size={13} /></Button>} />
@@ -219,7 +222,7 @@ function Overview({ client }: { client: Client }) {
           <Row label="Client since" value={shortDate(client.startDate)} editing={false} />
           {owner && <Row label="Monthly fee" value={money(client.fee + client.addOnFee, state.settings.currency)} editing={false} />}
           {g.blocking.length > 0 && (
-            <button onClick={() => go({ view: "client", clientId: client.id, tab: "onboarding" })} className="mt-3 flex w-full items-center gap-2 rounded-xl bg-[#FDECEC] px-3 py-2.5 text-left text-[13px] font-semibold text-[#B83232]">
+            <button onClick={() => go({ view: "client", clientId: client.id, tab: "checklists" })} className="mt-3 flex w-full items-center gap-2 rounded-xl bg-[#FDECEC] px-3 py-2.5 text-left text-[13px] font-semibold text-[#B83232]">
               <ShieldAlert size={15} className="shrink-0" /><span className="truncate">Still missing: {g.blocking.slice(0, 2).map((item) => item.label.split(":")[0]).join(", ")}{g.blocking.length > 2 ? ` +${g.blocking.length - 2}` : ""}</span>
               <ArrowRight size={14} className="ml-auto shrink-0" />
             </button>
@@ -230,12 +233,11 @@ function Overview({ client }: { client: Client }) {
   );
 }
 
-function Onboarding({ client }: { client: Client }) {
-  const { toggleCheck, updateCheck } = useStore();
+function Checklists({ client, sub }: { client: Client; sub?: string }) {
   return (
     <div className="space-y-4">
-      <GateBanner items={client.checklist} />
-      <PhaseChecklist items={client.checklist} onToggle={(id) => toggleCheck(client.id, id)} onUpdate={(id, patch) => updateCheck(client.id, id, patch)} copyGroup="2 · Questionnaire" />
+      {!sub && <GateBanner items={client.checklist} readyText="Ready for production: every key step is done" />}
+      {sub ? <AreaDetail client={client} areaId={sub} /> : <AreaGrid client={client} />}
     </div>
   );
 }
@@ -384,11 +386,11 @@ function Files({ client }: { client: Client }) {
       </Card>
       <Card>
         <CardHead title="Workspace links" />
-        {([["drive", "Drive folder"], ["canva", "Canva folder"], ["brandKit", "Brand kit"], ["publer", "Publer"], ["chat", `${client.channel} channel`]] as [keyof Client["links"], string][]).map(([key, label]) => (
+        {([["guide", "Brand guide"], ["brain", "Strategy brain"], ["canva", "Canva templates"], ["drive", "Drive folder"], ["brandKit", "Canva brand kit"], ["publer", "Publishing tool"], ["chat", client.channel === "Email" ? "Email thread" : `${client.channel} space`]] as [keyof Client["links"], string][]).map(([key, label]) => (
           <div key={key} className="flex items-center gap-2 border-b border-[#F3F1ED] py-2.5 last:border-0">
             <span className="w-28 shrink-0 text-[13px] font-semibold">{label}</span>
-            <input value={client.links[key]} onChange={(event) => setLink(key, event.target.value)} placeholder="https://…" aria-label={label} className="min-w-0 flex-1 rounded-lg border border-[#E2DED7] px-2.5 py-1.5 text-[13px] outline-none focus:border-[#2F6FDB]" />
-            {/^https?:/.test(client.links[key]) && <a href={client.links[key]} target="_blank" rel="noreferrer" aria-label={`Open ${label}`} className="text-[#1F5BC4]"><ExternalLink size={15} /></a>}
+            <input value={client.links[key] ?? ""} onChange={(event) => setLink(key, event.target.value)} placeholder="https://…" aria-label={label} className="min-w-0 flex-1 rounded-lg border border-[#E2DED7] px-2.5 py-1.5 text-[13px] outline-none focus:border-[#2F6FDB]" />
+            {/^https?:/.test(client.links[key] ?? "") && <a href={client.links[key]} target="_blank" rel="noreferrer" aria-label={`Open ${label}`} className="text-[#1F5BC4]"><ExternalLink size={15} /></a>}
           </div>
         ))}
       </Card>

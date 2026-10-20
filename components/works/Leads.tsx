@@ -75,7 +75,7 @@ export function Leads({ leadId }: { leadId?: string }) {
             {won.map((lead) => (
               <li key={lead.id} className="flex items-center gap-2 rounded-xl bg-[#E7F6EE] px-3 py-2.5 text-[13px]">
                 <b className="flex-1">{lead.company}</b>
-                {lead.clientId && <button onClick={() => go({ view: "client", clientId: lead.clientId!, tab: "onboarding" })} className="inline-flex items-center gap-1 font-semibold text-[#17804A]">Onboarding <ArrowRight size={13} /></button>}
+                {lead.clientId && <button onClick={() => go({ view: "client", clientId: lead.clientId!, tab: "checklists" })} className="inline-flex items-center gap-1 font-semibold text-[#17804A]">Onboarding <ArrowRight size={13} /></button>}
               </li>
             ))}
             {won.length === 0 && <li className="text-[13px] text-[#8B867E]">None yet this period.</li>}
@@ -108,7 +108,7 @@ function LeadPanel({ lead, onClose }: { lead: Lead; onClose: () => void }) {
           <div className="mt-1 flex items-center gap-2 text-[13px] text-[#6B6760]">{owner && <Avatar name={owner.name} color={owner.color} size={20} />}Owner: {nameOf(state, lead.ownerId)} · {lead.stage}</div>
         </div>
         {lead.stage !== "Won" && (
-          <Button kind="good" onClick={() => { const id = store.winLead(lead.id); go({ view: "client", clientId: id, tab: "onboarding" }); }}><Trophy size={15} />Mark as won</Button>
+          <Button kind="good" onClick={() => { const id = store.winLead(lead.id); go({ view: "client", clientId: id, tab: "checklists" }); }}><Trophy size={15} />Mark as won</Button>
         )}
         {lead.stage !== "Lost" && lead.stage !== "Won" && <Button kind="danger" onClick={() => set({ stage: "Lost", followUp: "" })}>Lost</Button>}
         <button onClick={onClose} aria-label="Close" className="rounded-lg p-2 text-[#8B867E] hover:bg-[#F1F0ED]"><X size={18} /></button>

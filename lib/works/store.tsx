@@ -1,11 +1,11 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { clientChecklistTemplate, makeChecklist, seedState } from "./seed";
+import { newClientChecklist, seedState } from "./seed";
 import { canBeAssigned, nameOf, reviewerFor, todayIso } from "./logic";
 import type { CheckItem, Client, Idea, Lead, MonthReport, Notice, Post, ReportNumbers, RevisionCategory, Route, State } from "./types";
 
-const KEY = "theworks-os-v3";
+const KEY = "theworks-os-v4";
 const uid = (prefix: string) => `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
 const stamp = () => new Date().toISOString();
 
@@ -63,7 +63,7 @@ function useStoreValue() {
       const saved = window.localStorage.getItem(KEY);
       if (saved) {
         const parsed = JSON.parse(saved) as State;
-        if (parsed.version === 3) setState(parsed);
+        if (parsed.version === 4) setState(parsed);
       }
     } catch {
       /* private mode or corrupt data: start from the sample */
@@ -138,6 +138,19 @@ function useStoreValue() {
         ping("Cost added. It also shows in Finance.");
       },
       removeCost: (clientId: string, id: string) => update((d) => { const client = d.clients.find((c) => c.id === clientId)!; client.costs = client.costs.filter((item) => item.id !== id); }),
+      addCheck: (clientId: string, areaId: string, title: string) => {
+        update((d) => {
+          d.clients.find((c) => c.id === clientId)!.checklist.push({ id: uid("custom"), group: "Added for this client", area: areaId, label: title, owner: "maria", status: "Not asked", date: "", note: "" });
+        });
+        ping("Step added for this client");
+      },
+      removeCheck: (clientId: string, itemId: string) => update((d) => { const client = d.clients.find((c) => c.id === clientId)!; client.checklist = client.checklist.filter((item) => item.id !== itemId); }),
+      toggleQa: (postId: string, itemId: string) =>
+        update((d) => {
+          const post = d.posts.find((item) => item.id === postId)!;
+          const list = post.qa ?? [];
+          post.qa = list.includes(itemId) ? list.filter((id) => id !== itemId) : [...list, itemId];
+        }),
       toggleCheck: (clientId: string, itemId: string) =>
         update((d) => {
           const item = d.clients.find((c) => c.id === clientId)!.checklist.find((entry) => entry.id === itemId)!;
@@ -174,7 +187,7 @@ function useStoreValue() {
         let id = name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || uid("client");
         if (stateRef.current.clients.some((client) => client.id === id)) id = `${id}-${Date.now().toString(36)}`;
         update((d) => {
-          const checklist = makeChecklist(clientChecklistTemplate, id, 0);
+          const checklist = newClientChecklist(id);
           checklist.forEach((item) => { if (item.label === "Client profile created") { item.status = "Received"; item.date = todayIso(); } });
           d.clients.push({
             id, name, color: "#5A6B7D", sector: "Construction", package: "Essential", addOns: [], stage: "Onboarding", approvalMode: d.settings.defaultApprovalMode,
@@ -182,7 +195,7 @@ function useStoreValue() {
             freelancerFee: 0, fee: 0, addOnFee: 0, agreedPosts: 8, platforms: ["LinkedIn"], startDate: todayIso(), links: { drive: "", canva: "", publer: "", chat: "", brandKit: "" }, checklist,
             strategy: { offer: "", services: "", personas: [], pillars: [], tone: "", avoid: "", claims: "", approved: false }, hours: {}, planApproval: {}, access: [], files: [], costs: [],
           });
-          notify(d, "niamh", `New client to set up: ${name}`, { view: "client", clientId: id, tab: "onboarding" });
+          notify(d, "niamh", `New client to set up: ${name}`, { view: "client", clientId: id, tab: "checklists" });
         });
         ping(`${name} created with the onboarding checklist`);
         return id;
@@ -393,7 +406,7 @@ function useStoreValue() {
         if (stateRef.current.clients.some((client) => client.id === clientId)) clientId = `${clientId}-${Date.now().toString(36)}`;
         update((d) => {
           const lead = d.leads.find((item) => item.id === id)!;
-          const checklist = makeChecklist(clientChecklistTemplate, clientId, 0);
+          const checklist = newClientChecklist(clientId);
           checklist.forEach((item) => {
             if (item.label.startsWith("Package") && lead.package !== "Not sure") { item.status = "Received"; item.date = todayIso(); item.note = lead.package; }
             if (item.label === "Client profile created") { item.status = "Received"; item.date = todayIso(); }
@@ -408,8 +421,8 @@ function useStoreValue() {
           d.invoices.push({ clientId, month: d.month, status: "Not sent", date: "" });
           lead.stage = "Won";
           lead.clientId = clientId;
-          notify(d, "maria", `${lead.company} is won. Over to you for onboarding.`, { view: "client", clientId, tab: "onboarding" });
-          notify(d, "niamh", `New client to set up: ${lead.company}`, { view: "client", clientId, tab: "onboarding" });
+          notify(d, "maria", `${lead.company} is won. Over to you for onboarding.`, { view: "client", clientId, tab: "checklists" });
+          notify(d, "niamh", `New client to set up: ${lead.company}`, { view: "client", clientId, tab: "checklists" });
         });
         ping("Client created. María and operations have been notified.");
         return clientId;

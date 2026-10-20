@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Check, ChevronLeft, ChevronRight, Download, ExternalLink, Pencil, ShieldCheck, Trash2, UploadCloud, X } from "lucide-react";
 import { useStore } from "@/lib/works/store";
-import { ago, isFreelancer, isOwner, nameOf, personById, reviewerFor, shortDate, stageOf, stages, turnOf } from "@/lib/works/logic";
+import { ago, isFreelancer, isOwner, nameOf, personById, qaGroups, qaItemsFor, qaProgress, reviewerFor, shortDate, stageOf, stages, turnOf } from "@/lib/works/logic";
 import type { Client, Post, PostFile, RevisionCategory } from "@/lib/works/types";
 import { buildZip, safeName } from "@/lib/zip";
 import { PostArt } from "./PostArt";
@@ -59,6 +59,7 @@ export function PostReview({ post, client, backScope }: { post: Post; client: Cl
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1.1fr)_minmax(380px,.9fr)]">
         <div className="min-w-0">
           {editing ? <PostEditor post={post} onDone={() => setEditing(false)} /> : <PostPreviewPanel post={post} client={client} canEdit={canEdit} onEdit={() => setEditing(true)} />}
+          <QualityCard post={post} />
         </div>
         <Conversation post={post} client={client} mine={mine} />
       </div>
@@ -302,7 +303,7 @@ function Conversation({ post, client, mine }: { post: Post; client: Client; mine
     action = (
       <div className="space-y-2">
         {openChanges > 0 && <p className="rounded-xl bg-[#FFF3D9] px-3 py-2 text-[12px] font-semibold text-[#94600A]">{openChanges} change{openChanges === 1 ? "" : "s"} to fix. Tick them in the chat as you go.</p>}
-        <Button kind="primary" className="w-full" onClick={() => { if (openChanges && !window.confirm("Some changes are not ticked off. Submit anyway?")) return; store.submitPost(post.id); }}>
+        <Button kind="primary" className="w-full" onClick={() => { const qa = qaProgress(post); if (openChanges && !window.confirm("Some changes are not ticked off. Submit anyway?")) return; if (qa.missing > 0 && !window.confirm(`${qa.missing} item${qa.missing === 1 ? "" : "s"} on the quality checklist are not ticked. Submit anyway?`)) return; store.submitPost(post.id); }}>
           Submit {post.status === "Copy in progress" ? "copy" : "design"} for review <ArrowRight size={15} />
         </Button>
         <p className="text-center text-[11px] text-[#8B867E]">{nameOf(state, reviewer)} is notified by email and here.</p>
@@ -392,3 +393,43 @@ function Conversation({ post, client, mine }: { post: Post; client: Client; mine
   );
 }
 
+
+// ─── Quality checklist: the freelancer ticks it before submitting, the reviewer sees it ───
+function QualityCard({ post }: { post: Post }) {
+  const store = useStore();
+  const progress = qaProgress(post);
+  const applicable = new Set(qaItemsFor(post).map((item) => item.id));
+  const ticked = new Set(post.qa ?? []);
+  const [open, setOpen] = useState(post.status.endsWith("progress"));
+  return (
+    <section className="mt-4 overflow-hidden rounded-2xl border border-[#E9E6E0] bg-white">
+      <button onClick={() => setOpen(!open)} aria-expanded={open} className="flex w-full items-center gap-3 px-4 py-3 text-left">
+        <span className={`grid h-8 w-8 shrink-0 place-items-center rounded-lg text-white ${progress.missing === 0 ? "bg-[#1D9E5A]" : "bg-[#7C5CD6]"}`}><Check size={16} strokeWidth={3} /></span>
+        <span className="flex-1"><span className="block text-[14px] font-bold">Quality checklist</span><span className="block text-[12px] text-[#8B867E]">From the brand guide. Tick each before it goes for review.</span></span>
+        <span className="text-[13px] font-bold">{progress.ticked}/{progress.total}</span>
+      </button>
+      {open && (
+        <div className="space-y-4 border-t border-[#F0EEE9] px-4 py-4">
+          {qaGroups.map((group) => {
+            const items = group.items.filter((item) => applicable.has(item.id));
+            return (
+              <div key={group.title}>
+                <div className="mb-1.5 text-[12px] font-bold uppercase tracking-wide text-[#8B867E]">{group.title}</div>
+                <ul className="space-y-1.5">
+                  {items.map((item) => (
+                    <li key={item.id}>
+                      <label className="flex cursor-pointer items-start gap-2.5 text-[13px]">
+                        <input type="checkbox" checked={ticked.has(item.id)} onChange={() => store.toggleQa(post.id, item.id)} className="mt-0.5 h-4 w-4 shrink-0" />
+                        <span className={ticked.has(item.id) ? "text-[#9A958D] line-through" : ""}>{item.text}</span>
+                      </label>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </section>
+  );
+}

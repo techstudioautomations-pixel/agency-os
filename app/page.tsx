@@ -17,7 +17,7 @@ function Screen() {
     case "clients":
       return <ClientsList />;
     case "client":
-      return <ClientProfile clientId={route.clientId} tab={route.tab} />;
+      return <ClientProfile clientId={route.clientId} tab={route.tab} sub={route.sub} />;
     case "marketing":
       return <MarketingPage clientId={route.clientId} tab={route.tab} postId={route.postId} />;
     case "reports":

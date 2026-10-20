@@ -1,9 +1,9 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { ArrowRight, Check, FileUp, MessageCircle, Plus, Trash2 } from "lucide-react";
+import { ArrowRight, Check, ExternalLink, FileUp, MessageCircle, Plus, Trash2 } from "lucide-react";
 import { useStore } from "@/lib/works/store";
-import { docxText, isFreelancer, monthName, myClients, nameOf, personById, shortDate, splitIdeas, stageOf, todayIso, turnOf } from "@/lib/works/logic";
+import { areaItems, docxText, isFreelancer, monthName, myClients, nameOf, personById, progress, shortDate, splitIdeas, stageOf, todayIso, turnOf } from "@/lib/works/logic";
 import type { Client, Idea, IdeaDecision, Persona, Pillar, Post, ReportNumbers, Strategy } from "@/lib/works/types";
 import { Shell } from "./Shell";
 import { PostArt } from "./PostArt";
@@ -62,6 +62,7 @@ export function MarketingPage({ clientId, tab, postId }: { clientId?: string; ta
           </button>
         ))}
       </div>
+      {client && <StarterPack client={client} />}
       <div className="mb-5 flex gap-1 overflow-x-auto border-b border-[#E9E6E0]">
         {tabs.map((item) => (
           <button key={item.value} onClick={() => to({ tab: item.value })} className={`-mb-px shrink-0 border-b-2 px-4 py-2.5 text-[14px] font-semibold ${current === item.value ? "border-[#1E2430] text-[#1E2430]" : "border-transparent text-[#8B867E] hover:text-[#1E2430]"}`}>
@@ -75,6 +76,48 @@ export function MarketingPage({ clientId, tab, postId }: { clientId?: string; ta
       {current === "strategy" && (client ? <StrategyView client={client} /> : <PickClient what="the strategy" />)}
       {current === "results" && <Results client={client} />}
     </Shell>
+  );
+}
+
+/** The three documents a freelancer starts from, so they do not have to reinterpret the strategy. */
+function StarterPack({ client }: { client: Client }) {
+  const { state, go } = useStore();
+  const freelancer = isFreelancer(state);
+  const handed = client.checklist.some((item) => item.label.startsWith("Pack handed") && item.status === "Received");
+  const packItems = ["brain", "brand", "templates", "handoff"].flatMap((id) => areaItems(client.checklist, id));
+  const p = progress(packItems);
+  const tiles = [
+    { label: "Brand & creative guide", note: "Positioning, tone, visual rules", url: client.links.guide ?? "", area: "brand", color: "#D6457A" },
+    { label: "Strategy brain", note: "Research, audiences, claims", url: client.links.brain ?? "", area: "brain", color: "#7C5CD6" },
+    { label: "Canva templates", note: "Editable masters, both sizes", url: client.links.canva, area: "templates", color: "#E08A1E" },
+  ];
+  return (
+    <div className="mb-5 rounded-2xl border border-[#E9E6E0] bg-white p-4">
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <h3 className="text-[15px] font-bold">{freelancer ? "Your starter pack" : "Freelancer starter pack"}</h3>
+        {handed ? <Chip t="green" dot>Handed over</Chip> : <Chip t="amber" dot>Being prepared · {p.percent}%</Chip>}
+        {!freelancer && <button onClick={() => go({ view: "client", clientId: client.id, tab: "checklists" })} className="ml-auto text-[13px] font-semibold text-[#1F5BC4]">Checklists <ArrowRight size={12} className="inline" /></button>}
+      </div>
+      <div className="grid gap-2.5 sm:grid-cols-3">
+        {tiles.map((tile) => {
+          const ready = /^https?:/.test(tile.url);
+          const inner = (
+            <>
+              <span className="h-9 w-1.5 shrink-0 rounded-full" style={{ background: tile.color }} />
+              <span className="min-w-0 flex-1"><span className="block truncate text-[14px] font-bold">{tile.label}</span><span className="block truncate text-[12px] text-[#8B867E]">{ready ? tile.note : freelancer ? "Not added yet" : "Add the link"}</span></span>
+              {ready ? <ExternalLink size={15} className="shrink-0 text-[#1F5BC4]" /> : !freelancer && <Plus size={15} className="shrink-0 text-[#8B867E]" />}
+            </>
+          );
+          return ready ? (
+            <a key={tile.label} href={tile.url} target="_blank" rel="noreferrer" className="flex items-center gap-3 rounded-xl border border-[#EEEBE5] px-3 py-2.5 hover:border-[#C9C3B8]">{inner}</a>
+          ) : freelancer ? (
+            <div key={tile.label} className="flex items-center gap-3 rounded-xl border border-dashed border-[#E2DED7] bg-[#FBFAF8] px-3 py-2.5 opacity-70">{inner}</div>
+          ) : (
+            <button key={tile.label} onClick={() => go({ view: "client", clientId: client.id, tab: "checklists", sub: tile.area })} className="flex items-center gap-3 rounded-xl border border-dashed border-[#D6D1C8] bg-[#FBFAF8] px-3 py-2.5 text-left hover:border-[#2F6FDB]">{inner}</button>
+          );
+        })}
+      </div>
+    </div>
   );
 }
 
