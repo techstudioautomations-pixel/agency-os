@@ -1,10 +1,12 @@
 "use client";
 
-import { Bell, CalendarDays, ClipboardCheck, FileBarChart2, Handshake, Lightbulb, PenLine, Palette, Rocket, Send, ShieldCheck, UserCheck, Users } from "lucide-react";
-import type { ReactNode } from "react";
+import { Bell, CalendarDays, Check, ClipboardCheck, FileBarChart2, Lightbulb, MapPin, PenLine, Palette, Pencil, Plus, Send, ShieldCheck, Trash2 } from "lucide-react";
+import { useState, type ReactNode } from "react";
 import { useStore } from "@/lib/works/store";
 import { isFreelancer, isOwner, todayIso } from "@/lib/works/logic";
-import { asset, Button, Card, Chip, Field, fieldClass } from "./kit";
+import type { MonthMark } from "@/lib/works/types";
+import { asset, Button, Card, Chip, Field, Segmented, fieldClass } from "./kit";
+import { PlaybookView } from "./Playbook";
 import { Shell } from "./Shell";
 
 type Node = { icon: ReactNode; title: string; who: string; color: string; rule: string };
@@ -34,42 +36,92 @@ function Flow({ title, sub, nodes }: { title: string; sub: string; nodes: Node[]
   );
 }
 
+/** The month on one line. Edit the dates, names and notes; "you are here" follows today's date. */
 function MonthRibbon() {
-  const { state } = useStore();
-  const d = state.settings.dates;
-  const today = Number(todayIso().slice(8, 10));
-  const marks = [
-    { day: d.capture, label: "Capture call", who: "Client + María", color: "#2F6FDB" },
-    { day: d.plan, label: "Plan approved", who: "Reviewer → client", color: "#7C5CD6" },
-    { day: d.design, label: "Designs done", who: "Freelancer", color: "#E08A1E" },
-    { day: d.approval, label: "Client approval", who: "Operations logs it", color: "#E0567A" },
-    { day: d.schedule, label: "All scheduled", who: "Freelancer", color: "#1D9E5A" },
-  ];
+  const { state, updateSettings } = useStore();
+  const owner = isOwner(state);
+  const [editing, setEditing] = useState(false);
+  const marks = [...state.settings.monthLine].sort((x, y) => x.day - y.day);
+  const now = new Date(`${todayIso()}T12:00:00`);
+  const today = now.getDate();
+  const monthDays = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+  const upcoming = marks.find((mark) => mark.day >= today);
+  const current = [...marks].reverse().find((mark) => mark.day < today);
+  const save = (next: MonthMark[]) => {
+    const dates = { ...state.settings.dates };
+    for (const mark of next) if (mark.key) dates[mark.key] = mark.day;
+    updateSettings({ monthLine: next, dates });
+  };
+  const change = (id: string, patch: Partial<MonthMark>) => save(state.settings.monthLine.map((mark) => (mark.id === id ? { ...mark, ...patch, day: Math.max(1, Math.min(28, patch.day ?? mark.day)) } : mark)));
+  const palette = ["#2F6FDB", "#7C5CD6", "#E08A1E", "#E0567A", "#1D9E5A", "#0F8F8F"];
+
   return (
     <Card>
       <div className="flex flex-wrap items-end justify-between gap-2">
         <div>
           <h3 className="text-[18px] font-extrabold">The month on one line</h3>
-          <p className="mt-0.5 text-[13px] text-[#6B6760]">Every client runs on the same dates. Last month&apos;s report goes out in the first week.</p>
+          <p className="mt-0.5 text-[13px] text-[#6B6760]">Every client runs on the same dates. They are a first draft, so change them when we learn what works.</p>
         </div>
-        <Chip t="blue">Today is the {today}th</Chip>
+        <div className="flex items-center gap-2">
+          <Chip t="blue">Today is the {today}th</Chip>
+          {owner && <Button size="sm" kind={editing ? "primary" : "secondary"} onClick={() => setEditing(!editing)}>{editing ? <><Check size={13} />Done</> : <><Pencil size={13} />Edit</>}</Button>}
+        </div>
       </div>
-      <div className="relative mt-8 mb-2 h-2 rounded-full bg-[#EEECE7]">
-        <div className="absolute inset-y-0 left-0 rounded-full bg-[#C9D9F6]" style={{ width: `${Math.min(100, (today / 31) * 100)}%` }} />
+
+      <div className="relative mb-2 mt-12 h-2 rounded-full bg-[#EEECE7]">
+        <div className="absolute inset-y-0 left-0 rounded-full bg-[#C9D9F6]" style={{ width: `${Math.min(100, (today / monthDays) * 100)}%` }} />
         {marks.map((mark) => (
-          <div key={mark.label} className="absolute top-1/2 -translate-x-1/2 -translate-y-1/2" style={{ left: `${(mark.day / 31) * 100}%` }}>
-            <span className="grid h-8 w-8 place-items-center rounded-full border-4 border-white text-[11px] font-extrabold text-white shadow" style={{ background: mark.color }}>{mark.day}</span>
+          <div key={mark.id} className="absolute top-1/2 -translate-x-1/2 -translate-y-1/2" style={{ left: `${(mark.day / monthDays) * 100}%` }}>
+            <span className={`grid h-8 w-8 place-items-center rounded-full border-4 border-white text-[11px] font-extrabold text-white shadow ${mark.day < today ? "opacity-50" : ""}`} style={{ background: mark.color }}>{mark.day}</span>
           </div>
         ))}
+        <div className="absolute top-1/2 z-10 -translate-x-1/2" style={{ left: `${(today / monthDays) * 100}%` }}>
+          <span className="absolute -top-[42px] left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-[#1E2430] px-2.5 py-1 text-[11px] font-bold text-white">You are here</span>
+          <span className="absolute -top-[14px] left-1/2 h-[22px] w-0.5 -translate-x-1/2 bg-[#1E2430]" />
+        </div>
       </div>
-      <div className="mt-6 grid gap-2 sm:grid-cols-5">
+
+      <div className="mt-5 flex items-start gap-3 rounded-xl bg-[#F1F5FD] p-4">
+        <MapPin size={18} className="mt-0.5 shrink-0 text-[#1F5BC4]" />
+        <div className="text-[14px]">
+          {upcoming ? (
+            <>
+              <b>Next up: {upcoming.label}{upcoming.day === today ? " (today)" : ` by the ${upcoming.day}th`}.</b> <span className="text-[#55514B]">{upcoming.who}. {upcoming.note}</span>
+              {current && <div className="mt-1 text-[12px] text-[#6B6760]">Just passed: {current.label} (the {current.day}th).</div>}
+            </>
+          ) : (
+            <><b>This month&apos;s dates have all passed.</b> <span className="text-[#55514B]">Close the month: reports out, invoices paid, freelancers paid. Next month starts with {marks[0]?.label ?? "the capture call"} on the {marks[0]?.day}th.</span></>
+          )}
+        </div>
+      </div>
+
+      <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
         {marks.map((mark) => (
-          <div key={mark.label} className="rounded-xl p-3" style={{ background: `${mark.color}12` }}>
-            <div className="text-[13px] font-bold" style={{ color: mark.color }}>By the {mark.day}th</div>
-            <div className="text-[13px] font-semibold">{mark.label}</div>
-            <div className="text-[12px] text-[#6B6760]">{mark.who}</div>
+          <div key={mark.id} className={`rounded-xl p-3 ${mark.day < today && !editing ? "opacity-60" : ""} ${upcoming?.id === mark.id ? "ring-2" : ""}`} style={{ background: `${mark.color}12`, ["--tw-ring-color" as string]: mark.color }}>
+            {editing ? (
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-1.5">
+                  <input type="number" min={1} max={28} value={mark.day} onChange={(event) => change(mark.id, { day: Number(event.target.value) || 1 })} aria-label="Day of month" className="w-14 rounded-lg border border-[#E2DED7] bg-white px-2 py-1 text-[13px] font-bold" />
+                  <span className="text-[12px] text-[#6B6760]">th</span>
+                  <input type="color" value={mark.color} onChange={(event) => change(mark.id, { color: event.target.value })} aria-label="Colour" className="ml-auto h-7 w-7 cursor-pointer rounded-md border border-[#E2DED7] bg-white p-0.5" />
+                  <button onClick={() => { if (window.confirm(`Remove "${mark.label}" from the month?`)) save(state.settings.monthLine.filter((item) => item.id !== mark.id)); }} aria-label={`Remove ${mark.label}`} className="text-[#B5B0A8] hover:text-[#B83232]"><Trash2 size={14} /></button>
+                </div>
+                <input value={mark.label} onChange={(event) => change(mark.id, { label: event.target.value })} aria-label="What happens" className="w-full rounded-lg border border-[#E2DED7] bg-white px-2 py-1 text-[13px] font-semibold" />
+                <input value={mark.who} onChange={(event) => change(mark.id, { who: event.target.value })} aria-label="Who" placeholder="Who" className="w-full rounded-lg border border-[#E2DED7] bg-white px-2 py-1 text-[12px]" />
+                <textarea value={mark.note} onChange={(event) => change(mark.id, { note: event.target.value })} aria-label="What should be happening" rows={3} className="w-full rounded-lg border border-[#E2DED7] bg-white px-2 py-1 text-[12px]" />
+              </div>
+            ) : (
+              <>
+                <div className="text-[13px] font-bold" style={{ color: mark.color }}>{mark.day < today ? "✓ " : ""}By the {mark.day}th</div>
+                <div className="text-[13px] font-semibold">{mark.label}</div>
+                <div className="text-[12px] text-[#6B6760]">{mark.who}</div>
+              </>
+            )}
           </div>
         ))}
+        {editing && (
+          <button onClick={() => save([...state.settings.monthLine, { id: `m-${Date.now().toString(36)}`, day: 10, label: "New date", who: "", color: palette[state.settings.monthLine.length % palette.length], note: "" }])} className="grid min-h-[96px] place-items-center rounded-xl border-2 border-dashed border-[#C9C3B8] text-[13px] font-semibold text-[#55514B] hover:border-[#2F6FDB] hover:text-[#1F5BC4]"><span className="inline-flex items-center gap-1.5"><Plus size={14} />Add a date</span></button>
+        )}
       </div>
     </Card>
   );
@@ -121,74 +173,75 @@ export function How() {
   const { state } = useStore();
   const freelancer = isFreelancer(state);
   const owner = isOwner(state);
+  const [tab, setTab] = useState<"workflow" | "areas" | "day">("workflow");
   return (
-    <Shell title="How we work" sub="The agency on one page. Every flow below is what the OS enforces.">
+    <Shell title="How we work" sub="The agency on one page. Attach the resources, prompts and SOPs under each step so nobody has to ask where things are.">
       <div className="space-y-5">
         <MonthRibbon />
 
-        {!freelancer && (
-          <Flow
-            title="From lead to live client"
-            sub="Gareth wins it, María sets it up, operations makes it run. The checklist light turns green when production can start."
-            nodes={[
-              { icon: <Handshake size={17} />, title: "Lead to proposal", who: "Gareth", color: "#2F6FDB", rule: "New → contacted → discovery call → proposal. Follow-up reminder after the agreed days." },
-              { icon: <UserCheck size={17} />, title: "Won: hand over", who: "Gareth → María", color: "#1D9E5A", rule: "Mark as won. The client and its checklist are created with the package filled in." },
-              { icon: <ClipboardCheck size={17} />, title: "Kick-off and questionnaire", who: "María + client", color: "#7C5CD6", rule: "Call or questionnaire. Agree the one approver and the approval mode." },
-              { icon: <Users size={17} />, title: "Set up the workspace", who: "Operations", color: "#E08A1E", rule: "Drive, chat channel, publishing tool, Canva. Assign a freelancer with NDA and contract signed." },
-              { icon: <Rocket size={17} />, title: "Ready for production", who: "Everyone", color: "#E0567A", rule: "Green light: every essential item is in. Soft questions only inform the strategy." },
-            ]}
-          />
-        )}
+        <Segmented value={tab} onChange={setTab} options={[
+          { value: "workflow", label: "Client journey" },
+          { value: "areas", label: "Business areas" },
+          { value: "day", label: "Day to day" },
+        ]} />
 
-        <Flow
-          title="A post's journey"
-          sub="One post, one page: copy, artwork, comments, decisions and links all stay together."
-          nodes={[
-            { icon: <Lightbulb size={17} />, title: "Idea approved", who: "Reviewer", color: "#7C5CD6", rule: "Ideas arrive as cards. Approve, maybe or reject, and give each a pillar and format." },
-            { icon: <PenLine size={17} />, title: "Copy, then review", who: "Freelancer → reviewer", color: "#2F6FDB", rule: "Copy is approved before design starts. Changes come back as a ticklist with a category." },
-            { icon: <Palette size={17} />, title: "Design, then review", who: "Freelancer → reviewer", color: "#E08A1E", rule: "Upload artwork and the editable Canva link. Technical claims need the expert tick first." },
-            { icon: <Send size={17} />, title: "Client approves", who: "Operations logs it", color: "#E0567A", rule: `Mode A only. ${state.settings.clientApprovalDays} working days, one consolidated round per batch.` },
-            { icon: <CalendarDays size={17} />, title: "Scheduled, then live", who: "Freelancer", color: "#1D9E5A", rule: "Schedule in the publishing tool, final files in the client's Drive, then add the live link." },
-          ]}
-        />
+        {tab === "workflow" && <PlaybookView group="workflow" />}
+        {tab === "areas" && <PlaybookView group="areas" />}
 
-        <Flow
-          title="Month-end report"
-          sub="Each client gets a row on the Reports page. Attach the file, tick it sent, and the month is closed."
-          nodes={[
-            { icon: <FileBarChart2 size={17} />, title: "Freelancer report in", who: "Freelancer, by the 5th", color: "#2F6FDB", rule: "Uploaded in Marketing → Results as a file or link, with key numbers if available." },
-            { icon: <ClipboardCheck size={17} />, title: "Client report built", who: "Operations", color: "#E08A1E", rule: "From the freelancer report. A starter report can be downloaded from Reports." },
-            { icon: <Send size={17} />, title: "Client report sent", who: "Operations", color: "#1D9E5A", rule: "Attach the final report and tick it sent." },
-            { icon: <ShieldCheck size={17} />, title: "Finance statement sent", who: "María", color: "#7C5CD6", rule: "Owners only: download, attach and tick per client in Finance." },
-          ]}
-        />
+        {tab === "day" && (
+          <div className="space-y-5">
+            <Flow
+              title="A post's journey"
+              sub="One post, one page: copy, artwork, comments, decisions and links all stay together."
+              nodes={[
+                { icon: <Lightbulb size={17} />, title: "Idea approved", who: "Reviewer", color: "#7C5CD6", rule: "Ideas arrive as cards. Approve, maybe or reject, and give each a pillar and format." },
+                { icon: <PenLine size={17} />, title: "Copy, then review", who: "Freelancer → reviewer", color: "#2F6FDB", rule: "Copy is approved before design starts. Changes come back as a ticklist with a category." },
+                { icon: <Palette size={17} />, title: "Design, then review", who: "Freelancer → reviewer", color: "#E08A1E", rule: "Upload artwork and the editable Canva link. Technical claims need the expert tick first." },
+                { icon: <Send size={17} />, title: "Client approves", who: "Operations logs it", color: "#E0567A", rule: `Only if the client asked to review. ${state.settings.clientApprovalDays} working days, one consolidated round per batch.` },
+                { icon: <CalendarDays size={17} />, title: "Scheduled, then live", who: "Freelancer", color: "#1D9E5A", rule: "Schedule in the publishing tool, final files in the client's Drive, then add the live link." },
+              ]}
+            />
 
-        <div className="grid gap-5 xl:grid-cols-2">
-          <Card>
-            <div className="flex items-center gap-2"><Bell size={18} className="text-[#1F5BC4]" /><h3 className="text-[18px] font-extrabold">Who gets notified</h3></div>
-            <ul className="mt-4 divide-y divide-[#F0EEE9]">
-              {notifications.map(([event, who, how]) => (
-                <li key={event} className="grid gap-1 py-2.5 text-[13px] sm:grid-cols-[1.3fr_1fr_1fr]"><b>{event}</b><span>{who}</span><span className="text-[#6B6760]">{how}</span></li>
-              ))}
-            </ul>
-            <p className="mt-3 text-[12px] text-[#8B867E]">In this preview, notifications appear in the bell. Email and Google Chat sending switch on once the database is connected.</p>
-          </Card>
-          <Card>
-            <h3 className="text-[18px] font-extrabold">Approval modes</h3>
-            <p className="mt-0.5 text-[13px] text-[#6B6760]">Agreed with each client at kick-off.</p>
-            <div className="mt-4 space-y-2.5">
-              {[["A", "Plan and posts", "The client approves the monthly plan and every finished post."], ["B", "Plan only", "The client approves the plan. We approve the posts."], ["C", "Internal only", "We approve the plan and the posts ourselves."]].map(([code, title, detail]) => (
-                <div key={code} className="flex items-start gap-3 rounded-xl bg-[#F6F5F2] p-3.5">
-                  <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-[#1E2430] text-[13px] font-bold text-white">{code}</span>
-                  <span><b className="text-[14px]">{title}</b><span className="block text-[13px] text-[#6B6760]">{detail}</span></span>
+            <Flow
+              title="Month-end report"
+              sub="Each client gets a row on the Reports page. Attach the file, tick it sent, and the month is closed."
+              nodes={[
+                { icon: <FileBarChart2 size={17} />, title: "Freelancer report in", who: "Freelancer, by the 5th", color: "#2F6FDB", rule: "Marketing → Results: a checklist, key numbers per platform and the report, then hand it to operations." },
+                { icon: <ClipboardCheck size={17} />, title: "Client report built", who: "Operations", color: "#E08A1E", rule: "From the freelancer report. A starter report can be downloaded from Reports." },
+                { icon: <Send size={17} />, title: "Client report sent", who: "Operations", color: "#1D9E5A", rule: "Attach the final report and tick it sent." },
+                { icon: <ShieldCheck size={17} />, title: "Finance statement sent", who: "María", color: "#7C5CD6", rule: "Owners only: download, attach and tick per client in Finance." },
+              ]}
+            />
+
+            <div className="grid gap-5 xl:grid-cols-2">
+              <Card>
+                <div className="flex items-center gap-2"><Bell size={18} className="text-[#1F5BC4]" /><h3 className="text-[18px] font-extrabold">Who gets notified</h3></div>
+                <ul className="mt-4 divide-y divide-[#F0EEE9]">
+                  {notifications.map(([event, who, how]) => (
+                    <li key={event} className="grid gap-1 py-2.5 text-[13px] sm:grid-cols-[1.3fr_1fr_1fr]"><b>{event}</b><span>{who}</span><span className="text-[#6B6760]">{how}</span></li>
+                  ))}
+                </ul>
+                <p className="mt-3 text-[12px] text-[#8B867E]">In this preview, notifications appear in the bell. Email and Google Chat sending switch on once the database is connected.</p>
+              </Card>
+              <Card>
+                <h3 className="text-[18px] font-extrabold">Approval modes</h3>
+                <p className="mt-0.5 text-[13px] text-[#6B6760]">The default is that we approve internally. A client only reviews if they ask.</p>
+                <div className="mt-4 space-y-2.5">
+                  {[["C", "Internal only", "We approve the plan and the posts ourselves. The default."], ["B", "Plan only", "The client reviews the plan. We approve the posts."], ["A", "Plan and posts", "The client reviews the plan and every finished post."]].map(([code, title, detail]) => (
+                    <div key={code} className="flex items-start gap-3 rounded-xl bg-[#F6F5F2] p-3.5">
+                      <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-[#1E2430] text-[13px] font-bold text-white">{code}</span>
+                      <span><b className="text-[14px]">{title}</b><span className="block text-[13px] text-[#6B6760]">{detail}</span></span>
+                    </div>
+                  ))}
                 </div>
-              ))}
+                <div className="mt-4 rounded-xl bg-[#F1ECFC] p-3.5 text-[13px] text-[#4A3596]"><b>Freelancer gate:</b> nobody is assigned to a client until their NDA and contract are signed. Access is removed the same day they leave.</div>
+              </Card>
             </div>
-            <div className="mt-4 rounded-xl bg-[#F1ECFC] p-3.5 text-[13px] text-[#4A3596]"><b>Freelancer gate:</b> nobody is assigned to a client until their NDA and contract are signed. Access is removed the same day they leave.</div>
-          </Card>
-        </div>
 
-        {owner && <SettingsPanel />}
+            {owner && <SettingsPanel />}
+          </div>
+        )}
+        {freelancer && tab === "workflow" && <p className="text-[12px] text-[#8B867E]">You see the steps that involve freelancers.</p>}
       </div>
     </Shell>
   );

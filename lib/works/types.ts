@@ -369,7 +369,41 @@ export type MonthlyStep = {
   hint?: string;
 };
 
+/** One point on "the month on one line". */
+export type MonthMark = {
+  id: string;
+  /** The default dates in Settings this mark drives, if any. */
+  key?: "capture" | "plan" | "design" | "approval" | "schedule";
+  day: number;
+  label: string;
+  who: string;
+  color: string;
+  /** What should be happening in the run-up to this day. */
+  note: string;
+};
+
+/** Something attached to a slot: a resource made once, a reusable prompt, or an SOP. */
+export type PlaybookItemKind = "resource" | "prompt" | "sop";
+export type PlaybookItem = {
+  id: string;
+  kind: PlaybookItemKind;
+  title: string;
+  /** A link. Starts with # for a page inside the OS. */
+  url?: string;
+  file?: { name: string; url: string };
+  /** The prompt itself, or the steps of an SOP, or a note. */
+  text?: string;
+  addedBy: string;
+  addedAt: string;
+};
+/** A thing the agency needs to have ready, such as a contract or a research prompt. */
+export type PlaybookSlot = { id: string; title: string; /** Needed before the first new client. */ key: boolean; attachments: PlaybookItem[] };
+/** A stage of the client journey, or an area of the business. */
+export type PlaybookStage = { id: string; title: string; owner: string; color: string; icon: string; slots: PlaybookSlot[]; forFreelancer?: boolean };
+export type Playbook = { workflow: PlaybookStage[]; areas: PlaybookStage[] };
+
 export type Settings = {
+  monthLine: MonthMark[];
   monthly: MonthlyStep[];
   assets: AssetType[];
   packages: PackageDef[];
@@ -412,6 +446,7 @@ export type State = {
   payouts: Payout[];
   fixedCosts: FixedCost[];
   notices: Notice[];
+  playbook: Playbook;
   settings: Settings;
 };
 

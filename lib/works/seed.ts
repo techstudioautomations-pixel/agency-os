@@ -1,4 +1,4 @@
-import type { AreaKind, AssetType, MonthlyStep, SectionStep, CheckItem, Client, ClientAsset, Freelancer, Idea, Lead, MonthReport, PackageDef, Person, Post, PostStatus, SectionDef, State, StepKind, Strategy } from "./types";
+import type { AreaKind, AssetType, MonthMark, MonthlyStep, Playbook, PlaybookStage, SectionStep, CheckItem, Client, ClientAsset, Freelancer, Idea, Lead, MonthReport, PackageDef, Person, Post, PostStatus, SectionDef, State, StepKind, Strategy } from "./types";
 
 // ─── Dates are generated around today, so the demo always looks current ───
 const pad = (value: number) => String(value).padStart(2, "0");
@@ -267,6 +267,62 @@ const websiteSteps: { label: string; kind: StepKind; owner: string; group: strin
   { group: "Website · Launch", label: "Handover and short training done", kind: "detail", owner: "maria" },
   { group: "Website · Launch", label: "Care plan or updates agreed", kind: "info", owner: "maria" },
 ];
+
+export const defaultMonthLine = (dates = { capture: 5, plan: 8, design: 15, approval: 20, schedule: 25 }): MonthMark[] => [
+  { id: "m-capture", key: "capture", day: dates.capture, label: "Capture call", who: "Client + María", color: "#2F6FDB", note: "Talk to each client about what happened this month: projects, news, photos. Last month's reports go out." },
+  { id: "m-plan", key: "plan", day: dates.plan, label: "Plan approved", who: "Reviewer → client", color: "#7C5CD6", note: "Ideas are decided and the plan is agreed, so the freelancer can start designs." },
+  { id: "m-design", key: "design", day: dates.design, label: "Designs done", who: "Freelancer", color: "#E08A1E", note: "Freelancers finish copy and designs. Reviewers keep the review queue clear." },
+  { id: "m-approval", key: "approval", day: dates.approval, label: "Client approval", who: "Operations logs it", color: "#E0567A", note: "Anything a client asked to see goes to them. Operations logs the answer." },
+  { id: "m-schedule", key: "schedule", day: dates.schedule, label: "All scheduled", who: "Freelancer", color: "#1D9E5A", note: "Everything approved is scheduled in the publishing tool, with final files in the client's Drive." },
+];
+
+/** The client journey and the business areas, with the things each needs. A leading ★ means it is needed before the first new client. */
+const stageDefs = (stages: [string, string, string, string, string, string[], boolean?][], group: string): PlaybookStage[] =>
+  stages.map(([id, title, owner, color, icon, slots, forFreelancer]) => ({
+    id, title, owner, color, icon, forFreelancer,
+    slots: slots.map((slot, index) => ({ id: `${group}-${id}-${index + 1}`, title: slot.replace(/^★\s*/, ""), key: slot.startsWith("★"), attachments: [] })),
+  }));
+
+export const defaultPlaybook = (): Playbook => {
+  const link = (stage: PlaybookStage[], stageId: string, slotTitle: string, title: string, url: string) => {
+    const slot = stage.find((item) => item.id === stageId)?.slots.find((item) => item.title === slotTitle);
+    slot?.attachments.push({ id: `${slot.id}-os`, kind: "resource", title, url, addedBy: "maria", addedAt: "" });
+  };
+  const workflow = stageDefs([
+    ["sales", "Sales and leads", "Gareth", "#2F6FDB", "handshake", ["★ Sales and portfolio deck", "Services and pricing one-pager", "Marketing Snapshot (template and generator)", "Outreach message templates", "Lead to discovery call"]],
+    ["deal", "Deal and agreement", "Gareth, María", "#1D9E5A", "file", ["★ Proposal and quote", "★ Contract", "Invoice (Revolut)", "Scope rules wording", "Client obligations list", "Terms and conditions", "Won deal to handover"]],
+    ["discovery", "Discovery and questionnaire", "María, Operations", "#7C5CD6", "clipboard", ["★ Discovery call: what to ask and record", "★ Onboarding questionnaire (Tally)", "★ How to give us access guide (Instagram, LinkedIn, Meta, X, TikTok)", "Kick-off call agenda", "Phone photo guide for clients", "Questionnaire summary into the client profile"]],
+    ["setup", "Access, assets and setup", "Operations", "#E08A1E", "key", ["★ Access: A) no accounts, create them / B) accounts exist, request and confirm", "★ Client setup: OS profile, Drive, scheduler, Canva, chat channel, assign freelancer", "Setup checklist in the OS", "Drive folder template", "Access register", "Missing access follow-up email"]],
+    ["strategy", "Strategy and creative direction", "Gareth with AI, María", "#D6457A", "brain", ["★ Strategy (research prompt: pains, forums, channels, dates and events)", "★ Visual concepts (prompt for ChatGPT)", "★ Creative direction guide (generator and template)", "Reference library", "Approved visuals to Canva masters", "★ Strategy and creative direction (process)"]],
+    ["ready", "Ready for production", "Operations", "#0F8F8F", "rocket", ["Production gate checklist", "Freelancer handover pack", "Handover to the freelancer"], true],
+    ["delivery", "Monthly delivery", "Freelancer, María", "#E0567A", "calendar", ["★ Monthly content cycle", "★ Idea bank (generator)", "Idea document template", "Brief template", "Copy prompt per client", "Caption and platform adaptation prompt", "Per-post quality checklist", "Scheduling and publishing", "Freelancer month-end close"], true],
+    ["reporting", "Reporting", "Operations, María", "#1E2430", "chart", ["★ Monthly client report", "Report templates", "Check, generate, approve, email"], true],
+  ], "w");
+  link(workflow, "setup", "Setup checklist in the OS", "Default checklists (Settings)", "#/settings/checklists");
+  link(workflow, "ready", "Production gate checklist", "A client's checklists", "#/clients");
+  link(workflow, "delivery", "Monthly content cycle", "Monthly checklists (Settings)", "#/settings/monthly");
+  link(workflow, "delivery", "Per-post quality checklist", "Quality checklist on every post", "#/marketing/all/posts");
+  link(workflow, "reporting", "Monthly client report", "Reports page", "#/reports");
+  const areas = stageDefs([
+    ["strategy", "Business strategy", "", "#1E2430", "target", ["Vision, goals, growth plan", "Monthly business summary", "Quarterly review"]],
+    ["marketing", "Marketing and branding", "", "#D6457A", "megaphone", ["Works creative guide", "Website", "Founder video", "Agency post ideas", "Agency content, 2 posts a week"]],
+    ["sales", "Sales and leads", "", "#2F6FDB", "handshake", ["Sales deck", "Marketing Snapshot template", "Outreach list", "Snapshot and proposal generators", "Lead to client"]],
+    ["clients", "Client management", "", "#7C5CD6", "users", ["Questionnaire", "Access guide", "Welcome pack", "Questionnaire summary and missing access email", "Discovery, setup, communication and retention"]],
+    ["delivery", "Service delivery", "", "#E0567A", "calendar", ["Guide template", "Prompts", "Quality gate", "Strategy, visuals, guide and idea bank generators", "Strategy and creative, monthly cycle"], true],
+    ["ops", "Operations and quality", "", "#E08A1E", "shield", ["Workflow in the OS", "Revision categories", "Weekly ops summary", "Quality check and escalation"]],
+    ["team", "Team and freelancers", "", "#0F8F8F", "user", ["Upwork and Fiverr posts", "Trial brief", "Scorecard", "NDA", "Contract", "Job post and trial brief generators", "Hiring and trial", "Onboarding with NDA", "Offboarding"]],
+    ["finance", "Finance and accounting", "", "#1D9E5A", "coins", ["Tools", "Price list (Essential €795, Growth €1,450)", "Cost model", "Invoices and monthly close", "Billing", "Freelancer pay"]],
+    ["reporting", "Reporting and analytics", "", "#2F6FDB", "chart", ["Report templates", "Founders' dashboard", "Client report and executive summary", "Month-end reporting"]],
+    ["tech", "Technology and admin", "", "#55514B", "settings", ["OS", "Drive", "Chat", "Canva", "Scheduler", "Password manager", "IP agreement", "Tools, access and offboarding"]],
+  ], "a");
+  link(areas, "ops", "Workflow in the OS", "How we work (this page)", "#/how");
+  link(areas, "ops", "Revision categories", "Quality checklist and revision labels", "#/marketing/all/posts");
+  link(areas, "finance", "Price list (Essential €795, Growth €1,450)", "Packages (Settings)", "#/settings/packages");
+  link(areas, "finance", "Invoices and monthly close", "Finance", "#/finance");
+  link(areas, "reporting", "Month-end reporting", "Reports page", "#/reports");
+  link(areas, "tech", "OS", "Settings", "#/settings");
+  return { workflow, areas };
+};
 
 /** The monthly checklists. "{n}" is the number of posts promised that month, "{last}" is last month's name. */
 export const defaultMonthly = (): MonthlyStep[] => [
@@ -822,11 +878,13 @@ export function seedState(): State {
       { id: "fc4", label: "María's fee", amount: 0, category: "People" },
     ],
     notices: [],
+    playbook: defaultPlaybook(),
     settings: {
       assets: defaultAssets,
       packages: defaultPackages,
       sections: defaultSections(),
       monthly: defaultMonthly(),
+      monthLine: defaultMonthLine(),
       defaultApprovalMode: "C",
       reviewer: "ops-first",
       escalationDays: 3,

@@ -20,7 +20,7 @@ The operating system for The Works: one place for client checklists, freelancer 
 | Review one by one | Owners, operations | Opens each post waiting for review as it will appear, with Approve, Ask for changes and Skip |
 | Settings | Owners | Packages (built from assets, with prices), Assets (post types, add-ons, prices), default Checklists (onboarding, access, strategy, website project…), Monthly checklists, Rules, General. Changes are defaults for new clients; existing clients keep their own |
 | Client view | Client, with code | Read-only calendar of the posts you chose. The client only answers if you asked them to review |
-| How we work | Everyone | The SOPs as visual flows and the agreed rules |
+| How we work | Everyone | "The month on one line" with a "you are here" marker and the next thing to do (owners can edit the dates, names and notes). Then three tabs: Client journey (8 stages from sales to reporting), Business areas (10 areas), and Day to day (post journey, month-end report, notifications, approval modes, rules). Every item can have Resources, Prompts and SOPs attached (link, file or text, with Copy for prompts). A star marks what is needed before the first new client, and a bar shows how many have something attached. Owners can add, rename, reorder and remove stages and items |
 
 Use the name at the bottom of the sidebar to preview the OS as María, Gareth, Niamh (operations) or a freelancer.
 

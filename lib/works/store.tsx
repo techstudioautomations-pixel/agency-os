@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { buildClientChecklist, defaultMonthly, defaultSections, newShare, piecesPerMonth, seedState } from "./seed";
+import { buildClientChecklist, defaultMonthLine, defaultMonthly, defaultPlaybook, defaultSections, newShare, piecesPerMonth, seedState } from "./seed";
 import { canBeAssigned, monthlyAreas, nameOf, reviewerFor, todayIso } from "./logic";
 import type { CheckItem, Client, ClientAsset, ClientSection, ClientShare, Idea, Lead, MonthReport, NewClientDraft, Notice, Post, ReportNumbers, RevisionCategory, Route, SectionStep, State } from "./types";
 
@@ -22,7 +22,8 @@ function migrate(saved: State): State {
   for (const section of defaults) if (!sections.some((item) => item.id === section.id)) sections.push(section);
   return {
     ...saved,
-    settings: { ...saved.settings, sections, monthly: saved.settings.monthly ?? defaultMonthly() },
+    playbook: saved.playbook ?? defaultPlaybook(),
+    settings: { ...saved.settings, sections, monthly: saved.settings.monthly ?? defaultMonthly(), monthLine: saved.settings.monthLine ?? defaultMonthLine(saved.settings.dates) },
     clients: saved.clients.map((client) => ({ ...client, area: client.area ?? "marketing", setupPosts: client.setupPosts ?? 2, monthDone: client.monthDone ?? {}, packNotes: client.packNotes ?? { brand: "", brain: "", templates: "" } })),
   };
 }
@@ -556,6 +557,8 @@ function useStoreValue() {
         }),
       payFreelancer: (clientId: string) => update((d) => { d.payouts.push({ clientId, month: d.month, status: "Paid", date: todayIso() }); }),
       setFixedCosts: (costs: State["fixedCosts"]) => update((d) => { d.fixedCosts = costs; }),
+      /** Edits the playbook in place: stages, slots and what is attached to them. */
+      editPlaybook: (change: (playbook: State["playbook"]) => void) => update((d) => { change(d.playbook); }),
       updateSettings: (patch: Partial<State["settings"]>) => update((d) => { Object.assign(d.settings, patch); }),
 
       // Notifications
