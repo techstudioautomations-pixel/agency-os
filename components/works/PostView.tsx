@@ -1,12 +1,13 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Check, ChevronLeft, ChevronRight, Download, ExternalLink, Pencil, ShieldCheck, Trash2, UploadCloud, X } from "lucide-react";
+import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Check, ChevronLeft, ChevronRight, Download, ExternalLink, Maximize2, Pencil, ShieldCheck, Trash2, UploadCloud, X } from "lucide-react";
 import { useStore } from "@/lib/works/store";
 import { ago, isFreelancer, isOwner, nameOf, personById, qaGroups, qaItemsFor, qaProgress, reviewerFor, shortDate, stageOf, stages, turnOf } from "@/lib/works/logic";
 import type { Client, Post, PostFile, RevisionCategory } from "@/lib/works/types";
 import { buildZip, safeName } from "@/lib/zip";
 import { PostArt } from "./PostArt";
+import { Lightbox } from "./Lightbox";
 import { statusTone } from "./Marketing";
 import { asset, Avatar, Button, Chip, ClientMark, Field, fieldClass } from "./kit";
 import { Shell } from "./Shell";
@@ -23,7 +24,7 @@ export function PostReview({ post, client, backScope }: { post: Post; client: Cl
   const turn = turnOf(state, post);
   const mine = turn.who === state.me;
   const freelancerView = isFreelancer(state);
-  const canEdit = isOwner(state) || (state.me === client.freelancerId && ["Copy in progress", "Design in progress", "Ready to schedule"].includes(post.status)) || (!client.freelancerId && !freelancerView);
+  const canEdit = isOwner(state) || (state.me === client.freelancerId && post.status !== "Published") || (!client.freelancerId && !freelancerView);
   const isMaker = state.me === client.freelancerId;
   const [editing, setEditing] = useState(() => isMaker && post.status === "Copy in progress" && !post.copy.trim());
   useEffect(() => { window.scrollTo(0, 0); }, [post.id]);
@@ -79,8 +80,7 @@ export function PostReview({ post, client, backScope }: { post: Post; client: Cl
 
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1.1fr)_minmax(380px,.9fr)]">
         <div className="min-w-0">
-          {editing ? <PostEditor post={post} onDone={() => setEditing(false)} /> : <PostPreviewPanel post={post} client={client} canEdit={canEdit} onEdit={() => setEditing(true)} />}
-          <QualityCard post={post} />
+          {editing ? <PostEditor post={post} onDone={() => { setEditing(false); store.postEdited(post.id); }} /> : <PostPreviewPanel post={post} client={client} canEdit={canEdit} onEdit={() => setEditing(true)} />}
         </div>
         <Conversation post={post} client={client} mine={mine} />
       </div>
@@ -94,6 +94,7 @@ export function PostPreviewPanel({ post, client, canEdit, onEdit }: { post: Post
   const [slide, setSlide] = useState(0);
   const [channel, setChannel] = useState(post.platforms[0] ?? "LinkedIn");
   const [busy, setBusy] = useState(false);
+  const [big, setBig] = useState(false);
   const visuals = post.files.filter((file) => file.kind === "image" || file.kind === "video");
   const pdf = post.files.find((file) => file.kind === "pdf");
   const caption = post.captions[channel] ?? post.copy;
@@ -118,6 +119,7 @@ export function PostPreviewPanel({ post, client, canEdit, onEdit }: { post: Post
 
   return (
     <div className="overflow-hidden rounded-2xl border border-[#E9E6E0] bg-white">
+      {big && <Lightbox files={post.files.map((file) => ({ ...file, src: asset(file.src) }))} start={slide} onClose={() => setBig(false)} />}
       <div className="flex flex-wrap items-center gap-2 border-b border-[#F0EEE9] px-4 py-3">
         <div className="flex gap-1">
           {post.platforms.map((item) => <button key={item} onClick={() => setChannel(item)} className={`rounded-lg px-3 py-1.5 text-[12px] font-bold ${channel === item ? "bg-[#1E2430] text-white" : "text-[#6B6760] hover:bg-[#F1F0ED]"}`}>{item}</button>)}
@@ -133,6 +135,7 @@ export function PostPreviewPanel({ post, client, canEdit, onEdit }: { post: Post
         <div className="bg-[#F1F0ED] p-4 sm:p-6">
           <div className="relative mx-auto max-w-[420px]">
             <PostArt post={post} client={client} index={slide} rounded="rounded-2xl" className="shadow-[0_12px_32px_rgba(30,36,48,.15)]" />
+            {visuals.length > 0 && <button onClick={() => setBig(true)} aria-label="See it full size" className="absolute right-2 top-2 inline-flex items-center gap-1 rounded-full bg-white/95 px-3 py-1.5 text-[12px] font-bold shadow"><Maximize2 size={13} />Full size</button>}
             {count > 1 && (
               <>
                 <button onClick={() => setSlide((slide - 1 + count) % count)} aria-label="Previous slide" className="absolute left-2 top-1/2 grid h-9 w-9 -translate-y-1/2 place-items-center rounded-full bg-white/95 shadow"><ChevronLeft size={18} /></button>
@@ -202,8 +205,13 @@ function PostEditor({ post, onDone }: { post: Post; onDone: () => void }) {
     set({ files: next });
   };
   const toggleChannel = (item: string) => set({ platforms: post.platforms.includes(item) ? post.platforms.filter((value) => value !== item) : [...post.platforms, item] });
-  const value = captionTab === "main" ? post.copy : post.captions[captionTab] ?? "";
-  const write = (text: string) => (captionTab === "main" ? set({ copy: text }) : set({ captions: { ...post.captions, [captionTab]: text } }));
+  const different = post.platforms.length > 1 && post.platforms.some((item) => post.captions[item] !== undefined);
+  const tab = different ? (post.platforms.includes(captionTab) ? captionTab : post.platforms[0]) : "main";
+  const value = tab === "main" ? post.copy : post.captions[tab] ?? post.copy;
+  const limit = tab === "main" ? Math.min(...post.platforms.map((item) => limits[item] ?? 3000)) : limits[tab] ?? 3000;
+  const write = (text: string) => (tab === "main" ? set({ copy: text }) : set({ captions: { ...post.captions, [tab]: text } }));
+  const useDifferent = () => { set({ captions: Object.fromEntries(post.platforms.map((item) => [item, post.captions[item] ?? post.copy])) }); setCaptionTab(post.platforms[0]); };
+  const useSame = () => { set({ copy: post.captions[tab] ?? post.copy, captions: {} }); setCaptionTab("main"); };
 
   return (
     <div className="space-y-4 rounded-2xl border-2 border-[#2F6FDB]/40 bg-white p-5">
@@ -258,20 +266,20 @@ function PostEditor({ post, onDone }: { post: Post; onDone: () => void }) {
       )}
 
       <div>
-        <div className="mb-1.5 flex flex-wrap items-center gap-1.5">
-          <span className="mr-1 text-[12px] font-semibold text-[#55514B]">Caption</span>
-          <button onClick={() => setCaptionTab("main")} className={`rounded-lg px-2.5 py-1 text-[12px] font-semibold ${captionTab === "main" ? "bg-[#EAF1FD] text-[#1F5BC4]" : "text-[#6B6760]"}`}>Same for all</button>
-          {post.platforms.map((item) => (
-            <button key={item} onClick={() => { if (post.captions[item] === undefined) set({ captions: { ...post.captions, [item]: post.copy } }); setCaptionTab(item); }} className={`rounded-lg px-2.5 py-1 text-[12px] font-semibold ${captionTab === item ? "bg-[#EAF1FD] text-[#1F5BC4]" : post.captions[item] !== undefined ? "text-[#1E2430]" : "text-[#A8A39B]"}`}>
-              {item}{post.captions[item] !== undefined ? " ✎" : ""}
-            </button>
-          ))}
-        </div>
-        <textarea value={value} onChange={(event) => write(event.target.value)} rows={7} className={`${fieldClass} leading-relaxed`} placeholder={captionTab === "main" ? "The caption used on every channel unless you write a channel version." : `Different wording for ${captionTab}.`} />
-        <div className="mt-1 flex justify-between text-[12px] text-[#8B867E]">
-          <span>{value.length} characters{captionTab !== "main" ? ` · limit ${(limits[captionTab] ?? 3000).toLocaleString()}` : ""}</span>
-          {captionTab !== "main" && <button onClick={() => { const next = { ...post.captions }; delete next[captionTab]; set({ captions: next }); setCaptionTab("main"); }} className="font-semibold text-[#B83232]">Use the main caption instead</button>}
-        </div>
+        <div className="mb-1.5 text-[12px] font-semibold text-[#55514B]">Caption</div>
+        {post.platforms.length > 1 && (
+          <div className="mb-2 flex flex-wrap gap-1.5">
+            <button onClick={useSame} aria-pressed={!different} className={`rounded-full px-3.5 py-1.5 text-[12px] font-semibold ${!different ? "bg-[#1E2430] text-white" : "bg-[#F1F0ED] text-[#6B6760]"}`}>Same caption on all</button>
+            <button onClick={useDifferent} aria-pressed={different} className={`rounded-full px-3.5 py-1.5 text-[12px] font-semibold ${different ? "bg-[#1E2430] text-white" : "bg-[#F1F0ED] text-[#6B6760]"}`}>Different caption for each</button>
+          </div>
+        )}
+        {different && (
+          <div className="mb-2 flex flex-wrap gap-1.5">
+            {post.platforms.map((item) => <button key={item} onClick={() => setCaptionTab(item)} aria-pressed={tab === item} className={`rounded-lg px-3 py-1 text-[12px] font-bold ${tab === item ? "bg-[#EAF1FD] text-[#1F5BC4]" : "text-[#6B6760] hover:bg-[#F1F0ED]"}`}>{item}</button>)}
+          </div>
+        )}
+        <textarea value={value} onChange={(event) => write(event.target.value)} rows={7} aria-label={different ? `${tab} caption` : "Caption"} className={`${fieldClass} leading-relaxed`} placeholder="Write the caption" />
+        <div className="mt-1 text-[12px] text-[#8B867E]">{value.length} characters · limit {limit.toLocaleString()}{value.length > limit ? " (too long)" : ""}</div>
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2">
@@ -338,7 +346,7 @@ function Conversation({ post, client, mine }: { post: Post; client: Client; mine
     action = (
       <div className="space-y-2">
         {openChanges > 0 && <p className="rounded-xl bg-[#FFF3D9] px-3 py-2 text-[12px] font-semibold text-[#94600A]">{openChanges} change{openChanges === 1 ? "" : "s"} to fix. Tick them in the chat as you go.</p>}
-        <Button kind="primary" className="w-full" onClick={() => { const qa = qaProgress(post); if (openChanges && !window.confirm("Some changes are not ticked off. Submit anyway?")) return; if (qa.missing > 0 && !window.confirm(`${qa.missing} item${qa.missing === 1 ? "" : "s"} on the quality checklist are not ticked. Submit anyway?`)) return; store.submitPost(post.id); }}>
+        <Button kind="primary" className="w-full" onClick={() => { if (openChanges && !window.confirm("Some changes are not ticked off. Submit anyway?")) return; store.submitPost(post.id); }}>
           Submit {post.status === "Copy in progress" ? "copy" : "design"} for review <ArrowRight size={15} />
         </Button>
         <p className="text-center text-[11px] text-[#8B867E]">{nameOf(state, reviewer)} is notified by email and here.</p>

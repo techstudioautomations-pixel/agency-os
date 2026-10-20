@@ -2,11 +2,12 @@
 
 import { useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, FilePlus2, Lightbulb, Send, Trash2, UploadCloud, X } from "lucide-react";
+import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, FilePlus2, Lightbulb, Maximize2, Send, Trash2, UploadCloud, X } from "lucide-react";
 import { useStore } from "@/lib/works/store";
 import { agreedFor, isMarketing, monthName, myClients, reviewerFor, shiftMonth } from "@/lib/works/logic";
 import type { PostFile } from "@/lib/works/types";
 import { Button, ClientMark, Field, fieldClass } from "./kit";
+import { Lightbox } from "./Lightbox";
 
 const formats = ["Carousel", "Single image", "Reel", "Text post", "Newsletter"] as const;
 const channels = ["LinkedIn", "Instagram", "Facebook", "TikTok", "Newsletter"];
@@ -47,6 +48,11 @@ function Wizard() {
   const [format, setFormat] = useState<(typeof formats)[number]>((formats as readonly string[]).includes(idea?.format ?? "") ? (idea!.format as (typeof formats)[number]) : "Carousel");
   const [platforms, setPlatforms] = useState<string[]>([]);
   const [copy, setCopy] = useState("");
+  const [different, setDifferent] = useState(false);
+  const [captions, setCaptions] = useState<Record<string, string>>({});
+  const [captionTab, setCaptionTab] = useState("");
+  const [active, setActive] = useState(0);
+  const [big, setBig] = useState<number | null>(null);
   const [files, setFiles] = useState<PostFile[]>([]);
   const [reviewerId, setReviewerId] = useState("");
   const fileInput = useRef<HTMLInputElement>(null);
@@ -60,6 +66,11 @@ function Wizard() {
   const picked = platforms.length ? platforms : client?.platforms.slice(0, 1) ?? [];
   const rule = attach[format];
   const day = Number(date.slice(8, 10)) || 1;
+  const useDifferent = picked.length > 1 && different;
+  const tab = useDifferent ? (picked.includes(captionTab) ? captionTab : picked[0]) : "";
+  const captionFor = (channel: string) => captions[channel] ?? copy;
+  const hasCaption = useDifferent ? picked.every((channel) => captionFor(channel).trim()) : Boolean(copy.trim());
+  const shownFile = files[Math.min(active, files.length - 1)];
 
   const chooseMonth = (value: string) => {
     setMonth(value);
@@ -100,7 +111,7 @@ function Wizard() {
   ];
   const finish = (send: boolean) => {
     if (!client) return;
-    const id = createPost({ clientId: client.id, ideaId: source === "idea" ? ideaId : undefined, title: title.trim() || "Untitled post", format, platforms: picked, date, copy: copy.trim(), files, reviewerId: reviewerId || undefined, send });
+    const id = createPost({ clientId: client.id, ideaId: source === "idea" ? ideaId : undefined, title: title.trim() || "Untitled post", format, platforms: picked, date, copy: (useDifferent ? captionFor(picked[0]) : copy).trim(), captions: useDifferent ? Object.fromEntries(picked.map((channel) => [channel, captionFor(channel).trim()])) : {}, files, reviewerId: reviewerId || undefined, send });
     closePostWizard();
     go({ view: "marketing", clientId: client.id, postId: id });
   };
@@ -115,6 +126,7 @@ function Wizard() {
 
   return (
     <div className="fixed inset-0 z-[70] grid place-items-end bg-[#1E2430]/50 sm:place-items-center sm:p-4" role="dialog" aria-modal="true" aria-label="Create post">
+      {big !== null && <Lightbox files={files} start={big} onClose={() => setBig(null)} />}
       <div className="flex max-h-[96vh] w-full max-w-[680px] flex-col overflow-hidden rounded-t-3xl bg-white shadow-2xl sm:rounded-3xl">
         <div className="flex items-start gap-3 border-b border-[#F0EEE9] px-6 pb-4 pt-5">
           <div className="flex-1">
@@ -211,18 +223,41 @@ function Wizard() {
 
           {step === 3 && (
             <div className="space-y-4">
-              <Field label="Caption" hint="You can finish it later if you save a draft.">
-                <textarea value={copy} onChange={(event) => setCopy(event.target.value)} rows={7} placeholder="Write the caption" className={`${fieldClass} leading-relaxed`} />
-              </Field>
+              <div>
+                <div className="mb-1.5 text-[12px] font-semibold text-[#55514B]">Caption <span className="font-normal text-[#8B867E]">· you can finish it later if you save a draft</span></div>
+                {picked.length > 1 && (
+                  <div className="mb-2 flex flex-wrap gap-1.5">
+                    <button onClick={() => setDifferent(false)} aria-pressed={!useDifferent} className={`rounded-full px-3.5 py-1.5 text-[12px] font-semibold ${!useDifferent ? "bg-[#1E2430] text-white" : "bg-[#F1F0ED] text-[#6B6760]"}`}>Same caption on {picked.join(" and ")}</button>
+                    <button onClick={() => { setDifferent(true); setCaptions(Object.fromEntries(picked.map((channel) => [channel, captions[channel] ?? copy]))); setCaptionTab(picked[0]); }} aria-pressed={useDifferent} className={`rounded-full px-3.5 py-1.5 text-[12px] font-semibold ${useDifferent ? "bg-[#1E2430] text-white" : "bg-[#F1F0ED] text-[#6B6760]"}`}>Different caption for each</button>
+                  </div>
+                )}
+                {useDifferent && (
+                  <div className="mb-2 flex flex-wrap gap-1.5">
+                    {picked.map((channel) => <button key={channel} onClick={() => setCaptionTab(channel)} aria-pressed={tab === channel} className={`rounded-lg px-3 py-1 text-[12px] font-bold ${tab === channel ? "bg-[#EAF1FD] text-[#1F5BC4]" : "text-[#6B6760] hover:bg-[#F1F0ED]"}`}>{channel}{captionFor(channel).trim() ? " ✓" : ""}</button>)}
+                  </div>
+                )}
+                <textarea value={useDifferent ? captionFor(tab) : copy} onChange={(event) => (useDifferent ? setCaptions({ ...captions, [tab]: event.target.value }) : setCopy(event.target.value))} aria-label={useDifferent ? `${tab} caption` : "Caption"} rows={7} placeholder={useDifferent ? `Write the ${tab} caption` : "Write the caption"} className={`${fieldClass} leading-relaxed`} />
+              </div>
               <div>
                 <div className="mb-1.5 text-[12px] font-semibold text-[#55514B]">{format === "Text post" ? "Image" : "Files"} · {rule.hint}</div>
+                {shownFile && (
+                  <div className="mb-3 rounded-2xl bg-[#F1F0ED] p-3">
+                    <div className="relative mx-auto w-fit max-w-full">
+                      {shownFile.kind === "image" && /* eslint-disable-next-line @next/next/no-img-element */ <img src={shownFile.src} alt={shownFile.name} className="mx-auto max-h-[42vh] max-w-full rounded-xl object-contain" />}
+                      {shownFile.kind === "video" && <video src={shownFile.src} controls className="mx-auto max-h-[42vh] max-w-full rounded-xl" />}
+                      {(shownFile.kind === "pdf" || shownFile.kind === "other") && <div className="grid h-40 w-64 place-items-center rounded-xl bg-white text-[14px] font-bold text-[#55514B]">{shownFile.kind === "pdf" ? "PDF" : "File"} · {shownFile.name}</div>}
+                      <button onClick={() => setBig(files.indexOf(shownFile))} aria-label="See it full size" className="absolute right-2 top-2 inline-flex items-center gap-1 rounded-full bg-white/95 px-3 py-1.5 text-[12px] font-bold shadow"><Maximize2 size={13} />Full size</button>
+                    </div>
+                    {files.length > 1 && <p className="mt-2 text-center text-[12px] text-[#6B6760]">Showing {Math.min(active, files.length - 1) + 1} of {files.length}. Tap a file below to look at it.</p>}
+                  </div>
+                )}
                 {files.length > 0 && (
                   <ul className="mb-2 space-y-1.5">
                     {files.map((file, index) => (
-                      <li key={file.id} className="flex items-center gap-2.5 rounded-xl bg-[#F6F5F2] p-1.5">
+                      <li key={file.id} className={`flex items-center gap-2.5 rounded-xl p-1.5 ${index === Math.min(active, files.length - 1) ? "bg-[#E8F0FD]" : "bg-[#F6F5F2]"}`}>
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         {file.kind === "image" ? <img src={file.src} alt="" className="h-11 w-9 rounded-md object-cover" /> : <span className="grid h-11 w-9 place-items-center rounded-md bg-white text-[10px] font-bold uppercase text-[#6B6760]">{file.kind === "pdf" ? "PDF" : file.kind === "video" ? "Vid" : "File"}</span>}
-                        <span className="min-w-0 flex-1 truncate text-[13px] font-semibold">{rule.multiple ? `${index + 1}. ` : ""}{file.name}</span>
+                        <button onClick={() => setActive(index)} className="min-w-0 flex-1 truncate text-left text-[13px] font-semibold">{rule.multiple ? `${index + 1}. ` : ""}{file.name}</button>
                         {rule.multiple && <button onClick={() => move(index, -1)} disabled={index === 0} aria-label="Move earlier" className="rounded-lg p-1.5 disabled:opacity-30"><ArrowUp size={14} /></button>}
                         {rule.multiple && <button onClick={() => move(index, 1)} disabled={index === files.length - 1} aria-label="Move later" className="rounded-lg p-1.5 disabled:opacity-30"><ArrowDown size={14} /></button>}
                         <button onClick={() => setFiles(files.filter((item) => item.id !== file.id))} aria-label={`Remove ${file.name}`} className="rounded-lg p-1.5 text-[#B83232]"><Trash2 size={14} /></button>
@@ -252,9 +287,19 @@ function Wizard() {
                 <li><b>{title || "Untitled post"}</b></li>
                 <li>{client?.name} · {format} · {picked.join(", ") || "no channel"}</li>
                 <li>Goes out {new Date(`${date}T12:00:00`).toLocaleDateString("en-IE", { weekday: "short", day: "numeric", month: "long" })} · counts for {monthName(month)}</li>
-                <li>{copy.trim() ? `${copy.trim().length} characters of caption` : "No caption yet"} · {files.length} file{files.length === 1 ? "" : "s"}</li>
+                <li>{useDifferent ? `Different captions for ${picked.join(" and ")}` : copy.trim() ? `${copy.trim().length} characters of caption` : "No caption yet"} · {files.length} file{files.length === 1 ? "" : "s"}</li>
               </ul>
-              {!copy.trim() && <p className="rounded-xl bg-[#FFF3D9] px-4 py-3 text-[13px] text-[#6B4A06]">Add a caption to send it for review, or save it as a draft.</p>}
+              {files.length > 0 && (
+                <div className="flex gap-2 overflow-x-auto pb-1">
+                  {files.map((file, index) => (
+                    <button key={file.id} onClick={() => setBig(index)} aria-label={`See ${file.name} full size`} className="relative h-24 w-[76px] shrink-0 overflow-hidden rounded-lg border border-[#E2DED7] bg-[#F1F0ED]">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      {file.kind === "image" ? <img src={file.src} alt="" className="h-full w-full object-cover" /> : <span className="grid h-full w-full place-items-center text-[11px] font-bold text-[#55514B]">{file.kind === "pdf" ? "PDF" : file.kind === "video" ? "Video" : "File"}</span>}
+                    </button>
+                  ))}
+                </div>
+              )}
+              {!hasCaption && <p className="rounded-xl bg-[#FFF3D9] px-4 py-3 text-[13px] text-[#6B4A06]">Add {useDifferent ? "a caption for each channel" : "a caption"} to send it for review, or save it as a draft.</p>}
             </div>
           )}
         </div>
@@ -267,7 +312,7 @@ function Wizard() {
           ) : (
             <>
               <Button onClick={() => finish(false)}>Save draft</Button>
-              <Button kind="good" onClick={() => finish(true)} disabled={!copy.trim()}><Send size={14} />Send for review</Button>
+              <Button kind="good" onClick={() => finish(true)} disabled={!hasCaption}><Send size={14} />Send for review</Button>
             </>
           )}
         </div>

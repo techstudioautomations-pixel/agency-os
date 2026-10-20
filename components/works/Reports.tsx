@@ -80,6 +80,9 @@ export function ReportsPage() {
                   <div className="flex flex-wrap items-center gap-2 rounded-xl bg-[#F8F7F4] px-3 py-2.5">
                     <Tick done={Boolean(report?.freelancerReport || report?.numbers)} />
                     <span className="text-[13px] font-semibold">Freelancer report</span>
+                    {(["w1", "w2", "w3"] as const).some((week) => report?.weekly?.[week]) && (
+                      <span className="flex gap-1">{(["w1", "w2", "w3"] as const).map((week) => <span key={week} title={`Week ${week.slice(1)} report`} className={`rounded-md px-1.5 py-0.5 text-[11px] font-bold ${report?.weekly?.[week]?.submittedAt ? "bg-[#E6F5EC] text-[#17804A]" : "bg-[#EEECE7] text-[#8B867E]"}`}>W{week.slice(1)}</span>)}</span>
+                    )}
                     <span className="ml-auto"><AttachField value={report?.freelancerReport} onChange={(file) => attachReport(client.id, month, "freelancerReport", file)} compact /></span>
                   </div>
                   {!freelancer && (

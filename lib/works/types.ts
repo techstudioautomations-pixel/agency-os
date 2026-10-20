@@ -282,6 +282,8 @@ export type PostDraft = {
   platforms: string[];
   date: string;
   copy: string;
+  /** A different caption for some channels. Empty means the same caption everywhere. */
+  captions: Record<string, string>;
   files: PostFile[];
   reviewerId?: string;
   /** Send it for review now, or keep it as a draft to finish later. */
@@ -300,6 +302,15 @@ export type ReportNumbers = {
   screenshots: string;
 };
 
+/** A report for part of the month: week 1, 2 or 3. The full month report is the MonthReport itself. */
+export type WeekReport = {
+  byPlatform?: Record<string, ReportNumbers & { savedAt: string; savedBy: string }>;
+  checks?: Record<string, string>;
+  submittedAt?: string;
+  freelancerReport?: Attachment;
+};
+export type ReportPeriod = "w1" | "w2" | "w3" | "month";
+
 export type MonthReport = {
   id: string;
   clientId: string;
@@ -313,6 +324,8 @@ export type MonthReport = {
   checks?: Record<string, string>;
   /** When the freelancer handed the report to operations. */
   submittedAt?: string;
+  /** Week 1, 2 and 3 reports, if the freelancer sends them. */
+  weekly?: Partial<Record<"w1" | "w2" | "w3", WeekReport>>;
   checked: boolean;
   summary: string;
   recommendations: string;

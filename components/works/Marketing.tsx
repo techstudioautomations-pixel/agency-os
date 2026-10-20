@@ -44,8 +44,7 @@ export function MarketingPage({ clientId, tab, postId, filter }: { clientId?: st
     return <PostReview key={post.id} post={post} client={postClient} backScope={scope} />;
   }
 
-  // Freelancers start with ideas, which is where a post begins. Reviewers start with the posts waiting for them.
-  const requested = tab ?? (isFreelancer(state) ? "ideas" : "posts");
+  const requested = tab ?? "posts";
   const current = !client && (requested in packTabs || requested === "month") ? "posts" : requested === "strategy" ? "posts" : requested;
   const inScope = (item: { clientId: string }) => (client ? item.clientId === client.id : clients.some((c) => c.id === item.clientId));
   const mineCount = (id?: string) => state.posts.filter((item) => (id ? item.clientId === id : inScope(item)) && item.date.startsWith(state.month) && needsMe(state, item)).length;
@@ -85,8 +84,8 @@ export function MarketingPage({ clientId, tab, postId, filter }: { clientId?: st
               <div className="mx-2 my-1 hidden border-t border-[#E9E6E0] lg:block" />
             </>
           )}
-          {railItem("ideas", "Ideas", state.ideas.filter((idea) => inScope(idea) && idea.month === state.month && idea.decision === "New").length)}
           {railItem("posts", "Posts", state.posts.filter((item) => inScope(item) && item.date.startsWith(state.month)).length)}
+          {railItem("ideas", "Ideas", state.ideas.filter((idea) => inScope(idea) && idea.month === state.month && idea.decision === "New").length)}
           {railItem("calendar", "Calendar")}
           {railItem("results", "Results")}
           {client && monthAreas.length > 0 && railItem("month", isFreelancer(state) ? "My checklist" : "This month", monthOpen)}

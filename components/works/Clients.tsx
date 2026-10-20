@@ -1,9 +1,9 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import { ArrowRight, Check, ExternalLink, FileText, FolderOpen, KeyRound, Link2, Pencil, Plus, ShieldAlert, Sparkles, Trash2 } from "lucide-react";
+import { ArrowRight, Check, ChevronDown, ExternalLink, FileText, FolderOpen, KeyRound, Link2, Pencil, Plus, ShieldAlert, Sparkles, Trash2 } from "lucide-react";
 import { useStore } from "@/lib/works/store";
-import { agreedFor, areaLabel, canBeAssigned, firstMonthOf, gate, isFirstMonth, isFreelancer, isMarketing, isOwner, missing, money, monthName, monthlyAreas, nameOf, personById, progress, shiftMonth, shortDate, todayIso } from "@/lib/works/logic";
+import { agreedFor, areaLabel, qaGroups, canBeAssigned, firstMonthOf, gate, isFirstMonth, isFreelancer, isMarketing, isOwner, missing, money, monthName, monthlyAreas, nameOf, personById, progress, shiftMonth, shortDate, todayIso } from "@/lib/works/logic";
 import type { AccessItem, ApprovalMode, Client, ClientFile } from "@/lib/works/types";
 import { Shell } from "./Shell";
 import { GateBanner } from "./Checklist";
@@ -236,7 +236,35 @@ function Checklists({ client, sub }: { client: Client; sub?: string }) {
     <div className="space-y-4">
       {!sub && <GateBanner items={client.checklist} readyText="Ready for production: every key step is done" />}
       {sub ? <AreaDetail client={client} areaId={sub} /> : <AreaGrid client={client} />}
+      {!sub && isMarketing(client) && <QualityReference client={client} />}
     </div>
+  );
+}
+
+/** The standard every post for this client is checked against. It lives with the client, not on each post. */
+function QualityReference({ client }: { client: Client }) {
+  const [open, setOpen] = useState(false);
+  const total = qaGroups.reduce((sum, group) => sum + group.items.length, 0);
+  return (
+    <section className="overflow-hidden rounded-2xl border border-[#E9E6E0] bg-white">
+      <button onClick={() => setOpen(!open)} aria-expanded={open} className="flex w-full items-center gap-3 px-5 py-4 text-left">
+        <span className="min-w-0 flex-1"><span className="block text-[15px] font-bold">Quality checklist for {client.name}</span><span className="block text-[12px] text-[#8B867E]">What we check on every post before it goes out. From the brand guide.</span></span>
+        <span className="text-[13px] font-bold">{total} checks</span>
+        <ChevronDown size={17} className={`text-[#8B867E] transition ${open ? "rotate-180" : ""}`} />
+      </button>
+      {open && (
+        <div className="grid gap-5 border-t border-[#F0EEE9] px-5 py-4 md:grid-cols-3">
+          {qaGroups.map((group) => (
+            <div key={group.title}>
+              <div className="mb-1.5 text-[12px] font-bold uppercase tracking-wide text-[#8B867E]">{group.title}</div>
+              <ul className="space-y-1.5 text-[13px]">
+                {group.items.map((item) => <li key={item.id} className="flex gap-2"><Check size={14} className="mt-0.5 shrink-0 text-[#17804A]" /><span>{item.text}</span></li>)}
+              </ul>
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
   );
 }
 

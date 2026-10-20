@@ -2,10 +2,15 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { buildClientChecklist, defaultMonthLine, defaultMonthly, defaultPlaybook, defaultSections, newShare, piecesPerMonth, seedState } from "./seed";
-import { canBeAssigned, monthlyAreas, nameOf, reviewerFor, todayIso } from "./logic";
-import type { CheckItem, Client, ClientAsset, ClientSection, ClientShare, Idea, Lead, MonthReport, NewClientDraft, Notice, Post, PostDraft, ReportNumbers, RevisionCategory, Route, SectionStep, State } from "./types";
+import { canBeAssigned, monthlyAreas, monthName, nameOf, reviewerFor, todayIso } from "./logic";
+import type { CheckItem, Client, ClientAsset, ClientSection, ClientShare, Idea, Lead, MonthReport, NewClientDraft, Notice, Post, PostDraft, ReportNumbers, RevisionCategory, Route, SectionStep, State, ReportPeriod, WeekReport } from "./types";
 
 const KEY = "theworks-os-v5";
+/** The week 1, 2 or 3 report inside a month report, created when first needed. */
+const weekOf = (report: MonthReport, period: Exclude<ReportPeriod, "month">): WeekReport => {
+  const weekly = report.weekly ?? (report.weekly = {});
+  return weekly[period] ?? (weekly[period] = {});
+};
 const uid = (prefix: string) => `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
 const stamp = () => new Date().toISOString();
 
@@ -194,12 +199,17 @@ function useStoreValue() {
           item.status = item.status === "Received" ? "Not asked" : "Received";
           item.date = item.status === "Received" ? todayIso() : "";
         }),
-      attachReport: (clientId: string, month: string, slot: "freelancerReport" | "clientReport" | "financeReport", file: { name: string; url: string } | undefined) => {
+      attachReport: (clientId: string, month: string, slot: "freelancerReport" | "clientReport" | "financeReport", file: { name: string; url: string } | undefined, period: ReportPeriod = "month") => {
         update((d) => {
           let report = d.reports.find((item) => item.clientId === clientId && item.month === month);
           if (!report) { report = { id: `${clientId}-${month}`, clientId, month, checked: false, summary: "", recommendations: "", approved: false, sentAt: "", reportLink: "" }; d.reports.push(report); }
-          report[slot] = file ? { ...file, addedAt: todayIso(), addedBy: d.me } : undefined;
           const client = d.clients.find((c) => c.id === clientId)!;
+          if (period !== "month") {
+            const week = weekOf(report, period);
+            week.freelancerReport = file ? { ...file, addedAt: todayIso(), addedBy: d.me } : undefined;
+            return;
+          }
+          report[slot] = file ? { ...file, addedAt: todayIso(), addedBy: d.me } : undefined;
           if (slot === "freelancerReport" && file) notify(d, client.opsId, `${client.name}: the freelancer's monthly report is in`, { view: "client", clientId, tab: "reporting" });
         });
         if (file) ping("Report attached");
@@ -370,7 +380,7 @@ function useStoreValue() {
           const status: Post["status"] = !draft.send ? "Copy in progress" : withArt ? "Design review" : "Copy review";
           const post: Post = {
             id, clientId: client.id, ideaId: idea?.id, reviewerId: draft.reviewerId, title: draft.title, format: draft.format, platforms: draft.platforms.length ? draft.platforms : [client.platforms[0] ?? "LinkedIn"],
-            date: draft.date, status, copy: draft.copy, captions: {}, files: draft.files, art: draft.title, designLink: "", driveLink: "", version: 1,
+            date: draft.date, status, copy: draft.copy, captions: draft.captions, files: draft.files, art: draft.title, designLink: "", driveLink: "", version: 1,
             comments: idea?.notes ? [{ id: uid("c"), by: idea.createdBy, body: `From the idea: ${idea.notes}`, at: stamp(), kind: "system" }] : [],
             history: [{ at: stamp(), by: d.me, text: idea ? "Created from an idea" : "Post created" }],
             needsExpert: /regulation|part [a-z]|span|load|fire|compliance|certif/i.test(`${draft.title} ${idea?.notes ?? ""}`), expertOk: false, waitingSince: todayIso(),
@@ -416,6 +426,16 @@ function useStoreValue() {
         ping("Post added");
         return id;
       },
+      /** The maker finished editing a post that is already with the reviewer or approved. Tell the reviewer and keep a record. */
+      postEdited: (id: string) =>
+        update((d) => {
+          const { post, client } = withPost(d, id);
+          if (d.me !== client.freelancerId) return;
+          if (post.status === "Copy review" || post.status === "Design review") {
+            log(d, post, "Edited while waiting for review");
+            notify(d, reviewerFor(d, client, post), `${client.name}: updated while waiting for your review · ${post.title}`, postRoute(post));
+          } else if (post.status === "Ready to schedule" || post.status === "Scheduled") log(d, post, "Edited after approval");
+        }),
       updatePost: (id: string, patch: Partial<Post>) => update((d) => { Object.assign(d.posts.find((item) => item.id === id)!, patch); }),
       submitPost: (id: string) => {
         update((d) => {
@@ -515,11 +535,17 @@ function useStoreValue() {
 
       // Reports
       /** Saves the key numbers for one platform. The main platform's numbers also feed the client report. */
-      saveNumbers: (clientId: string, month: string, platform: string, numbers: ReportNumbers) => {
+      saveNumbers: (clientId: string, month: string, platform: string, numbers: ReportNumbers, period: ReportPeriod = "month") => {
         update((d) => {
           const client = d.clients.find((c) => c.id === clientId)!;
           let report = d.reports.find((item) => item.clientId === clientId && item.month === month);
           if (!report) { report = { id: `${clientId}-${month}`, clientId, month, checked: false, summary: "", recommendations: "", approved: false, sentAt: "", reportLink: "" }; d.reports.push(report); }
+          if (period !== "month") {
+            const week = weekOf(report, period);
+            const weekBy = week.byPlatform ?? (week.byPlatform = {});
+            weekBy[platform] = { ...numbers, savedAt: todayIso(), savedBy: d.me };
+            return;
+          }
           const by = report.byPlatform ?? (report.byPlatform = {});
           by[platform] = { ...numbers, savedAt: todayIso(), savedBy: d.me };
           const main = [...client.platforms, ...Object.keys(by)].find((name) => by[name]);
@@ -529,21 +555,24 @@ function useStoreValue() {
         });
         ping(`${platform} numbers saved`);
       },
-      toggleReportCheck: (clientId: string, month: string, stepId: string) =>
+      toggleReportCheck: (clientId: string, month: string, stepId: string, period: ReportPeriod = "month") =>
         update((d) => {
           let report = d.reports.find((item) => item.clientId === clientId && item.month === month);
           if (!report) { report = { id: `${clientId}-${month}`, clientId, month, checked: false, summary: "", recommendations: "", approved: false, sentAt: "", reportLink: "" }; d.reports.push(report); }
-          const checks = report.checks ?? (report.checks = {});
+          const holder = period === "month" ? report : weekOf(report, period);
+          const checks = holder.checks ?? (holder.checks = {});
           if (checks[stepId]) delete checks[stepId];
           else checks[stepId] = todayIso();
         }),
-      submitReport: (clientId: string, month: string) => {
+      submitReport: (clientId: string, month: string, period: ReportPeriod = "month") => {
         update((d) => {
           const client = d.clients.find((c) => c.id === clientId)!;
           const report = d.reports.find((item) => item.clientId === clientId && item.month === month);
           if (!report) return;
-          report.submittedAt = todayIso();
-          notify(d, client.opsId, `${client.name}: the freelancer handed in the ${month} report`, { view: "client", clientId, tab: "reporting" });
+          const label = period === "month" ? `${monthName(month)} report` : `week ${period.slice(1)} report for ${monthName(month)}`;
+          if (period === "month") report.submittedAt = todayIso();
+          else weekOf(report, period).submittedAt = todayIso();
+          notify(d, client.opsId, `${client.name}: the freelancer handed in the ${label}`, { view: "client", clientId, tab: "reporting" });
         });
         ping("Report handed to operations");
       },
