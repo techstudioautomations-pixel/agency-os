@@ -460,6 +460,13 @@ const jobsOf: Record<string, Freelancer["jobs"]> = {
 const freelancer = (id: string, name: string, color: string, speciality: string, rate: string, capacity: number, status: Freelancer["status"], done: number): Freelancer => ({
   id,
   platform: platformOf[id] ?? "",
+  specialities: [],
+  availability: { mode: "hours", amount: 0 },
+  fees: [],
+  tools: [],
+  trialDone: false,
+  ndaDate: "",
+  contractDate: "",
   profileUrl: "",
   driveUrl: "",
   files: [],

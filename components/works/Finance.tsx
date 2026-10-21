@@ -104,7 +104,7 @@ export function Finance() {
                           <option>Not sent</option><option>Sent</option><option>Paid</option>
                         </select>
                       </td>
-                      <td className="px-3">{client.freelancerId ? <><b>{money(client.freelancerFee, freelancerCurrency(state, client))}</b>{approx(state, client.freelancerFee, freelancerCurrency(state, client)) && <span className="ml-1 text-[11px] text-[#8B867E]">{approx(state, client.freelancerFee, freelancerCurrency(state, client))}</span>}<div className="text-[11px] text-[#8B867E]">{nameOf(state, client.freelancerId)}</div></> : <span className="text-[#8B867E]">—</span>}</td>
+                      <td className="px-3">{client.freelancerId ? <><b>{money(freelancerCostBase(state, client), cur)}</b><div className="text-[11px] text-[#8B867E]">{nameOf(state, client.freelancerId)}</div></> : <span className="text-[#8B867E]">—</span>}</td>
                       <td className="px-3">{!client.freelancerId ? <span className="text-[#8B867E]">—</span> : paid ? <Chip t="green" dot>Paid{payout?.amount ? ` ${money(payout.amount, payout.currency ?? cur)}` : ""}</Chip> : status === "Paid" ? <PayButton client={client} label="Pay" /> : <Chip t="amber">After client pays</Chip>}</td>
                       <td className="px-3">{extra ? money(extra, cur) : <span className="text-[#8B867E]">—</span>}</td>
                       <td className="px-5 font-extrabold" style={{ color: margin >= 0 ? tone.green.ink : tone.red.ink }}>{money(margin, cur)}</td>

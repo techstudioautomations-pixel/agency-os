@@ -1,30 +1,14 @@
 "use client";
 
-import { useRef, useState } from "react";
-import { ArrowLeft, ArrowRight, Camera, Check, ExternalLink, FolderOpen, Plus, Search, ShieldCheck, ShieldX, Trash2, UserPlus, X } from "lucide-react";
+import { useState } from "react";
+import { ArrowRight, ExternalLink, FolderOpen, Plus, Search, ShieldCheck, ShieldX, UserPlus, X } from "lucide-react";
 import { useStore } from "@/lib/works/store";
-import { canBeAssigned, currencies, isFreelancer, isHired, isOwner, missing, money, progress, shortDate, todayIso, turnOf } from "@/lib/works/logic";
-import { fileToPhoto } from "@/lib/works/image";
+import { canBeAssigned, currencies, isFreelancer, isHired, isOnTeam, isOwner, money, payChannels, serviceList, setupProgress, specialityOptions, todayIso, turnOf } from "@/lib/works/logic";
 import type { Freelancer } from "@/lib/works/types";
 import { Shell } from "./Shell";
-import { PhaseChecklist } from "./Checklist";
-import { Avatar, Bar, Button, Card, CardHead, Chip, ClientMark, Empty, Field, Segmented, fieldClass, tone } from "./kit";
-
-/** Services are stored one per line as "Service | price". */
-const parseServices = (text: string) => text.split("\n").map((line) => line.split("|").map((part) => part.trim())).filter(([name]) => name).map(([name, price = "", currency = ""]) => ({ name, price, currency }));
-const formatServices = (list: { name: string; price: string; currency: string }[]) => list.map((item) => `${item.name} | ${item.price} | ${item.currency}`).join("\n");
-/** "$45" as it was typed, or "€45" when it was entered as an amount and a currency. */
-const priceOf = (item: { price: string; currency: string }) => (item.currency && /^\d+(\.\d+)?$/.test(item.price) ? money(Number(item.price), item.currency) : item.price);
-
-const platforms = ["Fiverr", "Upwork", "Direct", "Other"];
-const platformColor: Record<string, string> = { Fiverr: "#1DBF73", Upwork: "#14A800", Direct: "#2F6FDB", Other: "#8B867E" };
-const statusChip = (status: Freelancer["status"]) => (status === "Active" ? { t: "green" as const, label: "Active" } : status === "Trial" ? { t: "blue" as const, label: "Trial" } : status === "Offboarded" ? { t: "amber" as const, label: "Past" } : { t: "grey" as const, label: "Not hired" });
-const total = (person: Freelancer) => person.jobs.reduce((sum, job) => sum + (Number(job.amount) || 0), 0);
-
-function PlatformTag({ name }: { name: string }) {
-  if (!name) return null;
-  return <span className="inline-flex items-center gap-1.5 rounded-full bg-[#F1F0ED] px-2.5 py-0.5 text-[12px] font-bold text-[#3D4450]"><span className="h-2 w-2 rounded-full" style={{ background: platformColor[name] ?? platformColor.Other }} />{name}</span>;
-}
+import { FreelancerProfile } from "./FreelancerProfile";
+import { PlatformTag, jobsTotal, platforms, priceOf, statusChip } from "./FreelancerBits";
+import { Avatar, Bar, Button, Chip, ClientMark, Empty, Field, Segmented, fieldClass, tone } from "./kit";
 
 export function Freelancers({ freelancerId }: { freelancerId?: string }) {
   const { state, go } = useStore();
@@ -33,7 +17,7 @@ export function Freelancers({ freelancerId }: { freelancerId?: string }) {
   const [view, setView] = useState<"team" | "directory">("team");
   const [adding, setAdding] = useState(false);
   if (selected) return <FreelancerProfile person={selected} />;
-  const team = state.freelancers.filter(isHired);
+  const team = state.freelancers.filter(isOnTeam);
   return (
     <Shell
       title="Freelancers"
@@ -46,8 +30,8 @@ export function Freelancers({ freelancerId }: { freelancerId?: string }) {
       {view === "team" ? (
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {team.map((person) => {
-            const p = progress(person.checklist);
-            const ok = canBeAssigned(person);
+            const p = setupProgress(state, person);
+            const ok = canBeAssigned(state, person);
             const accounts = state.clients.filter((client) => client.freelancerId === person.id);
             const desk = state.posts.filter((post) => post.date.startsWith(state.month) && turnOf(state, post).who === person.id).length;
             return (
@@ -58,7 +42,7 @@ export function Freelancers({ freelancerId }: { freelancerId?: string }) {
                     <div className="truncate text-[16px] font-bold">{person.name}</div>
                     <div className="truncate text-[12px] text-[#6B6760]">{person.speciality}</div>
                   </div>
-                  <Chip t={person.status === "Active" ? "green" : "blue"}>{person.status}</Chip>
+                  <Chip t={statusChip(person.status).t}>{statusChip(person.status).label}</Chip>
                 </div>
                 <div className="space-y-3 p-4">
                   <div className="flex items-center justify-between gap-2">
@@ -99,7 +83,7 @@ function Directory() {
   const words = query.toLowerCase().split(/\s+/).filter(Boolean);
   const list = state.freelancers
     .filter((person) => !platform || person.platform === platform)
-    .filter((person) => !group || (group === "hired" ? isHired(person) : group === "past" ? person.status === "Offboarded" : person.status === "Directory"))
+    .filter((person) => !group || (group === "hired" ? isOnTeam(person) : group === "past" ? person.status === "Offboarded" : person.status === "Directory"))
     .filter((person) => { const text = [person.name, person.speciality, person.services, person.notes, person.platform, person.jobs.map((job) => job.what).join(" ")].join(" ").toLowerCase(); return words.every((word) => text.includes(word)); });
 
   return (
@@ -110,14 +94,14 @@ function Directory() {
           <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search by name, skill or service" aria-label="Search the directory" className="w-full rounded-xl border border-[#E2DED7] bg-white py-2.5 pl-9 pr-3 text-[14px] outline-none focus:border-[#2F6FDB]" />
         </label>
         <select value={platform} onChange={(event) => setPlatform(event.target.value)} aria-label="Platform" className="rounded-xl border border-[#E2DED7] bg-white px-3 py-2.5 text-[14px] font-semibold"><option value="">All platforms</option>{platforms.map((name) => <option key={name}>{name}</option>)}</select>
-        <select value={group} onChange={(event) => setGroup(event.target.value)} aria-label="Who" className="rounded-xl border border-[#E2DED7] bg-white px-3 py-2.5 text-[14px] font-semibold"><option value="">Everyone</option><option value="hired">Hired now</option><option value="past">Worked for us before</option><option value="directory">Not hired yet</option></select>
+        <select value={group} onChange={(event) => setGroup(event.target.value)} aria-label="Who" className="rounded-xl border border-[#E2DED7] bg-white px-3 py-2.5 text-[14px] font-semibold"><option value="">Everyone</option><option value="hired">On the team</option><option value="past">Worked for us before</option><option value="directory">Not hired yet</option></select>
       </div>
       {list.length === 0 ? <Empty title="Nobody matches">Try a different word, or add them with Add freelancer.</Empty> : (
         <ul className="space-y-2.5">
           {list.map((person) => {
             const status = statusChip(person.status);
-            const services = parseServices(person.services);
-            const sum = total(person);
+            const services = serviceList(person.services);
+            const sum = jobsTotal(person);
             return (
               <li key={person.id} className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-2xl border border-[#E9E6E0] bg-white p-4">
                 <button onClick={() => go({ view: "freelancers", freelancerId: person.id })} className="flex min-w-[220px] flex-1 items-center gap-3 text-left">
@@ -151,266 +135,50 @@ function Directory() {
 
 function AddFreelancer({ onClose }: { onClose: () => void }) {
   const { addFreelancer, go } = useStore();
-  const [draft, setDraft] = useState({ name: "", platform: "Fiverr", profileUrl: "", driveUrl: "", email: "", speciality: "" });
+  const [draft, setDraft] = useState({ name: "", platform: "Fiverr", profileUrl: "", driveUrl: "", email: "" });
+  const [specialities, setSpecialities] = useState<string[]>([]);
+  const [pay, setPay] = useState({ what: "", amount: "", currency: "USD", channel: payChannels[0], frequency: "monthly" as "monthly" | "one-time", date: todayIso() });
   const submit = (event: React.FormEvent) => {
     event.preventDefault();
     if (!draft.name.trim()) return;
-    const id = addFreelancer({ ...draft, name: draft.name.trim() });
+    const amount = Number(pay.amount);
+    const id = addFreelancer({ ...draft, name: draft.name.trim(), specialities, fee: amount > 0 ? { what: pay.what.trim(), kind: "standard", amount, currency: pay.currency, channel: pay.channel, frequency: pay.frequency, date: pay.date || todayIso(), custom: pay.what.trim() ? undefined : undefined } : undefined });
     onClose();
     go({ view: "freelancers", freelancerId: id });
   };
+  const smallField = "w-full rounded-xl border border-[#E2DED7] bg-white px-3 py-2 text-[13px] outline-none focus:border-[#2F6FDB]";
   return (
     <div className="fixed inset-0 z-50 grid place-items-center p-4">
       <button aria-label="Close" onClick={onClose} className="absolute inset-0 bg-black/40" />
-      <form onSubmit={submit} role="dialog" aria-label="Add freelancer" className="relative w-full max-w-[460px] space-y-3 rounded-3xl bg-white p-6 shadow-2xl">
+      <form onSubmit={submit} role="dialog" aria-label="Add freelancer" className="relative max-h-[94vh] w-full max-w-[520px] space-y-3 overflow-y-auto rounded-3xl bg-white p-6 shadow-2xl">
         <div className="flex items-start gap-3">
-          <div className="flex-1"><h2 className="text-[18px] font-extrabold">Add to the directory</h2><p className="text-[13px] text-[#6B6760]">Just the basics. You can add services, prices and past work on their page.</p></div>
+          <div className="flex-1"><h2 className="text-[18px] font-extrabold">Add to the directory</h2><p className="text-[13px] text-[#6B6760]">The basics. Everything else is on their page, and you can hire them from there.</p></div>
           <button type="button" onClick={onClose} aria-label="Close" className="rounded-lg p-1.5 text-[#6B6760] hover:bg-[#F1F0ED]"><X size={18} /></button>
         </div>
         <Field label="Name"><input autoFocus required value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} className={fieldClass} /></Field>
-        <div className="grid grid-cols-2 gap-3">
-          <Field label="Found on"><select value={draft.platform} onChange={(event) => setDraft({ ...draft, platform: event.target.value })} className={fieldClass}>{platforms.map((name) => <option key={name}>{name}</option>)}</select></Field>
-          <Field label="What they do"><input value={draft.speciality} onChange={(event) => setDraft({ ...draft, speciality: event.target.value })} placeholder="Reels, copy…" className={fieldClass} /></Field>
+        <div>
+          <div className="mb-1.5 text-[12px] font-semibold text-[#55514B]">What they do</div>
+          <div className="flex flex-wrap gap-1.5">{specialityOptions.map((name) => { const on = specialities.includes(name); return <button key={name} type="button" onClick={() => setSpecialities((current) => (current.includes(name) ? current.filter((item) => item !== name) : [...current, name]))} aria-pressed={on} className={`rounded-full px-3 py-1 text-[12px] font-semibold ${on ? "bg-[#1E2430] text-white" : "bg-[#F1F0ED] text-[#55514B]"}`}>{name}</button>; })}</div>
         </div>
+        <Field label="Found on"><select value={draft.platform} onChange={(event) => setDraft({ ...draft, platform: event.target.value })} className={fieldClass}>{platforms.map((name) => <option key={name}>{name}</option>)}</select></Field>
         <Field label="Profile link (Fiverr or Upwork, if it applies)"><input value={draft.profileUrl} onChange={(event) => setDraft({ ...draft, profileUrl: event.target.value })} placeholder="https://www.fiverr.com/…" className={fieldClass} /></Field>
         <Field label="Drive link"><input value={draft.driveUrl} onChange={(event) => setDraft({ ...draft, driveUrl: event.target.value })} placeholder="https://drive.google.com/…" className={fieldClass} /></Field>
         <Field label="Email"><input type="email" value={draft.email} onChange={(event) => setDraft({ ...draft, email: event.target.value })} className={fieldClass} /></Field>
+        <div className="space-y-2 rounded-2xl bg-[#F8F7F4] p-3.5">
+          <div className="text-[12px] font-bold text-[#55514B]">How we pay them (optional, owners only)</div>
+          <input value={pay.what} onChange={(event) => setPay({ ...pay, what: event.target.value })} placeholder="What it covers" aria-label="What the payment covers" className={smallField} />
+          <div className="flex flex-wrap gap-2">
+            <input value={pay.amount} inputMode="decimal" onChange={(event) => setPay({ ...pay, amount: event.target.value.replace(/[^\d.]/g, "") })} placeholder="Amount" aria-label="Amount" className={`${smallField} !w-28`} />
+            <select value={pay.currency} onChange={(event) => setPay({ ...pay, currency: event.target.value })} aria-label="Currency" className={`${smallField} !w-auto font-bold`}>{currencies.map((item) => <option key={item}>{item}</option>)}</select>
+            <select value={pay.channel} onChange={(event) => setPay({ ...pay, channel: event.target.value })} aria-label="How we pay" className={`${smallField} !w-auto`}>{payChannels.map((item) => <option key={item}>{item}</option>)}</select>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Segmented size="sm" value={pay.frequency} onChange={(frequency) => setPay({ ...pay, frequency })} options={[{ value: "monthly", label: "Monthly" }, { value: "one-time", label: "One time" }]} />
+            <input type="date" value={pay.date} onChange={(event) => setPay({ ...pay, date: event.target.value })} aria-label="Date" className={`${smallField} !w-auto`} />
+          </div>
+        </div>
         <div className="flex justify-end gap-2 pt-1"><Button type="button" onClick={onClose}>Cancel</Button><Button kind="primary" type="submit"><Plus size={14} />Add</Button></div>
       </form>
     </div>
-  );
-}
-
-function FreelancerProfile({ person }: { person: Freelancer }) {
-  const store = useStore();
-  const { state, go } = store;
-  const owner = isOwner(state);
-  const self = isFreelancer(state);
-  const ok = canBeAssigned(person);
-  const hired = isHired(person);
-  const photoInput = useRef<HTMLInputElement>(null);
-  const choosePhoto = async (file?: File) => { if (!file) return; try { store.updateFreelancer(person.id, { photo: await fileToPhoto(file) }); } catch { store.ping("Could not read that picture. Try a PNG or JPG."); } };
-  const accounts = state.clients.filter((client) => client.freelancerId === person.id);
-  const set = (patch: Partial<Freelancer>) => store.updateFreelancer(person.id, patch);
-  const services = parseServices(person.services);
-  const [service, setService] = useState({ name: "", price: "", currency: person.currency || "USD" });
-  const open = missing(person.checklist);
-  const status = statusChip(person.status);
-  const sum = total(person);
-  const seesPrices = owner || self;
-
-  return (
-    <Shell title={person.name} sub={person.speciality || "Not in a role yet"} actions={self ? undefined : <Button kind="ghost" onClick={() => go({ view: "freelancers" })}><ArrowLeft size={15} />All freelancers</Button>}>
-      <div className="mb-5 flex flex-wrap items-center gap-4 rounded-2xl p-5" style={{ background: `linear-gradient(120deg, ${person.color}22, #ffffff)` }}>
-        <div className="flex flex-col items-center gap-1.5">
-          <Avatar name={person.name} color={person.color} photo={person.photo} size={72} />
-          <input ref={photoInput} type="file" accept="image/*" className="sr-only" onChange={(event) => { void choosePhoto(event.target.files?.[0]); event.target.value = ""; }} />
-          <span className="flex items-center gap-2 text-[12px] font-semibold text-[#1F5BC4]">
-            <button onClick={() => photoInput.current?.click()} className="inline-flex items-center gap-1 hover:underline"><Camera size={12} />{person.photo ? "Change" : "Add photo"}</button>
-            {person.photo && <button onClick={() => store.updateFreelancer(person.id, { photo: undefined })} className="text-[#8B867E] hover:text-[#B83232]">Remove</button>}
-          </span>
-        </div>
-        <div className="min-w-[200px] flex-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <Chip t={status.t}>{status.label}</Chip>
-            <PlatformTag name={person.platform} />
-            {hired && <Chip t={ok ? "green" : "red"}>{ok ? <><ShieldCheck size={12} />NDA and contract signed</> : <><ShieldX size={12} />Cannot be assigned yet</>}</Chip>}
-          </div>
-          <div className="mt-2 text-[13px] text-[#55514B]">{[person.email, person.phone, owner && person.rate ? person.rate : "", owner && person.paymentMethod ? `paid by ${person.paymentMethod}` : ""].filter(Boolean).join(" · ") || "No contact yet"}</div>
-          <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-[13px] font-semibold">
-            {person.profileUrl && <a href={person.profileUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-[#1F5BC4] hover:underline"><ExternalLink size={13} />{person.platform ? `${person.platform} profile` : "Profile"}</a>}
-            {person.driveUrl && <a href={person.driveUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-[#1F5BC4] hover:underline"><FolderOpen size={13} />Drive folder</a>}
-            {person.portfolio && <a href={person.portfolio} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-[#1F5BC4] hover:underline"><ExternalLink size={13} />Portfolio</a>}
-          </div>
-        </div>
-        {hired && <div className="text-right"><div className="text-[26px] font-extrabold">{accounts.length}<span className="text-[15px] text-[#8B867E]">/{person.capacity}</span></div><div className="text-[12px] font-semibold text-[#6B6760]">accounts</div></div>}
-      </div>
-
-      {!hired && !self && (
-        <div className="mb-5 flex flex-wrap items-center gap-3 rounded-2xl border border-[#E9E6E0] bg-white p-4">
-          <div className="min-w-[220px] flex-1 text-[13px] text-[#55514B]">
-            <b className="text-[14px] text-[#1E2430]">{person.status === "Offboarded" ? "Worked for us before." : "In the directory, not hired."}</b> {person.status === "Offboarded" ? "Their past work is below." : "Hiring opens the setup checklist, with the NDA and contract, and lets you assign them to a client once those are signed."}
-          </div>
-          <Button kind="primary" onClick={() => set({ status: "Active" })}>{person.status === "Offboarded" ? "Hire again" : "Hire"}</Button>
-          {person.status === "Directory" && accounts.length === 0 && <Button onClick={() => { store.deleteFreelancer(person.id); go({ view: "freelancers" }); }}><Trash2 size={14} />Remove</Button>}
-        </div>
-      )}
-
-      <div className="grid gap-5 xl:grid-cols-[1.2fr_.8fr]">
-        <div className="min-w-0 space-y-5">
-          <ProfileFiles person={person} />
-          {!self && <WorkForUs person={person} sum={sum} />}
-          {hired && !self && (
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <h2 className="text-[17px] font-extrabold">Setup checklist</h2>
-                <span className={`text-[13px] font-semibold ${open.length ? "text-[#94600A]" : "text-[#17804A]"}`}>{open.length ? `${open.length} still to do` : <><Check size={14} className="inline" /> All done</>}</span>
-              </div>
-              <PhaseChecklist items={person.checklist} onToggle={(id) => store.toggleFreelancerCheck(person.id, id)} onUpdate={(id, patch) => store.updateFreelancerCheck(person.id, id, patch)} />
-            </div>
-          )}
-        </div>
-
-        <div className="min-w-0 space-y-5">
-          {hired && !self && (
-            <Card>
-              <CardHead title="Accounts" sub="Assign from the client's Overview." />
-              {accounts.length === 0 ? <p className="text-[13px] text-[#8B867E]">{ok ? "No accounts yet." : "Sign the NDA and contract before assigning a client."}</p> : (
-                <ul className="space-y-2">
-                  {accounts.map((client) => {
-                    const desk = state.posts.filter((post) => post.clientId === client.id && turnOf(state, post).who === person.id).length;
-                    return (
-                      <li key={client.id}>
-                        <button onClick={() => go({ view: "marketing", clientId: client.id })} className="flex w-full items-center gap-3 rounded-xl border border-[#F0EEE9] px-3 py-2.5 text-left hover:bg-[#FBFAF8]">
-                          <ClientMark client={client} size={32} />
-                          <span className="flex-1"><span className="block text-[14px] font-bold">{client.name}</span><span className="text-[12px] text-[#8B867E]">{client.package} · {client.agreedPosts} posts a month</span></span>
-                          {desk > 0 && <Chip t="blue">{desk} to do</Chip>}
-                          <ArrowRight size={14} className="text-[#B5B0A8]" />
-                        </button>
-                      </li>
-                    );
-                  })}
-                </ul>
-              )}
-            </Card>
-          )}
-
-          <Card>
-            <CardHead title="Services and prices" sub={self ? "Only you and the owners see the prices." : owner ? "Prices are visible to owners and to the freelancer." : "Prices are visible to owners and to the freelancer, not to operations."} />
-            <ul className="space-y-1.5">
-              {services.map((item, index) => (
-                <li key={index} className="flex items-center gap-2 rounded-xl bg-[#F8F7F4] px-3 py-2 text-[13px]">
-                  <span className="flex-1 font-semibold">{item.name}</span>
-                  {seesPrices && <span className="font-bold">{priceOf(item)}</span>}
-                  <button onClick={() => set({ services: formatServices(services.filter((_, i) => i !== index)) })} aria-label={`Remove ${item.name}`} className="text-[#B5B0A8] hover:text-[#B83232]"><Trash2 size={14} /></button>
-                </li>
-              ))}
-              {services.length === 0 && <li className="text-[13px] text-[#8B867E]">No services listed yet.</li>}
-            </ul>
-            <form onSubmit={(event) => { event.preventDefault(); if (!service.name.trim()) return; set({ services: formatServices([...services, { name: service.name.trim(), price: service.price.trim(), currency: service.price.trim() ? service.currency : "" }]) }); setService({ ...service, name: "", price: "" }); }} className="mt-3 flex flex-wrap gap-2">
-              <input value={service.name} onChange={(event) => setService({ ...service, name: event.target.value })} placeholder="Carousel design" aria-label="Service" className="min-w-0 flex-1 rounded-xl border border-[#E2DED7] px-3 py-2 text-[13px]" />
-              {seesPrices && <><input value={service.price} inputMode="decimal" onChange={(event) => setService({ ...service, price: event.target.value.replace(/[^\d.]/g, "") })} placeholder="Amount" aria-label="Amount" className="w-24 rounded-xl border border-[#E2DED7] px-3 py-2 text-[13px]" /><select value={service.currency} onChange={(event) => setService({ ...service, currency: event.target.value })} aria-label="Currency" className="rounded-xl border border-[#E2DED7] bg-white px-2 py-2 text-[13px] font-bold">{currencies.map((item) => <option key={item}>{item}</option>)}</select></>}
-              <Button type="submit" size="sm"><Plus size={13} /></Button>
-            </form>
-          </Card>
-
-          <Card>
-            <CardHead title="Details" />
-            <div className="grid gap-3">
-              <Field label="Speciality"><input value={person.speciality} onChange={(event) => set({ speciality: event.target.value, title: event.target.value })} className={fieldClass} /></Field>
-              <div className="grid grid-cols-2 gap-3">
-                <Field label="Found on"><select value={person.platform} onChange={(event) => set({ platform: event.target.value })} className={fieldClass}><option value="">Not set</option>{platforms.map((name) => <option key={name}>{name}</option>)}</select></Field>
-                <Field label="Phone or WhatsApp"><input value={person.phone} onChange={(event) => set({ phone: event.target.value })} className={fieldClass} /></Field>
-              </div>
-              <Field label="Profile link (Fiverr or Upwork, if it applies)"><input value={person.profileUrl} onChange={(event) => set({ profileUrl: event.target.value })} className={fieldClass} placeholder="https://…" /></Field>
-              <Field label="Drive link"><input value={person.driveUrl} onChange={(event) => set({ driveUrl: event.target.value })} className={fieldClass} placeholder="https://drive.google.com/…" /></Field>
-              <Field label="Portfolio"><input value={person.portfolio} onChange={(event) => set({ portfolio: event.target.value })} className={fieldClass} placeholder="https://…" /></Field>
-              <Field label="Email (for notifications)"><input value={person.email} onChange={(event) => set({ email: event.target.value })} className={fieldClass} /></Field>
-              {owner && (
-                <div className="grid grid-cols-2 gap-3">
-                  <Field label="Rate"><input value={person.rate} onChange={(event) => set({ rate: event.target.value })} className={fieldClass} /></Field>
-                  <Field label="Paid by"><input value={person.paymentMethod} onChange={(event) => set({ paymentMethod: event.target.value })} className={fieldClass} placeholder="Revolut, bank…" /></Field>
-                </div>
-              )}
-              {!self && <div className="grid grid-cols-2 gap-3">
-                <Field label="Capacity (accounts)"><input type="number" min={0} value={person.capacity} onChange={(event) => set({ capacity: Number(event.target.value) })} className={fieldClass} /></Field>
-                <Field label="Status"><select value={person.status} onChange={(event) => set({ status: event.target.value as Freelancer["status"] })} className={fieldClass}><option value="Directory">Not hired</option><option value="Trial">Trial</option><option value="Active">Active</option><option value="Offboarded">Past</option></select></Field>
-              </div>}
-              <Field label="Notes"><textarea value={person.notes} onChange={(event) => set({ notes: event.target.value })} rows={3} className={fieldClass} placeholder="How good they were, how fast, anything to remember" /></Field>
-            </div>
-          </Card>
-        </div>
-      </div>
-    </Shell>
-  );
-}
-
-/** What this person did for us and what it cost, so we can come back to it. */
-function WorkForUs({ person, sum }: { person: Freelancer; sum: number }) {
-  const store = useStore();
-  const { state } = store;
-  const owner = isOwner(state);
-  const [job, setJob] = useState({ what: "", clientId: "", amount: "", date: todayIso(), link: "" });
-  const jobs = [...person.jobs].sort((a, b) => b.date.localeCompare(a.date));
-  const clientName = (item: Freelancer["jobs"][number]) => state.clients.find((client) => client.id === item.clientId)?.name ?? item.client ?? "The Works";
-  const add = (event: React.FormEvent) => {
-    event.preventDefault();
-    if (!job.what.trim()) return;
-    store.updateFreelancer(person.id, { jobs: [{ id: `job-${Date.now().toString(36)}`, date: job.date || todayIso(), clientId: job.clientId || undefined, client: job.clientId ? undefined : "The Works", what: job.what.trim(), amount: Number(job.amount) || 0, link: job.link.trim() || undefined }, ...person.jobs] });
-    setJob({ what: "", clientId: "", amount: "", date: todayIso(), link: "" });
-  };
-  return (
-    <Card>
-      <CardHead title="Work for us" sub={person.jobs.length ? `${person.jobs.length} job${person.jobs.length === 1 ? "" : "s"}${owner && sum > 0 ? ` · ${money(sum, person.currency)} in total` : ""}` : "Nothing logged yet. Add each job so we can find it again."} />
-      {jobs.length > 0 && (
-        <ul className="mb-4 divide-y divide-[#F3F1ED] rounded-xl border border-[#F0EEE9]">
-          {jobs.map((item) => (
-            <li key={item.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3.5 py-2.5 text-[13px]">
-              <span className="w-14 shrink-0 text-[12px] font-semibold text-[#8B867E]">{shortDate(item.date)}</span>
-              <span className="min-w-[160px] flex-1"><b className="block text-[14px]">{item.what}</b><span className="text-[12px] text-[#6B6760]">{clientName(item)}</span></span>
-              {owner && item.amount > 0 && <b>{money(item.amount, person.currency)}</b>}
-              {item.link && <a href={item.link} target="_blank" rel="noreferrer" aria-label={`Open ${item.what}`} className="text-[#1F5BC4]"><ExternalLink size={14} /></a>}
-              <button onClick={() => store.updateFreelancer(person.id, { jobs: person.jobs.filter((entry) => entry.id !== item.id) })} aria-label={`Remove ${item.what}`} className="text-[#B5B0A8] hover:text-[#B83232]"><Trash2 size={14} /></button>
-            </li>
-          ))}
-        </ul>
-      )}
-      <form onSubmit={add} className="space-y-2.5 rounded-xl bg-[#F8F7F4] p-3.5">
-        <div className="text-[12px] font-bold text-[#55514B]">Add a job</div>
-        <input value={job.what} onChange={(event) => setJob({ ...job, what: event.target.value })} placeholder="What they did, for example 3 LinkedIn carousels" aria-label="What they did" className="w-full rounded-xl border border-[#E2DED7] bg-white px-3 py-2 text-[13px]" />
-        <div className="flex flex-wrap gap-2">
-          <select value={job.clientId} onChange={(event) => setJob({ ...job, clientId: event.target.value })} aria-label="For which client" className="min-w-[150px] flex-1 rounded-xl border border-[#E2DED7] bg-white px-3 py-2 text-[13px]"><option value="">The Works (not a client)</option>{state.clients.map((client) => <option key={client.id} value={client.id}>{client.name}</option>)}</select>
-          <input type="date" value={job.date} onChange={(event) => setJob({ ...job, date: event.target.value })} aria-label="Date" className="rounded-xl border border-[#E2DED7] bg-white px-3 py-2 text-[13px]" />
-          {owner && <input value={job.amount} inputMode="decimal" onChange={(event) => setJob({ ...job, amount: event.target.value })} placeholder={`Charged (${person.currency})`} aria-label="How much they charged" className="w-32 rounded-xl border border-[#E2DED7] bg-white px-3 py-2 text-[13px]" />}
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <input value={job.link} onChange={(event) => setJob({ ...job, link: event.target.value })} placeholder="Link to the work (optional)" aria-label="Link to the work" className="min-w-[200px] flex-1 rounded-xl border border-[#E2DED7] bg-white px-3 py-2 text-[13px]" />
-          <Button type="submit" kind="primary" size="sm"><Plus size={13} />Add job</Button>
-        </div>
-      </form>
-    </Card>
-  );
-}
-
-/** Files kept on the profile, each with a name such as CV or Portfolio. Anyone who can open the profile can add them. */
-function ProfileFiles({ person }: { person: Freelancer }) {
-  const store = useStore();
-  const [label, setLabel] = useState("");
-  const input = useRef<HTMLInputElement>(null);
-  const pick = (file?: File) => {
-    if (!file) return;
-    const finish = (url: string) => {
-      store.updateFreelancer(person.id, { files: [...person.files, { id: `file-${Date.now().toString(36)}`, label: label.trim() || file.name.replace(/\.[a-z0-9]+$/i, ""), name: file.name, url, addedAt: todayIso() }] });
-      setLabel("");
-    };
-    if (file.size < 1_500_000) {
-      const reader = new FileReader();
-      reader.onload = () => finish(String(reader.result));
-      reader.readAsDataURL(file);
-    } else {
-      finish(URL.createObjectURL(file));
-      store.ping("That file is large, so it only lasts until you close this page. Put it in Drive and add the Drive link.");
-    }
-  };
-  return (
-    <Card>
-      <CardHead title="Files" sub="CV, portfolio, anything worth keeping. Give each a name." />
-      {person.files.length > 0 && (
-        <ul className="mb-3 space-y-1.5">
-          {person.files.map((file) => (
-            <li key={file.id} className="flex items-center gap-2 rounded-xl bg-[#F8F7F4] px-3 py-2 text-[13px]">
-              <a href={file.url} target="_blank" rel="noreferrer" download={file.url.startsWith("data:") ? file.name : undefined} className="min-w-0 flex-1 truncate"><b className="text-[#1F5BC4] hover:underline">{file.label}</b><span className="ml-2 text-[12px] text-[#8B867E]">{file.name} · {shortDate(file.addedAt)}</span></a>
-              <button onClick={() => store.updateFreelancer(person.id, { files: person.files.filter((entry) => entry.id !== file.id) })} aria-label={`Remove ${file.label}`} className="text-[#B5B0A8] hover:text-[#B83232]"><Trash2 size={14} /></button>
-            </li>
-          ))}
-        </ul>
-      )}
-      <div className="flex flex-wrap gap-2">
-        <input value={label} onChange={(event) => setLabel(event.target.value)} placeholder="Name of the file, for example CV" aria-label="Name of the file" className="min-w-[180px] flex-1 rounded-xl border border-[#E2DED7] px-3 py-2 text-[13px]" />
-        <Button size="sm" onClick={() => input.current?.click()}><Plus size={13} />Add a file</Button>
-        <button onClick={() => { const url = window.prompt("Paste the link (Drive, Docs, a website…)"); if (url && /^https?:\/\//.test(url.trim())) store.updateFreelancer(person.id, { files: [...person.files, { id: `file-${Date.now().toString(36)}`, label: label.trim() || url.replace(/^https?:\/\/(www\.)?/, "").slice(0, 30), name: "link", url: url.trim(), addedAt: todayIso() }] }), setLabel(""); }} className="rounded-xl px-2.5 py-1.5 text-[12px] font-semibold text-[#1F5BC4] hover:bg-[#EEF2FA]">or add a link</button>
-        <input ref={input} type="file" className="sr-only" onChange={(event) => { pick(event.target.files?.[0]); event.target.value = ""; }} />
-      </div>
-    </Card>
   );
 }

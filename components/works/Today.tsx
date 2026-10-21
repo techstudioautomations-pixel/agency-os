@@ -219,7 +219,7 @@ export function Today() {
                     <span className="w-36 min-w-0"><span className="block truncate text-[14px] font-bold">{item.name}</span><span className="block truncate text-[12px] text-[#8B867E]">{item.speciality}</span></span>
                     <span className="flex min-w-0 flex-1 flex-wrap gap-1.5">
                       {accounts.map((client) => <span key={client.id} className="flex items-center gap-1.5 rounded-full border border-[#ECE9E3] py-0.5 pl-0.5 pr-2.5 text-[12px] font-semibold"><ClientMark client={client} size={20} />{client.name}</span>)}
-                      {accounts.length === 0 && <span className="text-[12px] text-[#8B867E]">{canBeAssigned(item) ? "Free to take a client" : "Not assignable yet: NDA or contract missing"}</span>}
+                      {accounts.length === 0 && <span className="text-[12px] text-[#8B867E]">{canBeAssigned(state, item) ? "Free to take a client" : "Not assignable yet: NDA or contract missing"}</span>}
                     </span>
                     <span className="flex w-28 items-center gap-2 text-[12px] font-semibold text-[#55514B]"><Bar value={(accounts.length / Math.max(1, item.capacity)) * 100} color={accounts.length >= item.capacity ? tone.amber.dot : "#2F6FDB"} />{accounts.length}/{item.capacity}</span>
                   </button>

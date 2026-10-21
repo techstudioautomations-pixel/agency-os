@@ -13,6 +13,7 @@ import { MonthChecklist } from "./Monthly";
 import { StarterPack } from "./StarterPack";
 import { StrategyView } from "./Marketing";
 import { PayButton } from "./Pay";
+import { PaymentsCard } from "./FreelancerProfile";
 import { AttachField, Avatar, Bar, Button, Card, CardHead, Chip, ClientMark, Empty, Field, Light, Ring, Segmented, fieldClass, tone } from "./kit";
 
 export const modeText: Record<ApprovalMode, string> = {
@@ -208,7 +209,7 @@ function Overview({ client }: { client: Client }) {
           <Row label="Freelancer" value={fl?.name} editing={editing}>
             <select value={client.freelancerId ?? ""} onChange={(event) => assignFreelancer(client.id, event.target.value)} className={select}>
               <option value="">Not assigned</option>
-              {state.freelancers.filter(isHired).map((person) => <option key={person.id} value={person.id}>{person.name}{canBeAssigned(person) ? "" : " · NDA/contract missing"}</option>)}
+              {state.freelancers.filter(isHired).map((person) => <option key={person.id} value={person.id}>{person.name}{canBeAssigned(state, person) ? "" : " · NDA/contract missing"}</option>)}
             </select>
           </Row>
         </Card>
@@ -443,6 +444,8 @@ function ClientFinance({ client }: { client: Client }) {
   const feeCur = clientCurrency(state, client);
   const payCur = freelancerCurrency(state, client);
   const payout = state.payouts.find((item) => item.clientId === client.id && item.month === state.month);
+  const person = state.freelancers.find((item) => item.id === client.freelancerId);
+  const hasFees = Boolean(person?.fees.some((fee) => fee.clientId === client.id));
   return (
     <div className="space-y-5">
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
@@ -456,7 +459,7 @@ function ClientFinance({ client }: { client: Client }) {
           <div className="grid gap-3 sm:grid-cols-3">
             <Field label={`Monthly fee · ${feeCur}`}><input type="number" min={0} value={client.fee} onChange={(event) => updateClient(client.id, { fee: Number(event.target.value) })} className={fieldClass} /></Field>
             <Field label={`Add-ons · ${feeCur}`}><input type="number" min={0} value={client.addOnFee} onChange={(event) => updateClient(client.id, { addOnFee: Number(event.target.value) })} className={fieldClass} /></Field>
-            <Field label={`Freelancer · ${payCur}`}><input type="number" min={0} value={client.freelancerFee} onChange={(event) => updateClient(client.id, { freelancerFee: Number(event.target.value) })} className={fieldClass} /></Field>
+            {hasFees ? <div className="rounded-xl bg-[#F8F7F4] p-3 text-[12px] text-[#6B6760]"><div className="font-semibold text-[#1E2430]">Freelancer</div>Set by the payments below.</div> : <Field label={`Freelancer · ${payCur}`}><input type="number" min={0} value={client.freelancerFee} onChange={(event) => updateClient(client.id, { freelancerFee: Number(event.target.value) })} className={fieldClass} /></Field>}
           </div>
           <div className="mt-3 grid gap-3 sm:grid-cols-2">
             <Field label="The client pays in" hint={approx(state, client.fee + client.addOnFee, feeCur) ? `${money(client.fee + client.addOnFee, feeCur)} is ${approx(state, client.fee + client.addOnFee, feeCur).replace("≈ ", "about ")} at the rate in Settings.` : "Same as the main currency."}><select value={feeCur} onChange={(event) => updateClient(client.id, { currency: event.target.value })} className={fieldClass}>{currencies.map((item) => <option key={item}>{item}</option>)}</select></Field>
@@ -467,6 +470,7 @@ function ClientFinance({ client }: { client: Client }) {
             <div className="flex flex-wrap items-center gap-3 rounded-xl bg-[#F8F7F4] p-3"><span className="flex-1 text-[13px] font-semibold">Pay {nameOf(state, client.freelancerId)}</span>{!client.freelancerId ? <Chip>No freelancer</Chip> : paidOut ? <Chip t="green" dot>Paid{payout?.amount ? ` ${money(payout.amount, payout.currency ?? cur)}` : ""}</Chip> : invoice?.status === "Paid" ? <PayButton client={client} label="Mark paid" /> : <Chip t="amber">After the client pays</Chip>}</div>
           </div>
         </Card>
+        {person && <PaymentsCard person={person} client={client} />}
         <Card>
           <CardHead title="Costs on this client" sub="Stock, ads, printing, extra freelance work… They also show in Finance." />
           <ul className="space-y-1.5">

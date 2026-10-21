@@ -17,7 +17,7 @@ const formats = ["Single image", "Carousel", "Text post", "Video", "Newsletter",
 export function ServicesCard({ client }: { client: Client }) {
   const { state, updateClient, setClientAssets, addClientAsset, updateClientAsset } = useStore();
   const [assigning, setAssigning] = useState("");
-  const people = state.freelancers.filter(canBeAssigned);
+  const people = state.freelancers.filter((person) => canBeAssigned(state, person));
   const { settings } = state;
   const [editing, setEditing] = useState(false);
   const [pick, setPick] = useState("");

@@ -3,8 +3,8 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { launchLogos } from "./logos";
 import { buildClientChecklist, launchClientDrafts, clients as sampleClients, leads as sampleLeads, freelancerChecklistTemplate, makeChecklist, sampleFreelancerIds, defaultAssets, defaultMonthLine, defaultMonthly, defaultPlaybook, defaultSections, newShare, piecesPerMonth, seedState } from "./seed";
-import { canBeAssigned, defaultRates, isHired, isPlanAsset, planSlot, monthlyAreas, nameOf, periodName, reviewerFor, todayIso } from "./logic";
-import type { CheckItem, Client, ClientAsset, ClientSection, ClientShare, Idea, Lead, MonthReport, NewClientDraft, Notice, Post, PostDraft, ReportNumbers, RevisionCategory, Route, SectionStep, State, ReportPeriod, UpdateItem, WeekReport } from "./types";
+import { canBeAssigned, defaultRates, defaultToolNames, isHired, isPlanAsset, planSlot, monthlyAreas, nameOf, periodName, reviewerFor, todayIso } from "./logic";
+import type { CheckItem, Client, FreelancerFee, ClientAsset, ClientSection, ClientShare, Idea, Lead, MonthReport, NewClientDraft, Notice, Post, PostDraft, ReportNumbers, RevisionCategory, Route, SectionStep, State, ReportPeriod, UpdateItem, WeekReport } from "./types";
 
 const KEY = "theworks-os-v5";
 /** The report for one week or weeks in a row inside a month report, created when first needed. */
@@ -53,7 +53,7 @@ function migrate(saved: State): State {
   });
   for (const section of defaults) if (!sections.some((item) => item.id === section.id)) sections.push(section);
   // The directory: where each freelancer came from, how to reach them, and the work they did for us. The sample freelancers are cleared once.
-  const freelancers = (saved.freelancersCleared ? saved.freelancers : saved.freelancers.filter((person) => !sampleFreelancerIds.includes(person.id))).map((person) => ({ ...person, platform: person.platform ?? "", profileUrl: person.profileUrl ?? "", driveUrl: person.driveUrl ?? "", files: person.files ?? [], phone: person.phone ?? "", notes: person.notes ?? "", jobs: person.jobs ?? [] }));
+  const freelancers = (saved.freelancersCleared ? saved.freelancers : saved.freelancers.filter((person) => !sampleFreelancerIds.includes(person.id))).map((person) => ({ ...person, platform: person.platform ?? "", profileUrl: person.profileUrl ?? "", driveUrl: person.driveUrl ?? "", files: person.files ?? [], specialities: person.specialities ?? (person.speciality ? [person.speciality] : []), availability: person.availability ?? { mode: "hours" as const, amount: 0 }, fees: person.fees ?? [], tools: person.tools ?? defaultToolNames.map((name) => ({ id: `tool-${name}`, name, done: false, login: "", link: "", kept: "" })), trialDone: person.trialDone ?? false, ndaDate: person.ndaDate ?? "", contractDate: person.contractDate ?? "", phone: person.phone ?? "", notes: person.notes ?? "", jobs: person.jobs ?? [] }));
   // Once: clear away the sample clients and everything that belongs to them, and keep anything the team added themselves.
   const sampleIds = new Set(sampleClients.map((client) => client.id));
   const sampleLeadIds = new Set(sampleLeads.map((lead) => lead.id));
@@ -413,7 +413,7 @@ function useStoreValue() {
         }),
       assignFreelancer: (clientId: string, freelancerId: string) => {
         const candidate = stateRef.current.freelancers.find((item) => item.id === freelancerId);
-        const blocked = Boolean(freelancerId && candidate && !canBeAssigned(candidate));
+        const blocked = Boolean(freelancerId && candidate && !canBeAssigned(stateRef.current, candidate));
         if (!blocked) update((d) => {
           const client = d.clients.find((item) => item.id === clientId)!;
           client.freelancerId = freelancerId || undefined;
@@ -739,11 +739,11 @@ function useStoreValue() {
       // Freelancers
       updateFreelancer: (id: string, patch: Partial<State["freelancers"][number]>) => update((d) => { Object.assign(d.freelancers.find((item) => item.id === id)!, patch); }),
       /** Adds someone to the directory. They are not hired until a trial starts. */
-      addFreelancer: (draft: { name: string; platform: string; profileUrl: string; driveUrl?: string; email: string; speciality: string }) => {
+      addFreelancer: (draft: { name: string; platform: string; profileUrl: string; driveUrl?: string; email: string; specialities: string[]; fee?: Omit<FreelancerFee, "id"> }) => {
         const id = uid("fl");
         update((d) => {
           const palette = ["#8E5CD9", "#E08A1E", "#3D8BD9", "#D94F70", "#1B9C85", "#C2578A", "#4C8B6F"];
-          d.freelancers.push({ id, name: draft.name, role: "freelancer", title: draft.speciality, email: draft.email, color: palette[d.freelancers.length % palette.length], speciality: draft.speciality, platform: draft.platform, profileUrl: draft.profileUrl, driveUrl: draft.driveUrl ?? "", files: [], phone: "", notes: "", jobs: [], rate: "", currency: "USD", paymentMethod: "", capacity: 3, services: "", portfolio: "", status: "Directory", checklist: makeChecklist(freelancerChecklistTemplate, `fl-${id}`, 0) });
+          d.freelancers.push({ id, name: draft.name, role: "freelancer", title: draft.specialities.join(", "), email: draft.email, color: palette[d.freelancers.length % palette.length], speciality: draft.specialities.join(", "), specialities: draft.specialities, availability: { mode: "hours", amount: 0 }, fees: draft.fee ? [{ ...draft.fee, id: uid("fee") }] : [], tools: defaultToolNames.map((name) => ({ id: uid("tool"), name, done: false, login: "", link: "", kept: "" })), trialDone: false, ndaDate: "", contractDate: "", platform: draft.platform, profileUrl: draft.profileUrl, driveUrl: draft.driveUrl ?? "", files: [], phone: "", notes: "", jobs: [], rate: "", currency: "USD", paymentMethod: "", capacity: 3, services: "", portfolio: "", status: "Directory", checklist: makeChecklist(freelancerChecklistTemplate, `fl-${id}`, 0) });
         });
         ping(`${draft.name} added to the directory`);
         return id;

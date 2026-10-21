@@ -1,5 +1,4 @@
-import type { CheckItem, Client, ClientAsset, Freelancer, MonthReport, MonthlyStep, PackageDef, Person, Post, PostStatus, Route, State } from "./types";
-import { freelancerGateLabels } from "./seed";
+import type { CheckItem, Client, ClientAsset, Freelancer, FreelancerFee, MonthReport, MonthlyStep, PackageDef, Person, Post, PostStatus, Route, State } from "./types";
 
 // ─── Dates ───
 export const todayIso = () => {
@@ -34,7 +33,13 @@ export const freelancerCurrency = (state: State, client: Client) => client.freel
 /** What the client pays each month, in the main currency. */
 export const incomeBase = (state: State, client: Client) => toBase(state, client.fee + client.addOnFee, clientCurrency(state, client));
 /** What the freelancer costs each month for this client, in the main currency. */
-export const freelancerCostBase = (state: State, client: Client) => (client.freelancerId ? toBase(state, client.freelancerFee, freelancerCurrency(state, client)) : 0);
+export const freelancerCostBase = (state: State, client: Client, month = state.month) => {
+  const person = state.freelancers.find((item) => item.id === client.freelancerId);
+  if (!person) return 0;
+  const fees = person.fees.filter((fee) => fee.clientId === client.id);
+  // When payments are set up for this client, they are the cost. Otherwise the single figure on the client page is.
+  return fees.length ? feesFor(person, client.id, month).reduce((sum, fee) => sum + toBase(state, fee.amount, fee.currency), 0) : toBase(state, client.freelancerFee, freelancerCurrency(state, client));
+};
 /** "≈ €645" when an amount is not in the main currency, otherwise nothing. */
 export const approx = (state: State, amount: number, currency: string) => (currency === state.settings.currency ? "" : `≈ ${money(toBase(state, amount, currency), state.settings.currency)}`);
 
@@ -69,9 +74,66 @@ export function gate(items: CheckItem[]) {
 
 /** Hired people work for us. The rest of the directory is for reference. */
 export const isHired = (freelancer: Freelancer) => freelancer.status === "Active" || freelancer.status === "Trial";
+/** On the team, including someone paused for a while. */
+export const isOnTeam = (freelancer: Freelancer) => isHired(freelancer) || freelancer.status === "Paused";
 
-export const canBeAssigned = (freelancer: Freelancer) =>
-  isHired(freelancer) && freelancerGateLabels.every((label) => freelancer.checklist.find((item) => item.label === label)?.status === "Received");
+export const specialityOptions = ["Social media management", "Digital marketing", "SEO", "Copywriting", "Graphic design", "Video editing", "Web design", "Analytics and reporting"];
+export const payChannels = ["Revolut", "Bank transfer", "PayPal", "Wise", "Fiverr", "Upwork", "Other"];
+export const fileLabels = ["CV", "Portfolio", "NDA", "Contract", "Other"];
+export const toolChoices = ["OS login", "Google Chat", "Drive folder", "Canva seat", "Publishing tool"];
+export const defaultToolNames = ["OS login", "Google Chat", "Drive folder", "Canva seat", "Publishing tool"];
+
+/** Services are kept one per line as "Service | amount | currency". */
+export const serviceList = (text: string) => text.split("\n").map((line) => line.split("|").map((part) => part.trim())).filter(([name]) => name).map(([name, price = "", currency = ""]) => ({ name, price, currency }));
+
+export type SetupStep = { id: string; label: string; done: boolean; /** Not needed to start. */ optional?: boolean; /** Must be done before they can be given a client. */ gate?: boolean; hint?: string };
+
+/** What is done and what is not, worked out from what is on the profile. Nothing here is ticked by hand, except the trial. */
+export function setupSteps(state: State | undefined, person: Freelancer): SetupStep[] {
+  const hasFile = (pattern: RegExp) => person.files.some((file) => pattern.test(file.label));
+  const paid = person.fees.some((fee) => fee.amount > 0 && fee.channel);
+  const tools = person.tools.length > 0 && person.tools.every((tool) => tool.done);
+  return [
+    { id: "profile", label: "Contact, role and speciality", done: Boolean(person.email.trim() || person.phone.trim()) && person.specialities.length > 0 },
+    { id: "pay", label: "Rate, currency and payment method", done: paid, hint: "Add a payment below." },
+    { id: "availability", label: "Capacity and availability", done: person.availability.amount > 0 },
+    { id: "services", label: "Service list", done: serviceList(person.services).length > 0, hint: "Add them under Services and prices." },
+    { id: "portfolio", label: "Portfolio", done: Boolean(person.portfolio.trim()) || hasFile(/portfolio/i), hint: "A link, or a file named Portfolio." },
+    { id: "trial", label: "Trial", done: person.trialDone, optional: true },
+    { id: "nda", label: "NDA signed", done: Boolean(person.ndaDate) || hasFile(/nda/i), gate: true },
+    { id: "contract", label: "Contract and payment agreement signed", done: Boolean(person.contractDate) || hasFile(/contract/i), gate: true },
+    { id: "tools", label: "Tools and access", done: tools },
+    { id: "accounts", label: "A client assigned", done: Boolean(state?.clients.some((client) => client.freelancerId === person.id)), hint: "Assign from the client page." },
+  ];
+}
+/** Done out of what is needed. The trial is not needed. */
+export const setupProgress = (state: State | undefined, person: Freelancer) => {
+  const needed = setupSteps(state, person).filter((step) => !step.optional);
+  const complete = needed.filter((step) => step.done).length;
+  return { complete, total: needed.length, percent: needed.length ? Math.round((complete / needed.length) * 100) : 0 };
+};
+
+/** The next day a payment falls due, or nothing if a one-time payment has passed. */
+export function nextPayment(fee: FreelancerFee, today: string) {
+  if (!fee.date) return "";
+  if (fee.frequency === "one-time") return fee.date >= today ? fee.date : "";
+  const day = Number(fee.date.slice(8, 10)) || 1;
+  const month = today.slice(0, 7);
+  const dayOf = (m: string) => `${m}-${String(Math.min(day, new Date(Number(m.slice(0, 4)), Number(m.slice(5, 7)), 0).getDate())).padStart(2, "0")}`;
+  const first = fee.date;
+  const thisMonth = dayOf(month);
+  const candidate = thisMonth >= today ? thisMonth : dayOf(shiftMonth(month, 1));
+  return candidate < first ? first : candidate;
+}
+/** What a freelancer is paid for a client in a month: monthly payments from their start month, one-time ones in their own month. */
+export const feesFor = (person: Freelancer, clientId: string, month: string) =>
+  person.fees.filter((fee) => fee.clientId === clientId && (fee.frequency === "monthly" ? fee.date.slice(0, 7) <= month : fee.date.startsWith(month)));
+
+export const canBeAssigned = (state: State | undefined, freelancer: Freelancer) => {
+  if (!isHired(freelancer)) return false;
+  const steps = setupSteps(state, freelancer);
+  return steps.filter((step) => step.gate).every((step) => step.done);
+};
 
 /** Friendly labels: internal tasks read To do / In progress / Done; client items read Not asked / Requested / Received. */
 export const statusLabel = (item: CheckItem, status = item.status) =>

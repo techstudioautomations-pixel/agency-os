@@ -406,8 +406,38 @@ export type Lead = {
 /** Work a freelancer did for us: what, for whom, and what it cost. */
 export type FreelancerJob = { id: string; date: string; clientId?: string; client?: string; what: string; amount: number; link?: string };
 
+/** What we pay a freelancer: for what, how much, how, and how often. */
+export type FreelancerFee = {
+  id: string;
+  /** What it covers, in a few words. */
+  what: string;
+  /** A client or project it is for. Without one, `custom` says what for. */
+  clientId?: string;
+  custom?: string;
+  kind: "standard" | "add-on";
+  amount: number;
+  currency: string;
+  /** How we pay: Revolut, bank transfer, PayPal… */
+  channel: string;
+  frequency: "one-time" | "monthly";
+  /** The day it is paid. For a monthly payment, the first one; it then repeats on that day. */
+  date: string;
+};
+
+/** An account or tool a freelancer needs, and where to find it. The password itself is not stored here. */
+export type FreelancerTool = { id: string; name: string; done: boolean; login: string; link: string; kept: string };
+
 export type Freelancer = Person & {
   speciality: string;
+  /** What they do. `speciality` is these joined with commas. */
+  specialities: string[];
+  availability: { mode: "hours" | "projects"; amount: number };
+  fees: FreelancerFee[];
+  tools: FreelancerTool[];
+  trialDone: boolean;
+  /** When the NDA and the contract were signed. A file named NDA or Contract also counts. */
+  ndaDate: string;
+  contractDate: string;
   /** Where we found them: Fiverr, Upwork, Direct, Other. */
   platform: string;
   profileUrl: string;
@@ -426,7 +456,7 @@ export type Freelancer = Person & {
   services: string;
   portfolio: string;
   /** Directory: someone we know about but have not hired. */
-  status: "Active" | "Trial" | "Offboarded" | "Directory";
+  status: "Active" | "Trial" | "Paused" | "Offboarded" | "Directory";
   checklist: CheckItem[];
 };
 
