@@ -83,7 +83,7 @@ function Wizard() {
   const addFromLibrary = (assetId: string) => {
     const entry = settings.assets.find((item) => item.id === assetId);
     if (!entry) return;
-    setAssets((list) => [...list, { id: uid(), assetId: entry.id, name: entry.name, format: entry.format, kind: entry.kind, qty: 1, period: "month", price: entry.price, source: packageId ? "add-on" : "custom" }]);
+    setAssets((list) => [...list, { id: uid(), assetId: entry.id, name: entry.name, format: entry.format, kind: packageId ? "extra" : "piece", qty: 1, period: "month", price: entry.price, source: packageId ? "add-on" : "custom" }]);
     setLibraryPick("");
   };
   const addCustom = () => {
@@ -233,7 +233,7 @@ function Wizard() {
                     {item.recommended && <span className="absolute right-3 top-3 rounded-full bg-[#B7864B] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">Popular</span>}
                     <div className="text-[16px] font-extrabold">{item.name}</div>
                     <div className="mt-0.5 text-[13px] font-semibold text-[#2F6FDB]">from {money(item.price, settings.currency)} / month</div>
-                    <div className="mt-2 text-[12px] text-[#6B6760]">{item.items.filter((entry) => settings.assets.find((asset) => asset.id === entry.assetId)?.kind === "piece" && entry.period === "month").reduce((sum, entry) => sum + entry.qty, 0)} pieces a month</div>
+                    <div className="mt-2 text-[12px] text-[#6B6760]">{item.items.filter((entry) => entry.period === "month").reduce((sum, entry) => sum + entry.qty, 0)} pieces a month</div>
                   </button>
                 ))}
                 <button onClick={() => { setPackageId(""); setAssets([]); setSectionOverride({}); }} aria-pressed={!packageId} className={`rounded-2xl border-2 border-dashed p-4 text-left transition ${!packageId ? "border-[#2F6FDB] bg-[#F4F8FF]" : "border-[#D6D1C8] hover:border-[#C9C3B8]"}`}>

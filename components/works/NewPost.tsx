@@ -75,7 +75,7 @@ function Wizard() {
   const approved = state.ideas.filter((item) => item.clientId === clientId && item.decision === "Approved" && !item.postId);
   const planned = client ? state.posts.filter((post) => post.clientId === client.id && post.date.startsWith(month) && !post.extra).length : 0;
   const clientExtras = client?.assets.filter((asset) => asset.kind === "extra" && asset.source !== "package") ?? [];
-  const libraryExtras = state.settings.assets.filter((asset) => asset.kind === "extra" && !client?.assets.some((entry) => entry.assetId === asset.id));
+  const libraryExtras = state.settings.assets.filter((asset) => !client?.assets.some((entry) => entry.assetId === asset.id));
   const pickedAsset = extraPick.startsWith("asset:") ? clientExtras.find((asset) => asset.id === extraPick.slice(6)) : undefined;
   const pickedLibrary = extraPick.startsWith("lib:") ? libraryExtras.find((asset) => asset.id === extraPick.slice(4)) : undefined;
   const extraType = kind === "extra" ? (pickedAsset?.name ?? pickedLibrary?.name ?? (extraName.trim() || "Extra")) : undefined;

@@ -113,7 +113,7 @@ export function ServicesCard({ client }: { client: Client }) {
           <Field label="Add an asset from your list" hint="Its checklists are added too.">
             <select value={pick} onChange={(event) => {
               const entry = settings.assets.find((item) => item.id === event.target.value);
-              if (entry) addClientAsset(client.id, { id: `${client.id}-${Date.now().toString(36)}`, assetId: entry.id, name: entry.name, format: entry.format, kind: entry.kind, qty: 1, period: "month", price: entry.price, source: "add-on" });
+              if (entry) addClientAsset(client.id, { id: `${client.id}-${Date.now().toString(36)}`, assetId: entry.id, name: entry.name, format: entry.format, kind: "extra", qty: 1, period: "month", price: entry.price, source: "add-on" });
               setPick("");
             }} className={fieldClass}>
               <option value="">Choose…</option>

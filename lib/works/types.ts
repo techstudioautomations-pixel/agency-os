@@ -126,7 +126,8 @@ export type AssetPeriod = "month" | "quarter";
 export type AssetType = {
   id: string;
   name: string;
-  kind: AssetKind;
+  /** Not used any more. An asset is just a kind of work. How many, and how often, is set where it is added to a package or a client. */
+  kind?: AssetKind;
   /** Post format used for the artwork and the post type. */
   format: string;
   /** What we charge when it is sold as an add-on, per month. Leave blank if not set. */
@@ -505,6 +506,8 @@ export type State = {
   version: number;
   /** Set once the sample clients, posts and leads have been cleared away. */
   cleaned?: boolean;
+  /** Set once the sample freelancers have been cleared away. */
+  freelancersCleared?: boolean;
   me: string;
   month: string;
   people: Person[];

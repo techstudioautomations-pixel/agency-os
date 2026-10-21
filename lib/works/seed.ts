@@ -428,7 +428,7 @@ export function buildClientChecklist(sections: SectionDef[], prefix: string, fre
 export function packageAssets(pkg: PackageDef, assets: AssetType[] = defaultAssets, prefix = uidPart(pkg.id)): ClientAsset[] {
   return pkg.items.flatMap((item, index) => {
     const asset = assets.find((entry) => entry.id === item.assetId);
-    return asset ? [{ id: `${prefix}-a${index + 1}`, assetId: asset.id, name: asset.name, format: asset.format, kind: asset.kind, qty: item.qty, period: item.period, source: "package" as const }] : [];
+    return asset ? [{ id: `${prefix}-a${index + 1}`, assetId: asset.id, name: asset.name, format: asset.format, kind: "piece" as const, qty: item.qty, period: item.period, source: "package" as const }] : [];
   });
 }
 
@@ -480,26 +480,30 @@ const freelancer = (id: string, name: string, color: string, speciality: string,
   checklist: makeChecklist(freelancerChecklistTemplate, `fl-${id}`, done),
 });
 
-export const freelancers: Freelancer[] = [
+/** Example freelancers, kept only so older saved copies can be cleared. The app starts with none. */
+const sampleFreelancers: Freelancer[] = [
   freelancer("chelsie", "Chelsie", "#8E5CD9", "Copy and LinkedIn carousels", "$110 / client / month", 3, "Active", 11),
   freelancer("velinda", "Velinda", "#E08A1E", "Design and Instagram", "$100 / client / month", 3, "Active", 10),
   freelancer("ryan", "Ryan", "#3D8BD9", "Copy and reporting", "$120 / client / month", 3, "Active", 9),
   freelancer("eve", "Eve", "#D94F70", "Design and content delivery", "$166 / client / month", 4, "Active", 11),
   { ...freelancer("sam", "Sam (trial)", "#5A6B7D", "Motion and video", "To agree", 2, "Trial", 3), email: "sam@example.com" },
 ];
-/** Two example entries so the directory is not empty. Delete them when real ones go in. */
+/** Two example directory entries. */
 const directoryEntry = (id: string, name: string, platform: string, speciality: string, services: string, color: string): Freelancer => ({
   ...freelancer(id, name, color, speciality, "", 0, "Directory", 0),
   platform,
   services,
   notes: "Example entry. Delete it when you add real ones.",
 });
-freelancers.push(
+sampleFreelancers.push(
   directoryEntry("dana", "Dana (example)", "Fiverr", "Reels and short video editing", ["Reel edit (under 30s) | $55", "Story set | $18"].join("\n"), "#C2578A"),
   directoryEntry("marco", "Marco (example)", "Upwork", "B2B copywriter", ["LinkedIn text post | $20", "Newsletter | $60"].join("\n"), "#4C8B6F"),
 );
 // Sam's NDA is out for signature, so Sam cannot be assigned yet.
-freelancers[4].checklist[6] = { ...freelancers[4].checklist[6], status: "Requested", date: ago(2) };
+sampleFreelancers[4].checklist[6] = { ...sampleFreelancers[4].checklist[6], status: "Requested", date: ago(2) };
+/** Starts empty: freelancers are added in the directory. */
+export const freelancers: Freelancer[] = [];
+export const sampleFreelancerIds = sampleFreelancers.map((person) => person.id);
 
 // ─── Strategies ───
 const strategy = (s: Partial<Strategy>): Strategy => ({

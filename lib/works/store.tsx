@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { buildClientChecklist, clients as sampleClients, leads as sampleLeads, freelancerChecklistTemplate, freelancers as seedFreelancers, makeChecklist, defaultAssets, defaultMonthLine, defaultMonthly, defaultPlaybook, defaultSections, newShare, piecesPerMonth, seedState } from "./seed";
+import { buildClientChecklist, clients as sampleClients, leads as sampleLeads, freelancerChecklistTemplate, makeChecklist, sampleFreelancerIds, defaultAssets, defaultMonthLine, defaultMonthly, defaultPlaybook, defaultSections, newShare, piecesPerMonth, seedState } from "./seed";
 import { canBeAssigned, isHired, monthlyAreas, nameOf, periodName, reviewerFor, todayIso } from "./logic";
 import type { CheckItem, Client, ClientAsset, ClientSection, ClientShare, Idea, Lead, MonthReport, NewClientDraft, Notice, Post, PostDraft, ReportNumbers, RevisionCategory, Route, SectionStep, State, ReportPeriod, WeekReport } from "./types";
 
@@ -25,13 +25,8 @@ function migrate(saved: State): State {
     return { ...section, areas: section.areas ?? fresh.areas, steps };
   });
   for (const section of defaults) if (!sections.some((item) => item.id === section.id)) sections.push(section);
-  // The directory: where each freelancer came from, how to reach them, and the work they did for us.
-  const firstDirectory = saved.freelancers.every((person) => person.platform === undefined);
-  const freelancers = saved.freelancers.map((person) => {
-    const sample = seedFreelancers.find((item) => item.id === person.id);
-    return { ...person, platform: person.platform ?? (firstDirectory ? sample?.platform : undefined) ?? "", profileUrl: person.profileUrl ?? "", phone: person.phone ?? "", notes: person.notes ?? "", jobs: person.jobs ?? (firstDirectory ? sample?.jobs : undefined) ?? [] };
-  });
-  if (firstDirectory) for (const sample of seedFreelancers) if (sample.status === "Directory" && !freelancers.some((item) => item.id === sample.id)) freelancers.push(sample);
+  // The directory: where each freelancer came from, how to reach them, and the work they did for us. The sample freelancers are cleared once.
+  const freelancers = (saved.freelancersCleared ? saved.freelancers : saved.freelancers.filter((person) => !sampleFreelancerIds.includes(person.id))).map((person) => ({ ...person, platform: person.platform ?? "", profileUrl: person.profileUrl ?? "", phone: person.phone ?? "", notes: person.notes ?? "", jobs: person.jobs ?? [] }));
   // Once: clear away the sample clients and everything that belongs to them, and keep anything the team added themselves.
   const sampleIds = new Set(sampleClients.map((client) => client.id));
   const sampleLeadIds = new Set(sampleLeads.map((lead) => lead.id));
@@ -41,6 +36,10 @@ function migrate(saved: State): State {
   return {
     ...saved,
     cleaned: true,
+    freelancersCleared: true,
+    // Open on the current month each time. The arrows still move to any other.
+    month: todayIso().slice(0, 7),
+    me: freelancers.some((person) => person.id === saved.me) || saved.people.some((person) => person.id === saved.me) ? saved.me : "maria",
     freelancers: fresh ? freelancers.map((person) => ({ ...person, jobs: person.jobs.map((job) => (job.clientId && sampleIds.has(job.clientId) ? { ...job, clientId: undefined, client: nameOfSample(job.clientId) ?? job.client } : job)) })) : freelancers,
     ideas: keep(saved.ideas),
     reports: keep(saved.reports),

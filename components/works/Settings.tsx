@@ -5,7 +5,7 @@ import { ArrowDown, ArrowUp, ChevronDown, Plus, Trash2 } from "lucide-react";
 import { useStore } from "@/lib/works/store";
 import { isOwner, money } from "@/lib/works/logic";
 import { clientColors } from "@/lib/works/image";
-import type { AssetKind, AssetType, MonthlyStep, PackageDef, SectionDef, SectionStep, StepKind } from "@/lib/works/types";
+import type { AssetType, MonthlyStep, PackageDef, SectionDef, SectionStep, StepKind } from "@/lib/works/types";
 import { Shell } from "./Shell";
 import { Button, Card, CardHead, Chip, Empty, Field, Segmented, asset as assetUrl, fieldClass } from "./kit";
 
@@ -89,7 +89,7 @@ function Packages() {
   const { state, updateSettings } = useStore();
   const { packages, assets, currency } = state.settings;
   const set = (id: string, patch: Partial<PackageDef>) => updateSettings({ packages: packages.map((item) => (item.id === id ? { ...item, ...patch } : item)) });
-  const pieces = (pkg: PackageDef) => pkg.items.filter((item) => assets.find((entry) => entry.id === item.assetId)?.kind === "piece" && item.period === "month").reduce((sum, item) => sum + item.qty, 0);
+  const pieces = (pkg: PackageDef) => pkg.items.filter((item) => item.period === "month").reduce((sum, item) => sum + item.qty, 0);
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -116,7 +116,7 @@ function Packages() {
             </div>
 
             <div className="mt-4">
-              <div className="mb-1.5 text-[12px] font-bold uppercase tracking-wide text-[#8B867E]">Assets in this package</div>
+              <div className="mb-1.5 text-[12px] font-bold uppercase tracking-wide text-[#8B867E]">Assets in this package <span className="font-semibold normal-case tracking-normal">· pick the asset, how many, and how often</span></div>
               <ul className="space-y-1.5">
                 {pkg.items.map((item, index) => (
                   <li key={index} className="flex flex-wrap items-center gap-2 rounded-xl bg-[#F8F7F4] p-2">
@@ -161,8 +161,8 @@ function Assets() {
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="max-w-[62ch] text-[14px] text-[#55514B]">An asset is a kind of work we make and review: a post, a carousel, a video, a newsletter, a PDF. Say which checklist sections a client needs when they get it. Add a price to sell it as an add-on.</p>
-        <Button kind="primary" onClick={() => updateSettings({ assets: [...assets, { id: slug("asset"), name: "New asset", kind: "extra", format: "Document", sections: [] }] })}><Plus size={15} />New asset</Button>
+        <p className="max-w-[62ch] text-[14px] text-[#55514B]">An asset is one kind of work we make and review, such as a company post, a carousel, a video or a newsletter. It does not say how many. You choose how many, and how often, when you add it to a package, and for each client at onboarding. Say which checklist sections a client needs when they get it, and add a price to sell it as an add-on.</p>
+        <Button kind="primary" onClick={() => updateSettings({ assets: [...assets, { id: slug("asset"), name: "New asset", format: "Document", sections: [] }] })}><Plus size={15} />New asset</Button>
       </div>
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {assets.map((item) => (
@@ -171,9 +171,14 @@ function Assets() {
               <input value={item.name} onChange={(event) => set(item.id, { name: event.target.value })} aria-label="Asset name" className="min-w-0 flex-1 bg-transparent text-[17px] font-extrabold outline-none" />
               <button onClick={() => remove(item)} aria-label={`Delete ${item.name}`} className="rounded-lg p-1.5 text-[#B5B0A8] hover:bg-[#FDECEC] hover:text-[#B83232]"><Trash2 size={15} /></button>
             </div>
-            <div className="mt-3 grid grid-cols-2 gap-3">
-              <Field label="Counts as"><select value={item.kind} onChange={(event) => set(item.id, { kind: event.target.value as AssetKind })} className={fieldClass}><option value="piece">A piece a month</option><option value="extra">An extra</option></select></Field>
+            <div className="mt-3">
               <Field label="Format"><select value={item.format} onChange={(event) => set(item.id, { format: event.target.value })} className={fieldClass}>{formats.map((format) => <option key={format}>{format}</option>)}</select></Field>
+            </div>
+            <div className="mt-2 text-[12px] text-[#6B6760]">
+              {(() => {
+                const used = packages.flatMap((pkg) => pkg.items.filter((entry) => entry.assetId === item.id).map((entry) => `${pkg.name}: ${entry.qty} a ${entry.period}`));
+                return used.length ? <>In packages: {used.join(" · ")}</> : <>Not in any package yet. Add it to one under Packages.</>;
+              })()}
             </div>
             <div className="mt-3"><Field label={`Add-on price · ${currency} / month`} hint="Leave blank if not set."><input type="number" min={0} value={item.price ?? ""} onChange={(event) => set(item.id, { price: event.target.value === "" ? undefined : Number(event.target.value) })} placeholder="No price set" className={fieldClass} /></Field></div>
             <div className="mt-3">
