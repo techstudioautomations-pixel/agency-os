@@ -3,8 +3,8 @@
 import { useState, type ReactNode } from "react";
 import { Bell, BookOpen, ChevronDown, ChevronLeft, ChevronRight, CircleDollarSign, FileBarChart, Home, LayoutGrid, Menu, Send, Settings as SettingsIcon, Sparkles, Users, X } from "lucide-react";
 import { useStore } from "@/lib/works/store";
-import { ago, everyone, isHired, gate, isFreelancer, me, monthName, myClients, shiftMonth, turnOf } from "@/lib/works/logic";
-import type { Route } from "@/lib/works/types";
+import { ago, everyone, isExpert, isHired, gate, isFreelancer, me, monthName, myClients, shiftMonth, turnOf } from "@/lib/works/logic";
+import type { Freelancer, Route } from "@/lib/works/types";
 import { Avatar, Chip, ClientMark, Light, asset } from "./kit";
 
 type NavItem = { view: Route["view"]; label: string; icon: typeof Home; badge?: number; route?: Route };
@@ -21,7 +21,10 @@ export function Shell({ title, sub, actions, children }: { title: ReactNode; sub
   const notices = state.notices.filter((notice) => notice.to === state.me);
   const unread = notices.filter((notice) => !notice.read).length;
 
-  const nav: NavItem[] = freelancer
+  const expert = isExpert(state);
+  const nav: NavItem[] = expert
+    ? [{ view: "today", label: "My checks", icon: Home }]
+    : freelancer
     ? [
         { view: "today", label: "My work", icon: Home },
         { view: "marketing", label: "Marketing", icon: Sparkles, badge: contentWaiting },
@@ -41,9 +44,9 @@ export function Shell({ title, sub, actions, children }: { title: ReactNode; sub
       ];
 
   // A freelancer uses these now and then, so they sit just above their name instead of in the main list.
-  const footer: NavItem[] = freelancer ? [{ view: "freelancers", label: "My profile", icon: Users, route: { view: "freelancers", freelancerId: state.me } }, { view: "how", label: "How we work", icon: BookOpen }] : [];
+  const footer: NavItem[] = expert ? [{ view: "freelancers", label: "My profile", icon: Users, route: { view: "freelancers", freelancerId: state.me } }] : freelancer ? [{ view: "freelancers", label: "My profile", icon: Users, route: { view: "freelancers", freelancerId: state.me } }, { view: "how", label: "How we work", icon: BookOpen }] : [];
   const active = route.view === "client" ? "clients" : route.view;
-  const clients = myClients(state);
+  const clients = expert ? [] : myClients(state);
 
   return (
     <div className="min-h-screen bg-[#F6F5F2] text-[#1E2430]">
@@ -72,7 +75,7 @@ export function Shell({ title, sub, actions, children }: { title: ReactNode; sub
               </button>
             ))}
           </div>
-          <div className="mt-6 px-3 pb-2 text-[11px] font-bold uppercase tracking-[.1em] text-[#9A958D]">{freelancer ? "My clients" : "Clients"}</div>
+          <div className={`mt-6 px-3 pb-2 text-[11px] font-bold uppercase tracking-[.1em] text-[#9A958D] ${expert ? "hidden" : ""}`}>{freelancer ? "My clients" : "Clients"}</div>
           <div className="space-y-0.5">
             {clients.map((client) => (
               <button
@@ -108,11 +111,11 @@ export function Shell({ title, sub, actions, children }: { title: ReactNode; sub
           {who && (
             <div className="absolute bottom-[68px] left-3 right-3 z-10 rounded-2xl border border-[#E9E6E0] bg-white p-2 shadow-xl">
               <div className="px-2 py-1.5 text-[11px] font-bold uppercase tracking-wide text-[#9A958D]">View as</div>
-              {everyone(state).filter((p) => !("status" in p) || isHired(p)).map((p) => (
+              {everyone(state).filter((p) => !("status" in p) || (p.role === "expert" ? p.status === "Active" : isHired(p as Freelancer))).map((p) => (
                 <button key={p.id} onClick={() => { store.setMe(p.id); setWho(false); go({ view: "today" }); }} className={`flex w-full items-center gap-2.5 rounded-xl p-2 text-left ${p.id === state.me ? "bg-[#EEF2FA]" : "hover:bg-[#F6F5F2]"}`}>
                   <Avatar name={p.name} color={p.color} photo={p.photo} size={26} />
                   <span className="flex-1 text-[13px] font-semibold">{p.name}</span>
-                  <span className="text-[11px] text-[#8B867E]">{p.role === "owner" ? "Owner" : p.role === "ops" ? "Operations" : "Freelancer"}</span>
+                  <span className="text-[11px] text-[#8B867E]">{p.role === "owner" ? "Owner" : p.role === "ops" ? "Operations" : p.role === "expert" ? "Expert" : "Freelancer"}</span>
                 </button>
               ))}
               <p className="px-2 pt-2 text-[11px] leading-snug text-[#8B867E]">Preview only. Real access will need a login.</p>

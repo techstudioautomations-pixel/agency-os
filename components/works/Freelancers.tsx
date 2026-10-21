@@ -3,10 +3,11 @@
 import { useState } from "react";
 import { ArrowRight, ExternalLink, FolderOpen, Plus, Search, ShieldCheck, ShieldX, UserPlus, X } from "lucide-react";
 import { useStore } from "@/lib/works/store";
-import { worksOn, canBeAssigned, currencies, isFreelancer, isHired, isOnTeam, isOwner, money, payChannels, serviceList, setupProgress, specialityOptions, todayIso, turnOf } from "@/lib/works/logic";
+import { isExpert, worksOn, canBeAssigned, currencies, isFreelancer, isHired, isOnTeam, isOwner, money, payChannels, serviceList, setupProgress, specialityOptions, todayIso, turnOf } from "@/lib/works/logic";
 import type { Freelancer } from "@/lib/works/types";
 import { Shell } from "./Shell";
 import { FreelancerProfile } from "./FreelancerProfile";
+import { ExpertProfile, Experts } from "./Experts";
 import { AvailabilityDot } from "./Availability";
 import { PlatformTag, jobsTotal, platforms, priceOf, statusChip } from "./FreelancerBits";
 import { Avatar, Bar, Button, Chip, ClientMark, Empty, Field, Segmented, fieldClass, tone } from "./kit";
@@ -14,9 +15,11 @@ import { Avatar, Bar, Button, Chip, ClientMark, Empty, Field, Segmented, fieldCl
 export function Freelancers({ freelancerId }: { freelancerId?: string }) {
   const { state, go } = useStore();
   // A freelancer sees only their own profile. The team sees everyone.
+  const expertSelected = isExpert(state) ? state.experts.find((person) => person.id === state.me) : !isFreelancer(state) ? state.experts.find((person) => person.id === freelancerId) : undefined;
   const selected = isFreelancer(state) ? state.freelancers.find((person) => person.id === state.me) : state.freelancers.find((person) => person.id === freelancerId);
-  const [view, setView] = useState<"team" | "directory">("team");
+  const [view, setView] = useState<"team" | "experts" | "directory">("team");
   const [adding, setAdding] = useState(false);
+  if (expertSelected) return <ExpertProfile expert={expertSelected} />;
   if (selected) return <FreelancerProfile person={selected} />;
   const team = state.freelancers.filter(isOnTeam);
   return (
@@ -26,7 +29,7 @@ export function Freelancers({ freelancerId }: { freelancerId?: string }) {
       actions={<Button kind="primary" onClick={() => setAdding(true)}><UserPlus size={15} />Add freelancer</Button>}
     >
       <div className="mb-5">
-        <Segmented value={view} onChange={setView} options={[{ value: "team", label: "Our team", count: team.length }, { value: "directory", label: "Directory", count: state.freelancers.length }]} />
+        <Segmented value={view} onChange={setView} options={[{ value: "team", label: "Our team", count: team.length }, { value: "experts", label: "Experts", count: state.experts.length }, { value: "directory", label: "Directory", count: state.freelancers.length }]} />
       </div>
       {view === "team" ? (
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
@@ -66,6 +69,8 @@ export function Freelancers({ freelancerId }: { freelancerId?: string }) {
             );
           })}
         </div>
+      ) : view === "experts" ? (
+        <Experts />
       ) : (
         <Directory />
       )}

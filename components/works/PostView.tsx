@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Check, ChevronLeft, ChevronRight, Download, ExternalLink, Maximize2, Pencil, ShieldCheck, Trash2, UploadCloud, X } from "lucide-react";
 import { useStore } from "@/lib/works/store";
-import { clientChannels, worksOn, ago, isFreelancer, isOwner, nameOf, personById, qaGroups, qaItemsFor, qaProgress, reviewerFor, shortDate, stageOf, stages, turnOf } from "@/lib/works/logic";
+import { isExpert, clientChannels, worksOn, ago, isFreelancer, isOwner, nameOf, personById, qaGroups, qaItemsFor, qaProgress, reviewerFor, shortDate, stageOf, stages, turnOf } from "@/lib/works/logic";
 import type { Client, Post, PostFile, RevisionCategory } from "@/lib/works/types";
 import { buildZip, safeName } from "@/lib/zip";
 import { PostArt } from "./PostArt";
@@ -356,7 +356,12 @@ function Conversation({ post, client, mine }: { post: Post; client: Client; mine
   const reviewing = post.status === "Copy review" || post.status === "Design review";
   const working = post.status === "Copy in progress" || post.status === "Design in progress";
   const openChanges = post.comments.filter((comment) => comment.kind === "change" && !comment.resolved).length;
-  const expertBlock = post.status === "Design review" && post.needsExpert && !post.expertOk;
+  const expertWith = post.expert?.status === "with";
+  const expertMe = isExpert(state) && post.expert?.id === state.me;
+  const expertBlock = (post.status === "Design review" && post.needsExpert && !post.expertOk) || expertWith;
+  const [pick, setPick] = useState("");
+  const [askNote, setAskNote] = useState("");
+  const expertName = post.expert ? nameOf(state, post.expert.id) : "";
 
   type Line = { at: string; kind: "msg" | "event"; by: string; body: string; id?: string; change?: boolean; category?: string; resolved?: boolean };
   const lines: Line[] = [
@@ -375,9 +380,41 @@ function Conversation({ post, client, mine }: { post: Post; client: Client; mine
   };
 
   let action: React.ReactNode = null;
-  if (reviewing && isReviewer) {
+  if (expertMe && expertWith) {
     action = (
       <div className="space-y-2">
+        {post.expert?.note && <p className="rounded-xl bg-[#F1ECFC] px-3 py-2 text-[12px]"><b>{nameOf(state, post.expert.by)} asked:</b> {post.expert.note}</p>}
+        <div className="grid grid-cols-2 gap-2">
+          <Button kind="good" onClick={() => { store.expertReview(post.id, "ok", text.trim()); setText(""); }}><Check size={15} />Looks right</Button>
+          <Button kind="warn" disabled={!text.trim()} onClick={() => { store.expertReview(post.id, "changes", text.trim()); setText(""); }}>Needs changes</Button>
+        </div>
+        <p className="text-center text-[11px] text-[#8B867E]">Write what you found below, then choose. It goes back to {nameOf(state, post.expert!.by)}, who decides what happens next.</p>
+      </div>
+    );
+  } else if (reviewing && isReviewer) {
+    action = (
+      <div className="space-y-2">
+        {expertWith && (
+          <div className="flex flex-wrap items-center gap-2 rounded-xl bg-[#F1ECFC] px-3 py-2 text-[12px]">
+            <span className="flex-1 font-semibold">With {expertName} for a technical check.</span>
+            <button onClick={() => store.withdrawFromExpert(post.id)} className="font-bold text-[#6B3FD1]">Take it back</button>
+          </div>
+        )}
+        {post.expert?.status === "back" && (
+          <div className={`rounded-xl px-3 py-2 text-[12px] ${post.expert.verdict === "ok" ? "bg-[#E7F6EE] text-[#17804A]" : "bg-[#FFF3D9] text-[#94600A]"}`}>
+            <b>{expertName}: {post.expert.verdict === "ok" ? "it is right." : "it needs changes."}</b>{post.expert.reply ? ` ${post.expert.reply}` : ""}
+          </div>
+        )}
+        {!expertWith && state.experts.some((item) => item.status === "Active") && (
+          <div className="flex flex-wrap items-center gap-1.5">
+            <select value={pick} onChange={(event) => setPick(event.target.value)} aria-label="Send to an expert" className="min-w-[140px] flex-1 rounded-lg border border-[#E2DED7] bg-white px-2 py-1.5 text-[12px] font-semibold">
+              <option value="">Send to an expert…</option>
+              {state.experts.filter((item) => item.status === "Active").map((item) => <option key={item.id} value={item.id}>{item.name}{item.speciality ? ` · ${item.speciality}` : ""}</option>)}
+            </select>
+            {pick && <input value={askNote} onChange={(event) => setAskNote(event.target.value)} placeholder="What to check (optional)" aria-label="What the expert should check" className="min-w-[140px] flex-1 rounded-lg border border-[#E2DED7] px-2 py-1.5 text-[12px]" />}
+            {pick && <Button size="sm" kind="primary" onClick={() => { store.sendToExpert(post.id, pick, askNote.trim()); setPick(""); setAskNote(""); }}>Send</Button>}
+          </div>
+        )}
         {post.needsExpert && post.status === "Design review" && (
           <label className={`flex items-start gap-2 rounded-xl p-2.5 text-[12px] ${post.expertOk ? "bg-[#E7F6EE]" : "bg-[#F1ECFC]"}`}>
             <input type="checkbox" checked={post.expertOk} onChange={(event) => store.updatePost(post.id, { expertOk: event.target.checked })} className="mt-0.5 h-4 w-4" />

@@ -13,7 +13,7 @@ function useMinute() {
 }
 
 /** A small circle: green when it is inside their working hours where they are, red when it is not, grey when no time zone is set. */
-export function AvailabilityDot({ person, label = false, size = 10 }: { person: Freelancer; label?: boolean; size?: number }) {
+export function AvailabilityDot({ person, label = false, size = 10 }: { person: Pick<Freelancer, "timezone" | "hours">; label?: boolean; size?: number }) {
   const now = useMinute();
   const info = availabilityNow(person, now);
   const color = info.state === "on" ? "#1D9E5A" : info.state === "off" ? "#D64545" : "#C9C3B8";
@@ -28,8 +28,9 @@ export function AvailabilityDot({ person, label = false, size = 10 }: { person: 
 const dayNames = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
 /** Where they are and when they work, so everyone can see if it is a good time to write. */
-export function HoursEditor({ person }: { person: Freelancer }) {
-  const { updateFreelancer } = useStore();
+export function HoursEditor({ person, expert = false }: { person: Pick<Freelancer, "id" | "timezone" | "hours">; expert?: boolean }) {
+  const store = useStore();
+  const updateFreelancer = (id: string, patch: Partial<Pick<Freelancer, "timezone" | "hours">>) => (expert ? store.updateExpert(id, patch) : store.updateFreelancer(id, patch));
   const now = useMinute();
   const set = (patch: Partial<Freelancer["hours"]>) => updateFreelancer(person.id, { hours: { ...person.hours, ...patch } });
   const zones = timezoneOptions.includes(person.timezone) || !person.timezone ? timezoneOptions : [person.timezone, ...timezoneOptions];

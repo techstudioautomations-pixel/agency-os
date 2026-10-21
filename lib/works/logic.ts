@@ -56,16 +56,17 @@ export const fixedCostsBase = (state: State, month = state.month) => fixedCostsI
 export const approx = (state: State, amount: number, currency: string) => (currency === state.settings.currency ? "" : `≈ ${money(toBase(state, amount, currency), state.settings.currency)}`);
 
 // ─── People ───
-export const everyone = (state: State): (Person | Freelancer)[] => [...state.people, ...state.freelancers];
+export const everyone = (state: State): (Person | Freelancer)[] => [...state.people, ...state.freelancers, ...(state.experts ?? [])];
 export const personById = (state: State, id?: string) => everyone(state).find((person) => person.id === id);
 export const nameOf = (state: State, id?: string) => (id === "client" ? "Client" : personById(state, id)?.name ?? "Unassigned");
 export const me = (state: State) => personById(state, state.me) ?? state.people[0];
 export const isOwner = (state: State) => me(state).role === "owner";
+export const isExpert = (state: State) => me(state).role === "expert";
 export const isFreelancer = (state: State) => me(state).role === "freelancer";
 /** Everyone assigned to a client: the lead first, then the rest. */
 export const clientTeam = (client: Client) => [...new Set([client.freelancerId, ...(client.team ?? []).map((member) => member.id)].filter((id): id is string => Boolean(id)))];
 export const worksOn = (client: Client, personId: string) => clientTeam(client).includes(personId);
-export const myClients = (state: State) => (isFreelancer(state) ? state.clients.filter((client) => worksOn(client, state.me)) : state.clients);
+export const myClients = (state: State) => (isFreelancer(state) ? state.clients.filter((client) => worksOn(client, state.me)) : isExpert(state) ? state.clients.filter((client) => state.posts.some((post) => post.clientId === client.id && post.expert?.id === state.me)) : state.clients);
 
 /** Who reviews copy and design for a client. */
 export const reviewerFor = (state: State, client?: Client, post?: Post) => post?.reviewerId || (state.settings.reviewer === "maria-all" ? "maria" : client?.opsId ?? "niamh");
@@ -118,7 +119,7 @@ export function timezoneLabel(zone: string, now = new Date()) {
   } catch { return zone; }
 }
 /** Is it working time for them right now, where they are? */
-export function availabilityNow(person: Freelancer, now = new Date()): { state: "on" | "off" | "unknown"; text: string } {
+export function availabilityNow(person: Pick<Freelancer, "timezone" | "hours">, now = new Date()): { state: "on" | "off" | "unknown"; text: string } {
   if (!person.timezone) return { state: "unknown", text: "Time zone not set" };
   try {
     const parts = new Intl.DateTimeFormat("en-GB", { timeZone: person.timezone, weekday: "short", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(now);
@@ -215,7 +216,7 @@ export const stageOf = (status: PostStatus) =>
 export const stages = ["Copy", "Design", "Client", "Schedule", "Live"];
 
 /** Owners and operations can approve anything in review, so it counts as waiting on them. Freelancers only see their own turn. */
-export const needsMe = (state: State, post: Post) => turnOf(state, post).who === state.me || (!isFreelancer(state) && inReview(post));
+export const needsMe = (state: State, post: Post) => turnOf(state, post).who === state.me || (!isFreelancer(state) && !isExpert(state) && inReview(post));
 
 export type Turn = { who: string; verb: string; tone: "you" | "freelancer" | "review" | "client" | "done" };
 
@@ -228,11 +229,13 @@ export function turnOf(state: State, post: Post): Turn {
     case "Copy in progress":
       return { who: freelancer, verb: openChanges ? `Fix copy${fix}` : "Write copy", tone: "freelancer" };
     case "Copy review":
-      return { who: reviewerFor(state, client, post), verb: "Review copy", tone: "review" };
+      if (post.expert?.status === "with") return { who: post.expert.id, verb: "Expert review", tone: "review" };
+      return { who: reviewerFor(state, client, post), verb: post.expert?.status === "back" ? `Review copy · expert says ${post.expert.verdict === "ok" ? "it is right" : "it needs changes"}` : "Review copy", tone: "review" };
     case "Design in progress":
       return { who: freelancer, verb: openChanges ? `Fix design${fix}` : "Make design", tone: "freelancer" };
     case "Design review":
-      return { who: reviewerFor(state, client, post), verb: post.needsExpert && !post.expertOk ? "Review design · expert check" : "Review design", tone: "review" };
+      if (post.expert?.status === "with") return { who: post.expert.id, verb: "Expert review", tone: "review" };
+      return { who: reviewerFor(state, client, post), verb: post.expert?.status === "back" ? `Review design · expert says ${post.expert.verdict === "ok" ? "it is right" : "it needs changes"}` : post.needsExpert && !post.expertOk ? "Review design · expert check" : "Review design", tone: "review" };
     case "Client approval":
       return { who: client?.opsId ?? "niamh", verb: "Log client decision", tone: "client" };
     case "Ready to schedule":

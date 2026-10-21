@@ -71,6 +71,7 @@ function migrate(saved: State): State {
     cleaned: true,
     people: saved.people.map((person) => (person.id === "niamh" && person.name === "Coordinator" ? { ...person, name: "Nahomi", title: "Coordinator · Operations" } : person)),
     freelancersCleared: true,
+    experts: saved.experts ?? [],
     // Open on the current month each time. The arrows still move to any other.
     month: todayIso().slice(0, 7),
     me: freelancers.some((person) => person.id === saved.me) || saved.people.some((person) => person.id === saved.me) ? saved.me : "maria",
@@ -475,6 +476,43 @@ function useStoreValue() {
           const member = d.clients.find((item) => item.id === clientId)!.team?.find((entry) => entry.id === freelancerId);
           if (member) member.role = role;
         }),
+      // Experts: people who check technical content
+      addExpert: (draft: { name: string; email: string; speciality: string; company: string; phone: string }) => {
+        const id = uid("ex");
+        update((d) => { d.experts.push({ id, role: "expert", name: draft.name, title: draft.speciality || "Expert", email: draft.email, color: ["#7C5CD6", "#0F8F8F", "#C2578A", "#3D8BD9"][d.experts.length % 4], speciality: draft.speciality, company: draft.company, phone: draft.phone, notes: "", status: "Active", timezone: "", hours: { from: "09:00", to: "17:00", days: [1, 2, 3, 4, 5] } }); });
+        ping(`${draft.name} added as an expert`);
+        return id;
+      },
+      updateExpert: (id: string, patch: Partial<State["experts"][number]>) => update((d) => { Object.assign(d.experts.find((item) => item.id === id)!, patch); }),
+      deleteExpert: (id: string) => { update((d) => { d.experts = d.experts.filter((item) => item.id !== id); d.posts.forEach((post) => { if (post.expert?.id === id) post.expert = undefined; }); }); ping("Expert removed"); },
+      /** The reviewer sends a post to an expert. It waits with them, then comes back to the reviewer. */
+      sendToExpert: (postId: string, expertId: string, note: string) => {
+        update((d) => {
+          const { post, client } = withPost(d, postId);
+          const expert = d.experts.find((item) => item.id === expertId);
+          if (!expert) return;
+          post.expert = { id: expertId, by: d.me, at: stamp(), note, status: "with" };
+          post.needsExpert = true;
+          post.expertOk = false;
+          log(d, post, `Sent to ${expert.name} for a technical check`);
+          notify(d, expertId, `${client.name}: please check · ${post.title}${note ? ` (${note})` : ""}`, postRoute(post), ["In app", "Email"]);
+        });
+        ping("Sent to the expert");
+      },
+      /** The expert answers: it is right, or it needs changes. The reviewer is told. */
+      expertReview: (postId: string, verdict: "ok" | "changes", reply: string) => {
+        update((d) => {
+          const { post, client } = withPost(d, postId);
+          if (!post.expert) return;
+          post.expert = { ...post.expert, status: "back", verdict, reply, replyAt: stamp() };
+          post.expertOk = verdict === "ok";
+          if (reply.trim()) post.comments.push({ id: uid("c"), by: d.me, body: `${verdict === "ok" ? "Looks right." : "Needs changes."} ${reply.trim()}`, at: stamp(), kind: "comment" });
+          log(d, post, verdict === "ok" ? "Expert: it is right" : "Expert: it needs changes");
+          notify(d, post.expert.by, `${client.name}: ${nameOf(d, d.me)} says ${verdict === "ok" ? "it is right" : "it needs changes"} · ${post.title}`, postRoute(post), ["In app", "Email"]);
+        });
+        ping("Sent back to the reviewer");
+      },
+      withdrawFromExpert: (postId: string) => update((d) => { const post = d.posts.find((item) => item.id === postId); if (post) { post.expert = undefined; } }),
       markRelayed: (noticeId: string) => update((d) => { const notice = d.notices.find((item) => item.id === noticeId); if (notice?.relay) notice.relay.done = true; }),
       /** Marks payments as paid for a month, in the currency they were actually paid in. */
       payOccurrences: (items: { personId: string; feeId: string; month: string }[], currency: string) => {
@@ -652,6 +690,7 @@ function useStoreValue() {
           const stage = post.status.startsWith("Copy") ? "copy" : "design";
           post.status = stage === "copy" ? "Copy review" : "Design review";
           post.waitingSince = todayIso();
+          if (post.expert) { post.expert = undefined; post.expertOk = false; }
           if (post.comments.some((comment) => comment.kind === "change")) post.version += 1;
           log(d, post, `Submitted ${stage} for review (v${post.version})`);
           notify(d, reviewerFor(d, client, post), `${client.name}: ${stage} ready to review · ${post.title}`, postRoute(post), ["In app", "Email", "Google Chat"]);

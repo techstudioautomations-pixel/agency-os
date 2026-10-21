@@ -1,6 +1,7 @@
 "use client";
 
 import { StoreProvider, useStore } from "@/lib/works/store";
+import { isExpert } from "@/lib/works/logic";
 import { Today } from "@/components/works/Today";
 import { ClientProfile, ClientsList } from "@/components/works/Clients";
 import { MarketingPage } from "@/components/works/Marketing";
@@ -16,8 +17,10 @@ import { NewPostWizard } from "@/components/works/NewPost";
 import { UpdateWizard } from "@/components/works/Updates";
 
 function Screen() {
-  const { ready, route } = useStore();
+  const { ready, route, state } = useStore();
   if (!ready) return <div className="grid min-h-screen place-items-center bg-[#F6F5F2] text-[14px] text-[#6B6760]">Loading…</div>;
+  // An expert sees only their checks, their own profile and the post they were sent.
+  if (isExpert(state) && !(route.view === "today" || route.view === "freelancers" || (route.view === "marketing" && route.postId))) return <Today />;
   switch (route.view) {
     case "clients":
       return <ClientsList />;

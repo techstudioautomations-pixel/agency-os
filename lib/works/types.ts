@@ -1,6 +1,6 @@
 // Data model for The Works Agency OS.
 
-export type Role = "owner" | "ops" | "freelancer";
+export type Role = "owner" | "ops" | "freelancer" | "expert";
 
 export type Person = {
   id: string;
@@ -300,6 +300,8 @@ export type Post = {
   comments: PostComment[];
   history: { at: string; by: string; text: string }[];
   needsExpert: boolean;
+  /** Sent to an expert for a technical check. */
+  expert?: ExpertReview;
   /** Ticked items of the quality checklist the freelancer works through. */
   qa?: string[];
   expertOk: boolean;
@@ -407,6 +409,22 @@ export type Lead = {
   ownerId: string;
   clientId?: string;
 };
+
+/** Someone who checks technical content, for example an engineer. They only see what is sent to them for review. */
+export type Expert = Person & {
+  role: "expert";
+  /** Their field, for example Fire safety engineer. */
+  speciality: string;
+  company: string;
+  phone: string;
+  notes: string;
+  status: "Active" | "Paused";
+  timezone: string;
+  hours: { from: string; to: string; days: number[] };
+};
+
+/** An expert review of a post: who it went to, what was asked, and what came back. */
+export type ExpertReview = { id: string; by: string; at: string; note: string; status: "with" | "back"; verdict?: "ok" | "changes"; reply?: string; replyAt?: string };
 
 /** Work a freelancer did for us: what, for whom, and what it cost. */
 export type FreelancerJob = { id: string; date: string; clientId?: string; client?: string; what: string; amount: number; link?: string };
@@ -582,6 +600,8 @@ export type State = {
   month: string;
   people: Person[];
   freelancers: Freelancer[];
+  /** People who check technical content. */
+  experts: Expert[];
   clients: Client[];
   ideas: Idea[];
   posts: Post[];

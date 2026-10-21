@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { ArrowRight, BarChart3, CheckCircle2, ChevronDown, Lightbulb, Plus, Send } from "lucide-react";
 import { useStore } from "@/lib/works/store";
-import { worksOn, agreedFor, canBeAssigned, isHired, gate, inReview, isFreelancer, isMarketing, me, monthName, monthlyAreas, myClients, personById, progress, shiftMonth, todayIso, turnOf } from "@/lib/works/logic";
+import { isExpert, worksOn, agreedFor, canBeAssigned, isHired, gate, inReview, isFreelancer, isMarketing, me, monthName, monthlyAreas, myClients, personById, progress, shiftMonth, todayIso, turnOf } from "@/lib/works/logic";
 import type { Post } from "@/lib/works/types";
 import { Shell } from "./Shell";
 import { ExtraAlert } from "./ExtraWork";
@@ -142,8 +142,25 @@ function RelayBlock() {
   );
 }
 
+/** What an expert sees: only the posts sent to them, and the ones they have already answered. */
+function ExpertToday() {
+  const { state, go } = useStore();
+  const person = me(state);
+  const waiting = state.posts.filter((post) => post.expert?.id === state.me && post.expert.status === "with");
+  const answered = state.posts.filter((post) => post.expert?.id === state.me && post.expert.status === "back");
+  return (
+    <Shell title={`Hello, ${person.name.split(" ")[0]}`} sub="Posts sent to you for a technical check.">
+      <div className="space-y-8">
+        <ReviewBlock title="Waiting for your check" sub="Open one, read it, then say it is right or what needs changing. It goes back to the person who sent it." posts={waiting} empty="Nothing is waiting for you." onAll={() => { if (waiting[0]) go({ view: "marketing", clientId: "all", postId: waiting[0].id }); }} />
+        <Strip title="Checked by you" sub="Your answers, newest first." posts={answered} empty="You have not answered any yet." onAll={() => { if (answered[0]) go({ view: "marketing", clientId: "all", postId: answered[0].id }); }} />
+      </div>
+    </Shell>
+  );
+}
+
 export function Today() {
   const { state, go } = useStore();
+  if (isExpert(state)) return <ExpertToday />;
   const person = me(state);
   const freelancer = isFreelancer(state);
   const clients = myClients(state);

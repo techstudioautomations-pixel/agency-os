@@ -922,6 +922,7 @@ export function seedState(): State {
     month: thisMonth,
     people,
     freelancers,
+    experts: [],
     // Starts empty: clients, posts and leads are added by the team. The sample ones above are kept only so older saved copies can be cleared.
     cleaned: true,
     freelancersCleared: true,

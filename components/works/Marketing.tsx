@@ -24,6 +24,7 @@ const pillarPalette = ["#2F6FDB", "#1D9E5A", "#E08A1E", "#8E5CD9", "#E0567A", "#
 
 export const statusTone = (post: Post) => {
   const stage = stageOf(post.status);
+  if (post.expert?.status === "with") return { label: "With expert", t: "purple" as const };
   if (post.status === "Published") return { label: "Live", t: "green" as const };
   if (post.status === "Scheduled") return { label: `Scheduled ${shortDate(post.date)}`, t: "blue" as const };
   if (post.status === "Ready to schedule") return { label: "Approved", t: "green" as const };
