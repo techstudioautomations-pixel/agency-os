@@ -437,7 +437,7 @@ export const newShare = (clientId: string, seed = 0) => ({ enabled: false, token
 export const people: Person[] = [
   { id: "maria", name: "María", role: "owner", title: "Managing partner", email: "maria@theworks.ie", color: "#E0567A" },
   { id: "gareth", name: "Gareth", role: "owner", title: "Partner · new business", email: "gareth@theworks.ie", color: "#2F6FDB" },
-  { id: "niamh", name: "Coordinator", role: "ops", title: "Operations · to be hired", email: "coordinator@theworks.ie", color: "#1B9C85" },
+  { id: "niamh", name: "Nahomi", role: "ops", title: "Coordinator · Operations", email: "coordinator@theworks.ie", color: "#1B9C85" },
 ];
 
 const serviceList: Record<string, string> = {

@@ -231,6 +231,8 @@ function Overview({ client }: { client: Client }) {
                     <Avatar name={person.name} color={person.color} photo={person.photo} size={24} />
                     <span className="text-[14px] font-semibold">{person.name}</span>
                     <input value={member?.role ?? ""} onChange={(event) => setTeamRole(client.id, id, event.target.value)} placeholder="What they do, e.g. SEO" aria-label={`What ${person.name} does`} className="min-w-[140px] flex-1 rounded-lg border border-[#E2DED7] px-2.5 py-1 text-[13px]" />
+                    {member?.links?.canva && <a href={member.links.canva} target="_blank" rel="noreferrer" className="rounded-full bg-[#EEF2FA] px-2 py-0.5 text-[11px] font-semibold text-[#1F5BC4]">Canva</a>}
+                    {member?.links?.drive && <a href={member.links.drive} target="_blank" rel="noreferrer" className="rounded-full bg-[#EEF2FA] px-2 py-0.5 text-[11px] font-semibold text-[#1F5BC4]">Drive</a>}
                     {!canBeAssigned(state, person) && <Chip t="amber">NDA or contract missing</Chip>}
                     <button onClick={() => unassignFreelancer(client.id, id)} aria-label={`Take ${person.name} off this client`} className="text-[#B5B0A8] hover:text-[#B83232]"><X size={14} /></button>
                   </div>

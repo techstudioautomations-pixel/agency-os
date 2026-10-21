@@ -102,7 +102,7 @@ export type Client = {
   /** The lead freelancer. Kept equal to the first person in `team`. */
   freelancerId?: string;
   /** Everyone working on this client, each with what they do, for example SEO. */
-  team?: { id: string; role: string }[];
+  team?: { id: string; role: string; /** Their own working links for this client. New posts they make open from these. */ links?: { canva?: string; drive?: string } }[];
   /** What the client pays in. Missing means the main currency in Settings. */
   currency?: string;
   /** What we pay the freelancer in for this client. Missing means the freelancer's own currency. */

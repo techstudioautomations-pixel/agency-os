@@ -15,6 +15,12 @@ const weekOf = (report: MonthReport, period: ReportPeriod): WeekReport => {
 const uid = (prefix: string) => `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
 const stamp = () => new Date().toISOString();
 
+/** Where a new post's art lives: the maker's own Canva and Drive for this client, or the client's Drive folder. */
+function makerLinks(d: State, client: Client) {
+  const mine = client.team?.find((member) => member.id === d.me) ?? client.team?.find((member) => member.id === client.freelancerId);
+  return { designLink: mine?.links?.canva ?? "", driveLink: mine?.links?.drive || client.links.drive || "" };
+}
+
 /** Builds a new client and its checklists from what the New client pop-up collects. */
 function makeClient(d: State, id: string, draft: NewClientDraft): Client {
   const pkg = d.settings.packages.find((item) => item.id === draft.packageId);
@@ -63,6 +69,7 @@ function migrate(saved: State): State {
   const next: State = {
     ...saved,
     cleaned: true,
+    people: saved.people.map((person) => (person.id === "niamh" && person.name === "Coordinator" ? { ...person, name: "Nahomi", title: "Coordinator · Operations" } : person)),
     freelancersCleared: true,
     // Open on the current month each time. The arrows still move to any other.
     month: todayIso().slice(0, 7),
@@ -453,6 +460,12 @@ function useStoreValue() {
         });
         ping("Freelancer taken off this client");
       },
+      /** A freelancer's own Canva and Drive links for one client. */
+      setTeamLinks: (clientId: string, freelancerId: string, patch: { canva?: string; drive?: string }) =>
+        update((d) => {
+          const member = d.clients.find((item) => item.id === clientId)!.team?.find((entry) => entry.id === freelancerId);
+          if (member) member.links = { ...member.links, ...patch };
+        }),
       setTeamRole: (clientId: string, freelancerId: string, role: string) =>
         update((d) => {
           const member = d.clients.find((item) => item.id === clientId)!.team?.find((entry) => entry.id === freelancerId);
@@ -538,7 +551,7 @@ function useStoreValue() {
           const status: Post["status"] = !draft.send ? "Copy in progress" : withArt ? "Design review" : "Copy review";
           const post: Post = {
             id, clientId: client.id, ideaId: idea?.id, extra: draft.extra, extraType: draft.extraType, assetId: draft.assetId, reviewerId: draft.reviewerId, title: draft.title, format: draft.format, platforms: draft.platforms.length ? draft.platforms : [client.platforms[0] ?? "LinkedIn"],
-            date: draft.date, status, copy: draft.copy, captions: draft.captions, files: draft.files, art: draft.title, designLink: "", driveLink: "", version: 1,
+            date: draft.date, status, copy: draft.copy, captions: draft.captions, files: draft.files, art: draft.title, ...makerLinks(d, client), version: 1,
             comments: idea?.notes ? [{ id: uid("c"), by: idea.createdBy, body: `From the idea: ${idea.notes}`, at: stamp(), kind: "system" }] : [],
             history: [{ at: stamp(), by: d.me, text: idea ? "Created from an idea" : "Post created" }],
             needsExpert: /regulation|part [a-z]|span|load|fire|compliance|certif/i.test(`${draft.title} ${idea?.notes ?? ""}`), expertOk: false, waitingSince: todayIso(),
@@ -570,7 +583,7 @@ function useStoreValue() {
             const post: Post = {
               id: postId, updateId: id, clientId: client.id, extra: notInPlan || undefined, extraType: notInPlan ? item.format : undefined, assetId: slot?.asset.id, reviewerId: input.reviewerId || undefined,
               title: item.title, format: item.format, platforms: item.platforms.length ? item.platforms : [client.platforms[0] ?? "LinkedIn"], date: item.date,
-              status: !item.send ? "Copy in progress" : withArt ? "Design review" : "Copy review", copy: item.copy, captions: {}, files: item.files, art: item.title, designLink: "", driveLink: "", version: 1,
+              status: !item.send ? "Copy in progress" : withArt ? "Design review" : "Copy review", copy: item.copy, captions: {}, files: item.files, art: item.title, ...makerLinks(d, client), version: 1,
               comments: [], history: [{ at: stamp(), by: d.me, text: "Added in an update" }], needsExpert: /regulation|part [a-z]|span|load|fire|compliance|certif/i.test(item.title), expertOk: false, waitingSince: todayIso(),
             };
             if (item.send) { post.history.unshift({ at: stamp(), by: d.me, text: withArt ? "Sent copy and artwork for review (v1)" : "Sent copy for review (v1)" }); sent += 1; }
@@ -590,7 +603,7 @@ function useStoreValue() {
           const client = d.clients.find((item) => item.id === idea.clientId)!;
           const post: Post = {
             id: uid("post"), clientId: client.id, ideaId, title: idea.title, format: idea.format, pillarId: idea.pillarId, platforms: [client.platforms[0] ?? "LinkedIn"],
-            date: `${d.month}-${String(d.settings.dates.schedule).padStart(2, "0")}`, status: "Copy in progress", copy: "", captions: {}, files: [], art: idea.title, designLink: "", driveLink: "",
+            date: `${d.month}-${String(d.settings.dates.schedule).padStart(2, "0")}`, status: "Copy in progress", copy: "", captions: {}, files: [], art: idea.title, ...makerLinks(d, client),
             version: 1, comments: idea.notes ? [{ id: uid("c"), by: idea.createdBy, body: `From the idea: ${idea.notes}`, at: stamp(), kind: "system" }] : [], history: [{ at: stamp(), by: d.me, text: "Created from an approved idea" }],
             needsExpert: /regulation|part [a-z]|span|load|fire|compliance|certif/i.test(`${idea.title} ${idea.notes}`), expertOk: false, waitingSince: todayIso(),
           };
@@ -612,7 +625,7 @@ function useStoreValue() {
         const id = uid("post");
         update((d) => {
           const client = d.clients.find((c) => c.id === clientId)!;
-          d.posts.push({ id, clientId, title, format: "Single image", platforms: [client.platforms[0] ?? "LinkedIn"], date: date ?? `${d.month}-${String(d.settings.dates.schedule).padStart(2, "0")}`, status: "Copy in progress", copy: "", captions: {}, files: [], art: title, designLink: "", driveLink: "", version: 1, comments: [], history: [{ at: stamp(), by: d.me, text: "Post created" }], needsExpert: false, expertOk: false, waitingSince: todayIso() });
+          d.posts.push({ id, clientId, title, format: "Single image", platforms: [client.platforms[0] ?? "LinkedIn"], date: date ?? `${d.month}-${String(d.settings.dates.schedule).padStart(2, "0")}`, status: "Copy in progress", copy: "", captions: {}, files: [], art: title, ...makerLinks(d, client), version: 1, comments: [], history: [{ at: stamp(), by: d.me, text: "Post created" }], needsExpert: false, expertOk: false, waitingSince: todayIso() });
         });
         ping("Post added");
         return id;

@@ -358,9 +358,11 @@ function WorkForUs({ person }: { person: Freelancer }) {
 
 /** What the freelancer sees: their picture, status, their files, and quick links for each of their clients. Nothing about prices or payments. */
 function SelfProfile({ person }: { person: Freelancer }) {
-  const { state, go } = useStore();
+  const store = useStore();
+  const { state, go } = store;
   const status = statusChip(person.status);
   const clients = state.clients.filter((client) => worksOn(client, person.id));
+  const mine = (client: Client) => client.team?.find((member) => member.id === person.id)?.links ?? {};
   const links = (client: Client): [string, string | undefined][] => [["Drive", client.links.drive], ["Canva", client.links.canva], ["Publishing tool", client.links.publer], ["Chat", client.links.chat], ["Brand kit", client.links.brandKit], ["Brand guide", client.links.guide], ["Strategy brain", client.links.brain]];
   return (
     <Shell title={person.name} sub="Your profile">
@@ -374,7 +376,7 @@ function SelfProfile({ person }: { person: Freelancer }) {
       <div className="grid gap-5 xl:grid-cols-[1.1fr_.9fr]">
         <ProfileFiles person={person} />
         <Card>
-          <CardHead title="Quick links" sub="For each of your clients." />
+          <CardHead title="Quick links" sub="The shared links for each client, and your own Canva and Drive. Your own ones fill in the links on every post you make for that client." />
           {clients.length === 0 ? <p className="text-[13px] text-[#8B867E]">No clients yet. They show here once you are given one.</p> : (
             <ul className="space-y-3">
               {clients.map((client) => {
@@ -384,7 +386,11 @@ function SelfProfile({ person }: { person: Freelancer }) {
                     <button onClick={() => go({ view: "marketing", clientId: client.id })} className="flex w-full items-center gap-2.5 text-left"><ClientMark client={client} size={30} /><span className="flex-1 text-[14px] font-bold">{client.name}</span><ArrowRight size={14} className="text-[#B5B0A8]" /></button>
                     <div className="mt-2 flex flex-wrap gap-1.5">
                       {set.map(([label, url]) => <a key={label} href={url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 rounded-full bg-[#EEF2FA] px-2.5 py-1 text-[12px] font-semibold text-[#1F5BC4] hover:bg-[#E2EAF7]"><ExternalLink size={11} />{label}</a>)}
-                      {set.length === 0 && <span className="text-[12px] text-[#8B867E]">No links added to this client yet.</span>}
+                      {set.length === 0 && <span className="text-[12px] text-[#8B867E]">No shared links added to this client yet.</span>}
+                    </div>
+                    <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                      <label className="text-[11px] font-semibold text-[#55514B]">My Canva for {client.name}<input value={mine(client).canva ?? ""} onChange={(event) => store.setTeamLinks(client.id, person.id, { canva: event.target.value })} placeholder="https://www.canva.com/…" className="mt-1 w-full rounded-lg border border-[#E2DED7] px-2.5 py-1.5 text-[12px] font-normal outline-none focus:border-[#2F6FDB]" /></label>
+                      <label className="text-[11px] font-semibold text-[#55514B]">My Drive for {client.name}<input value={mine(client).drive ?? ""} onChange={(event) => store.setTeamLinks(client.id, person.id, { drive: event.target.value })} placeholder="https://drive.google.com/…" className="mt-1 w-full rounded-lg border border-[#E2DED7] px-2.5 py-1.5 text-[12px] font-normal outline-none focus:border-[#2F6FDB]" /></label>
                     </div>
                   </li>
                 );
