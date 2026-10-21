@@ -20,3 +20,23 @@ export function fileToLogo(file: File, max = 256): Promise<string> {
 }
 
 export const clientColors = ["#2F6FDB", "#1D9E5A", "#7C5CD6", "#D6457A", "#E08A1E", "#0F8F8F", "#5A6B7D", "#B7864B"];
+
+/** A square, centred crop of a picture, small enough to save with a profile. */
+export function fileToPhoto(file: File, size = 192): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const image = new Image();
+    image.onload = () => {
+      const side = Math.min(image.width, image.height);
+      const canvas = document.createElement("canvas");
+      canvas.width = canvas.height = Math.min(size, side);
+      const context = canvas.getContext("2d");
+      if (!context) { URL.revokeObjectURL(url); reject(new Error("Could not read this picture")); return; }
+      context.drawImage(image, (image.width - side) / 2, (image.height - side) / 2, side, side, 0, 0, canvas.width, canvas.height);
+      URL.revokeObjectURL(url);
+      resolve(canvas.toDataURL("image/jpeg", 0.85));
+    };
+    image.onerror = () => { URL.revokeObjectURL(url); reject(new Error("Could not read this picture")); };
+    image.src = url;
+  });
+}

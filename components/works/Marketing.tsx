@@ -188,7 +188,7 @@ export function PostTile({ post, showClient, scope, onOpen }: { post: Post; show
         </div>
         {turn.who && (
           <div className={`mt-2 flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-[12px] font-semibold ${mine ? "bg-[#2F6FDB] text-white" : "bg-[#F6F5F2] text-[#55514B]"}`}>
-            {!mine && person && <Avatar name={person.name} color={person.color} size={16} />}
+            {!mine && person && <Avatar name={person.name} color={person.color} photo={person.photo} size={16} />}
             <span className="truncate">{mine ? turn.verb : `${person?.name ?? "Unassigned"} · ${turn.verb}`}</span>
           </div>
         )}

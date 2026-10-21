@@ -9,6 +9,8 @@ export type Person = {
   title: string;
   email: string;
   color: string;
+  /** A small picture, saved with the profile. */
+  photo?: string;
 };
 
 export type CheckStatus = "Not asked" | "Requested" | "Received" | "N/A";
@@ -409,6 +411,10 @@ export type Freelancer = Person & {
   /** Where we found them: Fiverr, Upwork, Direct, Other. */
   platform: string;
   profileUrl: string;
+  /** Their Drive folder: CV, portfolio, contracts. */
+  driveUrl: string;
+  /** Files kept on their profile, each with a name such as "CV" or "Portfolio". */
+  files: { id: string; label: string; name: string; url: string; addedAt: string }[];
   phone: string;
   notes: string;
   /** Work done for us, newest first. */

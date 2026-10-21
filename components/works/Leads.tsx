@@ -105,7 +105,7 @@ function LeadPanel({ lead, onClose }: { lead: Lead; onClose: () => void }) {
       <div className="flex flex-wrap items-start gap-3">
         <div className="flex-1">
           <input value={lead.company} onChange={(event) => set({ company: event.target.value })} aria-label="Company" className="w-full bg-transparent text-[20px] font-extrabold outline-none" />
-          <div className="mt-1 flex items-center gap-2 text-[13px] text-[#6B6760]">{owner && <Avatar name={owner.name} color={owner.color} size={20} />}Owner: {nameOf(state, lead.ownerId)} · {lead.stage}</div>
+          <div className="mt-1 flex items-center gap-2 text-[13px] text-[#6B6760]">{owner && <Avatar name={owner.name} color={owner.color} photo={owner.photo} size={20} />}Owner: {nameOf(state, lead.ownerId)} · {lead.stage}</div>
         </div>
         {lead.stage !== "Won" && (
           <Button kind="good" onClick={() => store.openWizard(lead.id)}><Trophy size={15} />Mark as won</Button>

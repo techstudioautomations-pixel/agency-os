@@ -180,7 +180,7 @@ function Overview({ client }: { client: Client }) {
         )}
         <div className="rounded-2xl border border-[#E9E6E0] bg-white p-4">
           <span className="block text-[12px] font-semibold text-[#8B867E]">Freelancer</span>
-          {fl ? <span className="mt-1 flex items-center gap-2 text-[14px] font-bold"><Avatar name={fl.name} color={fl.color} size={28} />{fl.name}</span> : <span className="mt-1 block text-[14px] font-bold text-[#B83232]">Not assigned</span>}
+          {fl ? <span className="mt-1 flex items-center gap-2 text-[14px] font-bold"><Avatar name={fl.name} color={fl.color} photo={fl.photo} size={28} />{fl.name}</span> : <span className="mt-1 block text-[14px] font-bold text-[#B83232]">Not assigned</span>}
         </div>
         <button onClick={() => go({ view: "client", clientId: client.id, tab: "reporting" })} className="rounded-2xl border border-[#E9E6E0] bg-white p-4 text-left">
           <span className="block text-[12px] font-semibold text-[#8B867E]">{monthName(lastMonth).split(" ")[0]} report</span>

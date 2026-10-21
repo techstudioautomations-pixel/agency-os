@@ -7,7 +7,7 @@ import { ago, everyone, isHired, gate, isFreelancer, me, monthName, myClients, s
 import type { Route } from "@/lib/works/types";
 import { Avatar, Chip, ClientMark, Light, asset } from "./kit";
 
-type NavItem = { view: Route["view"]; label: string; icon: typeof Home; badge?: number };
+type NavItem = { view: Route["view"]; label: string; icon: typeof Home; badge?: number; route?: Route };
 
 export function Shell({ title, sub, actions, children }: { title: ReactNode; sub?: ReactNode; actions?: ReactNode; children: ReactNode }) {
   const store = useStore();
@@ -26,6 +26,7 @@ export function Shell({ title, sub, actions, children }: { title: ReactNode; sub
         { view: "today", label: "My work", icon: Home },
         { view: "marketing", label: "Marketing", icon: Sparkles, badge: contentWaiting },
         { view: "reports", label: "Monthly reports", icon: FileBarChart },
+        { view: "freelancers", label: "My profile", icon: Users, route: { view: "freelancers", freelancerId: state.me } },
         { view: "how", label: "How we work", icon: BookOpen },
         ...(person.role === "owner" ? [{ view: "settings" as const, label: "Settings", icon: SettingsIcon }] : []),
       ]
@@ -58,10 +59,10 @@ export function Shell({ title, sub, actions, children }: { title: ReactNode; sub
         </div>
         <nav className="flex-1 overflow-y-auto px-3 pb-4" aria-label="Main">
           <div className="space-y-0.5">
-            {nav.map(({ view, label, icon: Icon, badge }) => (
+            {nav.map(({ view, label, icon: Icon, badge, route: target }) => (
               <button
                 key={view}
-                onClick={() => { go({ view } as Route); setMenu(false); }}
+                onClick={() => { go(target ?? ({ view } as Route)); setMenu(false); }}
                 aria-current={active === view ? "page" : undefined}
                 className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-[14px] font-semibold transition ${active === view ? "bg-[#EEF2FA] text-[#1F5BC4]" : "text-[#3D4450] hover:bg-[#F6F5F2]"}`}
               >
@@ -88,7 +89,7 @@ export function Shell({ title, sub, actions, children }: { title: ReactNode; sub
         </nav>
         <div className="relative border-t border-[#E9E6E0] p-3">
           <button onClick={() => setWho(!who)} className="flex w-full items-center gap-2.5 rounded-xl p-2 text-left hover:bg-[#F6F5F2]" aria-expanded={who}>
-            <Avatar name={person.name} color={person.color} size={32} />
+            <Avatar name={person.name} color={person.color} photo={person.photo} size={32} />
             <span className="min-w-0 flex-1 leading-tight">
               <span className="block truncate text-[13px] font-bold">{person.name}</span>
               <span className="block truncate text-[11px] text-[#8B867E]">{person.title}</span>
@@ -100,7 +101,7 @@ export function Shell({ title, sub, actions, children }: { title: ReactNode; sub
               <div className="px-2 py-1.5 text-[11px] font-bold uppercase tracking-wide text-[#9A958D]">View as</div>
               {everyone(state).filter((p) => !("status" in p) || isHired(p)).map((p) => (
                 <button key={p.id} onClick={() => { store.setMe(p.id); setWho(false); go({ view: "today" }); }} className={`flex w-full items-center gap-2.5 rounded-xl p-2 text-left ${p.id === state.me ? "bg-[#EEF2FA]" : "hover:bg-[#F6F5F2]"}`}>
-                  <Avatar name={p.name} color={p.color} size={26} />
+                  <Avatar name={p.name} color={p.color} photo={p.photo} size={26} />
                   <span className="flex-1 text-[13px] font-semibold">{p.name}</span>
                   <span className="text-[11px] text-[#8B867E]">{p.role === "owner" ? "Owner" : p.role === "ops" ? "Operations" : "Freelancer"}</span>
                 </button>

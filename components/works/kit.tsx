@@ -28,7 +28,12 @@ export function Light({ light, size = 10 }: { light: "green" | "amber" | "red"; 
   return <span className="inline-block shrink-0 rounded-full" style={{ height: size, width: size, background: tone[light].dot, boxShadow: `0 0 0 3px ${tone[light].bg}` }} />;
 }
 
-export function Avatar({ name, color = "#5A6B7D", size = 28 }: { name: string; color?: string; size?: number }) {
+export function Avatar({ name, color = "#5A6B7D", size = 28, photo }: { name: string; color?: string; size?: number; photo?: string }) {
+  if (photo)
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img src={photo} alt="" title={name} className="shrink-0 rounded-full object-cover" style={{ height: size, width: size }} />
+    );
   return (
     <span title={name} className="grid shrink-0 place-items-center rounded-full font-bold text-white" style={{ height: size, width: size, background: color, fontSize: Math.max(10, size * 0.4) }}>
       {name.trim()[0]?.toUpperCase() ?? "?"}

@@ -247,7 +247,7 @@ function UpdateCard({ update, onOpen }: { update: FreelancerUpdate; onOpen: (pos
   return (
     <article className="rounded-2xl border border-[#E9E6E0] bg-white p-4 sm:p-5">
       <div className="flex flex-wrap items-center gap-3">
-        {by && <Avatar name={by.name} color={by.color} size={34} />}
+        {by && <Avatar name={by.name} color={by.color} photo={by.photo} size={34} />}
         <div className="min-w-0 flex-1">
           <div className="text-[14px] font-bold">{by?.name ?? "Someone"} <span className="font-normal text-[#6B6760]">sent an update</span></div>
           <div className="flex items-center gap-1.5 text-[12px] text-[#8B867E]"><ClientMark client={client} size={16} />{client.name} · {shortDate(update.date)} · {ago(update.at.slice(0, 10))}</div>
@@ -302,7 +302,7 @@ export function UpdatesBlock() {
             return (
               <li key={item.id} className="border-b border-[#F5F3EF] last:border-0">
                 <button onClick={() => go({ view: "marketing", clientId: item.clientId, tab: "updates" })} className="flex w-full flex-wrap items-center gap-3 px-4 py-3 text-left hover:bg-[#FBFAF8]">
-                  {by && <Avatar name={by.name} color={by.color} size={30} />}
+                  {by && <Avatar name={by.name} color={by.color} photo={by.photo} size={30} />}
                   <span className="min-w-[180px] flex-1"><span className="block text-[13px] font-bold">{by?.name} · {client?.name} · {shortDate(item.date)}</span><span className="line-clamp-1 text-[12px] text-[#6B6760]">{item.message || "No message"}</span></span>
                   <Chip t="grey">{posts.length} post{posts.length === 1 ? "" : "s"}</Chip>
                   {drafts > 0 && <Chip t="amber">{drafts} draft{drafts === 1 ? "" : "s"}</Chip>}

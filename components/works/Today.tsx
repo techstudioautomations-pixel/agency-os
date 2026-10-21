@@ -193,7 +193,7 @@ export function Today() {
                     {!freelancer && <span className="flex items-center gap-1.5"><Light light={g.light} size={7} />Setup {setup}%</span>}
                     {monthSteps.length > 0 && <span>{freelancer ? "Your list" : "This month"} {monthSteps.filter((step) => step.done).length}/{monthSteps.length}</span>}
                     {reportDue && <span className={reportSent ? "text-[#17804A]" : "text-[#B83232]"}>{reportSent ? "✓" : "○"} {monthName(lastMonth).split(" ")[0]} report</span>}
-                    <span className="ml-auto flex items-center gap-1.5">{fl ? <><Avatar name={fl.name} color={fl.color} size={20} />{fl.name}</> : <Chip t="red">No freelancer</Chip>}</span>
+                    <span className="ml-auto flex items-center gap-1.5">{fl ? <><Avatar name={fl.name} color={fl.color} photo={fl.photo} size={20} />{fl.name}</> : <Chip t="red">No freelancer</Chip>}</span>
                   </div>
                 </button>
               );
@@ -215,7 +215,7 @@ export function Today() {
                 const accounts = state.clients.filter((client) => client.freelancerId === item.id);
                 return (
                   <button key={item.id} onClick={() => go({ view: "freelancers", freelancerId: item.id })} className="flex w-full flex-wrap items-center gap-3 border-b border-[#F5F3EF] px-4 py-3 text-left last:border-0 hover:bg-[#FBFAF8]">
-                    <Avatar name={item.name} color={item.color} size={34} />
+                    <Avatar name={item.name} color={item.color} photo={item.photo} size={34} />
                     <span className="w-36 min-w-0"><span className="block truncate text-[14px] font-bold">{item.name}</span><span className="block truncate text-[12px] text-[#8B867E]">{item.speciality}</span></span>
                     <span className="flex min-w-0 flex-1 flex-wrap gap-1.5">
                       {accounts.map((client) => <span key={client.id} className="flex items-center gap-1.5 rounded-full border border-[#ECE9E3] py-0.5 pl-0.5 pr-2.5 text-[12px] font-semibold"><ClientMark client={client} size={20} />{client.name}</span>)}
