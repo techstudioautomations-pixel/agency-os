@@ -11,7 +11,7 @@ const newId = () => `f-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
 export const kindOfFile = (file: File): PostFile["kind"] => (file.type.startsWith("image/") ? "image" : file.type === "application/pdf" || /\.pdf$/i.test(file.name) ? "pdf" : file.type.startsWith("video/") ? "video" : "other");
 
 /** Draws each page of a PDF as an image, so a LinkedIn carousel can be seen as slides. */
-export async function pdfPages(data: ArrayBuffer, name: string, parentId: string, max = 30): Promise<PostFile[]> {
+export async function pdfPages(data: ArrayBuffer, name: string, parentId: string, max = 30, opts: { from?: number; width?: number } = {}): Promise<PostFile[]> {
   const pdfjs = await load();
   // pdf.js waits for the screen to repaint between pieces of a page. A hidden or background tab never repaints, so it would wait for ever.
   const realFrame = window.requestAnimationFrame;
@@ -21,10 +21,10 @@ export async function pdfPages(data: ArrayBuffer, name: string, parentId: string
     const count = Math.min(doc.numPages, max);
     const label = name.replace(/\.pdf$/i, "");
     const pages: PostFile[] = [];
-    for (let number = 1; number <= count; number++) {
+    for (let number = opts.from ?? 1; number <= count; number++) {
       const page = await doc.getPage(number);
       const natural = page.getViewport({ scale: 1 });
-      const viewport = page.getViewport({ scale: Math.min(2, 900 / natural.width) });
+      const viewport = page.getViewport({ scale: Math.min(2, (opts.width ?? 900) / natural.width) });
       const canvas = document.createElement("canvas");
       canvas.width = Math.ceil(viewport.width);
       canvas.height = Math.ceil(viewport.height);
@@ -212,3 +212,26 @@ export async function carouselPdf(sources: string[]): Promise<Blob> {
 
 /** True when the post is a carousel going to LinkedIn, which only accepts a carousel as one PDF. */
 export const isLinkedInCarousel = (post: { format: string; platforms: string[] }) => post.format === "Carousel" && post.platforms.includes("LinkedIn");
+
+const blobSource = (blob: Blob) =>
+  blob.size < 1_500_000
+    ? new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result));
+        reader.onerror = () => reject(new Error("Could not read the file"));
+        reader.readAsDataURL(blob);
+      })
+    : Promise.resolve(URL.createObjectURL(blob));
+
+/**
+ * One carousel out of a longer PDF: pages `from` to `to`. It comes back as its own PDF, drawn again at a larger size so it stays sharp on LinkedIn,
+ * plus an image of each page to flip through. `pages` are the pictures already drawn for the whole PDF.
+ */
+export async function pdfSlice(file: File, pages: PostFile[], from: number, to: number, name: string): Promise<PostFile[]> {
+  const id = newId();
+  const sharp = await pdfPages(await file.arrayBuffer(), file.name, id, to, { from, width: 1400 });
+  const pdf: PostFile = { id, name, kind: "pdf", src: await blobSource(await carouselPdf(sharp.map((page) => page.src))) };
+  const label = name.replace(/\.pdf$/i, "");
+  const thumbs = pages.slice(from - 1, to).map((page, index) => ({ ...page, id: `${id}-p${index + 1}`, pageOf: id, name: `${label} · page ${index + 1}` }));
+  return [pdf, ...thumbs];
+}

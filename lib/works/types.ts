@@ -267,6 +267,8 @@ export type PostFile = { id: string; name: string; src: string; kind: "image" | 
 export type Post = {
   id: string;
   clientId: string;
+  /** The freelancer update this post was sent in, if any. */
+  updateId?: string;
   ideaId?: string;
   /** Extra work, such as a brochure. It does not count towards the monthly posts. */
   extra?: boolean;
@@ -322,6 +324,12 @@ export type PostDraft = {
   /** Send it for review now, or keep it as a draft to finish later. */
   send: boolean;
 };
+
+/** A message from a freelancer with the posts that came with it. */
+export type FreelancerUpdate = { id: string; clientId: string; by: string; date: string; at: string; message: string; reviewerId?: string; postIds: string[] };
+
+/** One post in an update, before it is made. */
+export type UpdateItem = { title: string; format: string; platforms: string[]; date: string; copy: string; files: PostFile[]; send: boolean };
 
 export type ReportNumbers = {
   followers: string;
@@ -531,6 +539,8 @@ export type State = {
   fixedCosts: FixedCost[];
   notices: Notice[];
   playbook: Playbook;
+  /** Updates the freelancers have sent, newest first. */
+  updates: FreelancerUpdate[];
   settings: Settings;
 };
 

@@ -2,8 +2,8 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { buildClientChecklist, launchClientDrafts, clients as sampleClients, leads as sampleLeads, freelancerChecklistTemplate, makeChecklist, sampleFreelancerIds, defaultAssets, defaultMonthLine, defaultMonthly, defaultPlaybook, defaultSections, newShare, piecesPerMonth, seedState } from "./seed";
-import { canBeAssigned, defaultRates, isHired, monthlyAreas, nameOf, periodName, reviewerFor, todayIso } from "./logic";
-import type { CheckItem, Client, ClientAsset, ClientSection, ClientShare, Idea, Lead, MonthReport, NewClientDraft, Notice, Post, PostDraft, ReportNumbers, RevisionCategory, Route, SectionStep, State, ReportPeriod, WeekReport } from "./types";
+import { canBeAssigned, defaultRates, isHired, isPlanAsset, planSlot, monthlyAreas, nameOf, periodName, reviewerFor, todayIso } from "./logic";
+import type { CheckItem, Client, ClientAsset, ClientSection, ClientShare, Idea, Lead, MonthReport, NewClientDraft, Notice, Post, PostDraft, ReportNumbers, RevisionCategory, Route, SectionStep, State, ReportPeriod, UpdateItem, WeekReport } from "./types";
 
 const KEY = "theworks-os-v5";
 /** The report for one week or weeks in a row inside a month report, created when first needed. */
@@ -74,6 +74,7 @@ function migrate(saved: State): State {
     leads: fresh ? saved.leads.filter((lead) => !sampleLeadIds.has(lead.id)) : saved.leads,
     notices: fresh ? [] : saved.notices,
     playbook: saved.playbook ?? defaultPlaybook(),
+    updates: saved.updates ?? [],
     posts: keep(saved.posts),
     settings: { ...saved.settings, assets: [...saved.settings.assets, ...defaultAssets.filter((asset) => !saved.settings.assets.some((item) => item.id === asset.id))], sections, monthly: saved.settings.monthly ?? defaultMonthly(), monthLine: saved.settings.monthLine ?? defaultMonthLine(saved.settings.dates), rates: { ...defaultRates, ...saved.settings.rates } },
     clients: (fresh ? saved.clients.filter((client) => !sampleIds.has(client.id)) : saved.clients).map((client) => ({ ...client, area: client.area ?? "marketing", setupPosts: client.setupPosts ?? 2, monthDone: client.monthDone ?? {}, packNotes: client.packNotes ?? { brand: "", brain: "", templates: "" } })),
@@ -144,6 +145,7 @@ function useStoreValue() {
   const [toast, setToast] = useState("");
   const toastTimer = useRef<number | undefined>(undefined);
   const [wizard, setWizard] = useState<{ open: boolean; leadId?: string }>({ open: false });
+  const [updateWizard, setUpdateWizard] = useState<{ open: boolean; clientId?: string }>({ open: false });
   const [postWizard, setPostWizard] = useState<{ open: boolean; clientId?: string; ideaId?: string; assetId?: string; date?: string }>({ open: false });
   const stateRef = useRef(state);
   stateRef.current = state;
@@ -485,6 +487,39 @@ function useStoreValue() {
         ping(draft.send ? "Sent for review. The reviewer has been notified." : "Saved as a draft. Find it in Posts, under Needs me, and on the calendar.");
         return id;
       },
+      /**
+       * Sends an update: a message and the posts that come with it. Each post is a draft that stays with the freelancer, or goes for review.
+       * Nobody is told about drafts. The reviewer gets one notice for everything sent for review.
+       */
+      createUpdate: (input: { clientId: string; date: string; message: string; reviewerId?: string; items: UpdateItem[] }) => {
+        const id = uid("upd");
+        let sent = 0;
+        update((d) => {
+          const client = d.clients.find((item) => item.id === input.clientId)!;
+          const postIds: string[] = [];
+          for (const item of input.items) {
+            const postId = uid("post");
+            const withArt = item.files.length > 0;
+            const month = item.date.slice(0, 7);
+            const slot = planSlot(client, d.posts, month, item.format);
+            const notInPlan = client.assets.some(isPlanAsset) && !slot;
+            const post: Post = {
+              id: postId, updateId: id, clientId: client.id, extra: notInPlan || undefined, extraType: notInPlan ? item.format : undefined, assetId: slot?.asset.id, reviewerId: input.reviewerId || undefined,
+              title: item.title, format: item.format, platforms: item.platforms.length ? item.platforms : [client.platforms[0] ?? "LinkedIn"], date: item.date,
+              status: !item.send ? "Copy in progress" : withArt ? "Design review" : "Copy review", copy: item.copy, captions: {}, files: item.files, art: item.title, designLink: "", driveLink: "", version: 1,
+              comments: [], history: [{ at: stamp(), by: d.me, text: "Added in an update" }], needsExpert: /regulation|part [a-z]|span|load|fire|compliance|certif/i.test(item.title), expertOk: false, waitingSince: todayIso(),
+            };
+            if (item.send) { post.history.unshift({ at: stamp(), by: d.me, text: withArt ? "Sent copy and artwork for review (v1)" : "Sent copy for review (v1)" }); sent += 1; }
+            d.posts.push(post);
+            postIds.push(postId);
+          }
+          d.updates.unshift({ id, clientId: client.id, by: d.me, date: input.date, at: stamp(), message: input.message, reviewerId: input.reviewerId || undefined, postIds });
+          const first = d.posts.find((post) => post.id === postIds[0]);
+          if (sent > 0 && first) notify(d, reviewerFor(d, client, first), `${nameOf(d, d.me)} sent an update for ${client.name}: ${sent} post${sent === 1 ? "" : "s"} to review`, { view: "marketing", clientId: client.id, tab: "updates" }, ["In app", "Email", "Google Chat"]);
+        });
+        ping(sent ? `Update sent. The reviewer has been told about ${sent} post${sent === 1 ? "" : "s"}.` : "Update saved. Everything in it is still a draft, so nobody has been told.");
+        return id;
+      },
       ideaToPost: (ideaId: string) => {
         update((d) => {
           const idea = d.ideas.find((item) => item.id === ideaId)!;
@@ -733,7 +768,7 @@ function useStoreValue() {
     };
   }, [update, go, ping]);
 
-  return { state, ready, route, go, toast, ping, wizard, openWizard: (leadId?: string) => setWizard({ open: true, leadId }), closeWizard: () => setWizard({ open: false }), postWizard, openPostWizard: (opts: { clientId?: string; ideaId?: string; assetId?: string; date?: string } = {}) => setPostWizard({ open: true, ...opts }), closePostWizard: () => setPostWizard({ open: false }), ...actions };
+  return { state, ready, route, go, toast, ping, wizard, openWizard: (leadId?: string) => setWizard({ open: true, leadId }), closeWizard: () => setWizard({ open: false }), postWizard, openPostWizard: (opts: { clientId?: string; ideaId?: string; assetId?: string; date?: string } = {}) => setPostWizard({ open: true, ...opts }), closePostWizard: () => setPostWizard({ open: false }), updateWizard, openUpdate: (clientId?: string) => setUpdateWizard({ open: true, clientId }), closeUpdate: () => setUpdateWizard({ open: false }), ...actions };
 }
 
 export function StoreProvider({ children }: { children: ReactNode }) {

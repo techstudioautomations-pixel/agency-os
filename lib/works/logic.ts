@@ -406,9 +406,12 @@ export function assetUsage(client: Client, posts: Post[], month: string): { asse
 }
 
 /** Which monthly item a post of this type counts towards for this client, and how much of it is already used. */
+/** Part of the monthly plan: from a package or set for this client, and not an add-on. */
+export const isPlanAsset = (asset: ClientAsset) => asset.kind === "piece" && asset.source !== "add-on";
+
 export function planSlot(client: Client, posts: Post[], month: string, format: string) {
   const usage = assetUsage(client, posts.filter((post) => !post.extra), month);
-  const matches = usage.filter((item) => item.asset.source === "package" && item.asset.period === "month" && formatGroup(item.asset.format) === formatGroup(format));
+  const matches = usage.filter((item) => isPlanAsset(item.asset) && item.asset.period === "month" && formatGroup(item.asset.format) === formatGroup(format));
   const pick = matches.find((item) => item.used < item.asset.qty) ?? matches[0];
   return pick ? { asset: pick.asset, used: pick.used, qty: pick.asset.qty, over: pick.used >= pick.asset.qty } : undefined;
 }

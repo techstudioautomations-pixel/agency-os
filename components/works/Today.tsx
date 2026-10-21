@@ -1,12 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { ArrowRight, BarChart3, CheckCircle2, ChevronDown, Lightbulb, Plus } from "lucide-react";
+import { ArrowRight, BarChart3, CheckCircle2, ChevronDown, Lightbulb, Plus, Send } from "lucide-react";
 import { useStore } from "@/lib/works/store";
 import { agreedFor, canBeAssigned, isHired, gate, inReview, isFreelancer, isMarketing, me, monthName, monthlyAreas, myClients, personById, progress, shiftMonth, todayIso, turnOf } from "@/lib/works/logic";
 import type { Post } from "@/lib/works/types";
 import { Shell } from "./Shell";
 import { ExtraAlert } from "./ExtraWork";
+import { UpdatesBlock } from "./Updates";
 import { PostArt } from "./PostArt";
 import { statusTone } from "./Marketing";
 import { Avatar, Bar, Chip, ClientMark, Light, tone } from "./kit";
@@ -84,16 +85,20 @@ function ReviewBlock({ title, sub, posts, empty, onAll }: { title: string; sub: 
 
 /** What a freelancer does most, one click away. */
 function QuickActions() {
-  const { state, go, openPostWizard } = useStore();
+  const { state, go, openPostWizard, openUpdate } = useStore();
   const clients = myClients(state).filter(isMarketing);
   const only = clients.length === 1 ? clients[0].id : "all";
   return (
     <section className="rounded-3xl border border-[#E9E6E0] bg-white p-5 sm:p-6">
       <h2 className="text-[18px] font-extrabold">What do you want to do?</h2>
-      <div className="mt-4 grid gap-3 sm:grid-cols-3">
-        <button onClick={() => openPostWizard()} className="flex items-center gap-3 rounded-2xl bg-[#1E2430] p-4 text-left text-white transition hover:bg-[#2E3542] sm:col-span-1">
-          <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-white/15"><Plus size={22} /></span>
-          <span><span className="block text-[16px] font-extrabold">Create post</span><span className="block text-[12px] opacity-75">Step by step, from an idea or new</span></span>
+      <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <button onClick={() => openUpdate(only === "all" ? undefined : only)} className="flex items-center gap-3 rounded-2xl bg-[#1E2430] p-4 text-left text-white transition hover:bg-[#2E3542]">
+          <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-white/15"><Send size={20} /></span>
+          <span><span className="block text-[16px] font-extrabold">Send an update</span><span className="block text-[12px] opacity-75">Today's posts in one message</span></span>
+        </button>
+        <button onClick={() => openPostWizard()} className="flex items-center gap-3 rounded-2xl border border-[#E2DED7] p-4 text-left transition hover:border-[#C9C3B8]">
+          <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-[#F1F0ED]"><Plus size={22} /></span>
+          <span><span className="block text-[15px] font-bold">Create post</span><span className="block text-[12px] text-[#6B6760]">One post, step by step</span></span>
         </button>
         <button onClick={() => go({ view: "marketing", clientId: only, tab: "ideas" })} className="flex items-center gap-3 rounded-2xl border border-[#E2DED7] p-4 text-left transition hover:border-[#C9C3B8]">
           <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-[#FFF3D9] text-[#94600A]"><Lightbulb size={20} /></span>
@@ -142,6 +147,7 @@ export function Today() {
             onAll={() => go({ view: "marketing", clientId: "all", tab: "posts", filter: "review" })}
           />
         )}
+        <UpdatesBlock />
         <Strip title="Going out this week" sub="Approved and scheduled posts for the next 7 days." posts={thisWeek} empty="Nothing scheduled for the next 7 days." onAll={() => go({ view: "marketing", clientId: "all", tab: "calendar" })} />
 
         <section>

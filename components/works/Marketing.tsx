@@ -13,6 +13,7 @@ import { MonthChecklist } from "./Monthly";
 import { ReviewMode } from "./ReviewMode";
 import { PackPane, packDocs, type DocKey } from "./StarterPack";
 import { ExtraWork } from "./ExtraWork";
+import { UpdatesList } from "./Updates";
 import { ChannelIcon } from "./ChannelIcon";
 import { extrasFor } from "@/lib/works/logic";
 import { researchFromFile, researchFromText, type Research } from "@/lib/works/research";
@@ -90,6 +91,7 @@ export function MarketingPage({ clientId, tab, postId, filter }: { clientId?: st
             </>
           )}
           {railItem("posts", "Posts", state.posts.filter((item) => inScope(item) && item.date.startsWith(state.month)).length)}
+          {railItem("updates", "Updates", state.updates.filter((item) => (client ? item.clientId === client.id : clients.some((entry) => entry.id === item.clientId)) && item.date.startsWith(state.month)).length)}
           {railItem("ideas", "Ideas", state.ideas.filter((idea) => inScope(idea) && idea.month === state.month && idea.decision === "New").length)}
           {railItem("calendar", "Calendar")}
           {client && monthAreas.length > 0 && railItem("month", isFreelancer(state) ? "My checklist" : "This month", monthOpen)}
@@ -100,6 +102,7 @@ export function MarketingPage({ clientId, tab, postId, filter }: { clientId?: st
           {client && current in packTabs && <PackPane key={`${client.id}-${current}`} client={client} docKey={packTabs[current]} />}
           {current === "posts" && <PostBoard key={scope} client={client} scope={scope} initial={filter} />}
           {current === "calendar" && <PlanCalendar client={client} scope={scope} />}
+          {current === "updates" && <UpdatesList client={client} />}
           {current === "ideas" && <IdeasView client={client} />}
           {client && current === "month" && (
             <div className="space-y-5">

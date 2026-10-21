@@ -4,7 +4,7 @@ import { useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Check, FilePlus2, Lightbulb, Maximize2, Send, Trash2, UploadCloud, X } from "lucide-react";
 import { useStore } from "@/lib/works/store";
-import { agreedFor, isMarketing, monthName, myClients, planSlot, reviewerFor, shiftMonth, shortDate } from "@/lib/works/logic";
+import { agreedFor, isMarketing, isPlanAsset, monthName, myClients, planSlot, reviewerFor, shiftMonth, shortDate } from "@/lib/works/logic";
 import type { PostFile } from "@/lib/works/types";
 import { Button, ClientMark, Field, fieldClass } from "./kit";
 import { Lightbox } from "./Lightbox";
@@ -79,7 +79,7 @@ function Wizard() {
   const pickedAsset = extraPick.startsWith("asset:") ? clientExtras.find((asset) => asset.id === extraPick.slice(6)) : undefined;
   const pickedLibrary = extraPick.startsWith("lib:") ? libraryExtras.find((asset) => asset.id === extraPick.slice(4)) : undefined;
   const extraType = kind === "extra" ? (pickedAsset?.name ?? pickedLibrary?.name ?? (extraName.trim() || "Extra")) : undefined;
-  const hasPlan = Boolean(client?.assets.some((asset) => asset.source === "package"));
+  const hasPlan = Boolean(client?.assets.some(isPlanAsset));
   // The type of post decides what it counts as, for this client in this month.
   const slot = client && kind === "plan" ? planSlot(client, state.posts, month, format) : undefined;
   const notInPlan = kind === "plan" && hasPlan && !slot;

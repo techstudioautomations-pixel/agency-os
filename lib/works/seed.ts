@@ -929,6 +929,7 @@ export function seedState(): State {
       { id: "fc4", label: "María's fee", amount: 0, category: "People" },
     ],
     notices: [],
+    updates: [],
     playbook: defaultPlaybook(),
     settings: {
       assets: defaultAssets,
