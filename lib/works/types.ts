@@ -525,6 +525,8 @@ export type State = {
   freelancersCleared?: boolean;
   /** Set once the first four clients have been added. */
   launchClientsAdded?: boolean;
+  /** Set once the first clients have their logos. */
+  logosAdded?: boolean;
   me: string;
   month: string;
   people: Person[];

@@ -5,7 +5,7 @@ import { Bell, BookOpen, ChevronDown, ChevronLeft, ChevronRight, CircleDollarSig
 import { useStore } from "@/lib/works/store";
 import { ago, everyone, isHired, gate, isFreelancer, me, monthName, myClients, shiftMonth, turnOf } from "@/lib/works/logic";
 import type { Route } from "@/lib/works/types";
-import { Avatar, Chip, ClientMark, Light } from "./kit";
+import { Avatar, Chip, ClientMark, Light, asset } from "./kit";
 
 type NavItem = { view: Route["view"]; label: string; icon: typeof Home; badge?: number };
 
@@ -49,10 +49,10 @@ export function Shell({ title, sub, actions, children }: { title: ReactNode; sub
       {menu && <button aria-label="Close menu" onClick={() => setMenu(false)} className="fixed inset-0 z-40 bg-black/30 lg:hidden" />}
       <aside className={`fixed inset-y-0 left-0 z-50 flex w-[248px] flex-col border-r border-[#E9E6E0] bg-white transition-transform lg:translate-x-0 ${menu ? "translate-x-0" : "-translate-x-full"}`}>
         <div className="flex items-center gap-2.5 px-5 pb-4 pt-5">
-          <span className="grid h-9 w-9 place-items-center rounded-xl bg-[#1E2430] text-[15px] font-black text-white">W</span>
           <div className="leading-tight">
-            <div className="text-[15px] font-extrabold">The Works</div>
-            <div className="text-[11px] font-semibold text-[#8B867E]">Agency OS</div>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={asset("/the-works-logo.png")} alt="The Works" className="h-9 w-auto" />
+            <div className="mt-0.5 text-[11px] font-semibold text-[#8B867E]">Agency OS</div>
           </div>
           <button onClick={() => setMenu(false)} aria-label="Close menu" className="ml-auto rounded-lg p-1.5 text-[#6B6760] lg:hidden"><X size={18} /></button>
         </div>

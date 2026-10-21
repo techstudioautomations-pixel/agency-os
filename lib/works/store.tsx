@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { launchLogos } from "./logos";
 import { buildClientChecklist, launchClientDrafts, clients as sampleClients, leads as sampleLeads, freelancerChecklistTemplate, makeChecklist, sampleFreelancerIds, defaultAssets, defaultMonthLine, defaultMonthly, defaultPlaybook, defaultSections, newShare, piecesPerMonth, seedState } from "./seed";
 import { canBeAssigned, defaultRates, isHired, isPlanAsset, planSlot, monthlyAreas, nameOf, periodName, reviewerFor, todayIso } from "./logic";
 import type { CheckItem, Client, ClientAsset, ClientSection, ClientShare, Idea, Lead, MonthReport, NewClientDraft, Notice, Post, PostDraft, ReportNumbers, RevisionCategory, Route, SectionStep, State, ReportPeriod, UpdateItem, WeekReport } from "./types";
@@ -86,6 +87,16 @@ function migrate(saved: State): State {
       if (next.clients.some((client) => client.id === id)) continue;
       next.clients.push(makeClient(next, id, draft));
       next.invoices.push({ clientId: id, month: next.month, status: "Not sent", date: "" });
+    }
+  }
+  // The first clients get the logos we were given. A logo someone has already set is left alone.
+  if (!saved.logosAdded) {
+    next.logosAdded = true;
+    for (const client of next.clients) {
+      if (!client.logo && launchLogos[client.id]) client.logo = launchLogos[client.id];
+      if (client.id === "firereg" && client.color === "#D6457A") client.color = "#5E7F3A";
+      if (client.id === "firereg" && client.name === "Firereg") client.name = "Firereg.ai";
+      if (client.id === "marker-group" && client.color === "#1D9E5A") client.color = "#070808";
     }
   }
   return next;
@@ -227,7 +238,7 @@ function useStoreValue() {
     return {
       setMe: (id: string) => update((d) => { d.me = id; }),
       setMonth: (month: string) => update((d) => { d.month = month; }),
-      reset: () => { window.localStorage.removeItem(KEY); setState({ ...seedState(), launchClientsAdded: true }); go({ view: "today" }); ping("Data emptied"); },
+      reset: () => { window.localStorage.removeItem(KEY); setState({ ...seedState(), launchClientsAdded: true, logosAdded: true }); go({ view: "today" }); ping("Data emptied"); },
 
       // Access, files and costs on a client
       addAccess: (clientId: string, item: Omit<State["clients"][number]["access"][number], "id">) => update((d) => { d.clients.find((c) => c.id === clientId)!.access.push({ ...item, id: uid("acc") }); }),

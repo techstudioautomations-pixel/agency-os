@@ -915,6 +915,7 @@ export function seedState(): State {
     cleaned: true,
     freelancersCleared: true,
     launchClientsAdded: false,
+    logosAdded: false,
     clients: [],
     ideas: [],
     posts: [],
@@ -967,8 +968,8 @@ export function launchClientDrafts(settings: State["settings"]): { id: string; d
   return [
     make("house-build", "House Build", "#E08A1E", 750, [piece("house-build", "company-post", 8), piece("house-build", "newsletter", 2)]),
     make("buildreg", "Buildreg", "#2F6FDB", 500, [piece("buildreg", "short-video", 4)]),
-    make("firereg", "Firereg", "#D6457A", 500, [piece("firereg", "company-post", 8)]),
-    make("marker-group", "Marker Group", "#1D9E5A", 500, [piece("marker-group", "company-post", 1)]),
+    make("firereg", "Firereg.ai", "#5E7F3A", 500, [piece("firereg", "company-post", 8)]),
+    make("marker-group", "Marker Group", "#070808", 500, [piece("marker-group", "company-post", 1)]),
   ];
 }
 
