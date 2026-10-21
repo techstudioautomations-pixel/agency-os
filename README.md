@@ -38,7 +38,7 @@ Idea approved → copy → copy review → design → design review (expert chec
 
 ## Data in this version
 
-Sample data is generated around today's date. Changes are saved in this browser only (localStorage), so each device has its own copy. "Reset sample data" in How we work restores it. Files under 1.5 MB are kept; larger ones last only for the session. Email and Slack notifications are shown in the bell but not sent until a database and email provider are connected (see `supabase/`).
+The app starts with no clients, posts, ideas, reports or leads: the team adds the real ones. The freelancers, the playbook (How we work) and Settings come with starting content to edit. The first time an older saved copy loads, the old sample clients and everything under them are cleared once; anything the team created is kept. Changes are saved in this browser only (localStorage), so each device has its own copy. "Reset sample data" in How we work empties it back to this starting point. Files under 1.5 MB are kept; larger ones last only for the session. Email and Slack notifications are shown in the bell but not sent until a database and email provider are connected (see `supabase/`).
 
 The previous version is still available at `/classic/`.
 

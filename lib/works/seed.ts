@@ -451,10 +451,10 @@ const serviceList: Record<string, string> = {
 const platformOf: Record<string, string> = { chelsie: "Upwork", velinda: "Fiverr", ryan: "Upwork", eve: "Fiverr", sam: "Direct" };
 const jobsOf: Record<string, Freelancer["jobs"]> = {
   chelsie: [
-    { id: "j-chelsie-1", date: "", clientId: "marker", what: "LinkedIn carousels and copy, last month", amount: 110, link: "" },
+    { id: "j-chelsie-1", date: "", client: "Marker Group", what: "LinkedIn carousels and copy, last month", amount: 110, link: "" },
     { id: "j-chelsie-2", date: "", what: "Brand voice sample for the agency website", amount: 60, link: "", client: "The Works" },
   ],
-  velinda: [{ id: "j-velinda-1", date: "", clientId: "housebuild", what: "Instagram carousels and a reel, last month", amount: 100, link: "" }],
+  velinda: [{ id: "j-velinda-1", date: "", client: "House Build", what: "Instagram carousels and a reel, last month", amount: 100, link: "" }],
   eve: [{ id: "j-eve-1", date: "", what: "Brand template set (Canva)", amount: 150, link: "", client: "The Works" }],
 };
 const freelancer = (id: string, name: string, color: string, speciality: string, rate: string, capacity: number, status: Freelancer["status"], done: number): Freelancer => ({
@@ -907,20 +907,15 @@ export function seedState(): State {
     month: thisMonth,
     people,
     freelancers,
-    clients,
-    ideas,
-    posts,
-    reports,
-    leads,
-    invoices: [
-      { clientId: "marker", month: thisMonth, status: "Paid", date: day(4) },
-      { clientId: "housebuild", month: thisMonth, status: "Paid", date: day(6) },
-      { clientId: "buildregs", month: thisMonth, status: "Sent", date: day(1) },
-      { clientId: "element", month: thisMonth, status: "Sent", date: day(1) },
-      { clientId: "energyfix", month: thisMonth, status: "Not sent", date: "" },
-      { clientId: "capcon", month: thisMonth, status: "Not sent", date: "" },
-    ],
-    payouts: [{ clientId: "marker", month: thisMonth, status: "Paid", date: day(8) }],
+    // Starts empty: clients, posts and leads are added by the team. The sample ones above are kept only so older saved copies can be cleared.
+    cleaned: true,
+    clients: [],
+    ideas: [],
+    posts: [],
+    reports: [],
+    leads: [],
+    invoices: [],
+    payouts: [],
     fixedCosts: [
       { id: "fc1", label: "Publishing tool", amount: 21, category: "Software" },
       { id: "fc2", label: "Canva Pro", amount: 15, category: "Software" },

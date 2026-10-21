@@ -503,6 +503,8 @@ export type Route =
 
 export type State = {
   version: number;
+  /** Set once the sample clients, posts and leads have been cleared away. */
+  cleaned?: boolean;
   me: string;
   month: string;
   people: Person[];

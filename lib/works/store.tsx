@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { buildClientChecklist, freelancerChecklistTemplate, freelancers as seedFreelancers, makeChecklist, defaultAssets, portalIds, portalPosts, defaultMonthLine, defaultMonthly, defaultPlaybook, defaultSections, newShare, piecesPerMonth, seedState } from "./seed";
+import { buildClientChecklist, clients as sampleClients, leads as sampleLeads, freelancerChecklistTemplate, freelancers as seedFreelancers, makeChecklist, defaultAssets, defaultMonthLine, defaultMonthly, defaultPlaybook, defaultSections, newShare, piecesPerMonth, seedState } from "./seed";
 import { canBeAssigned, isHired, monthlyAreas, nameOf, periodName, reviewerFor, todayIso } from "./logic";
 import type { CheckItem, Client, ClientAsset, ClientSection, ClientShare, Idea, Lead, MonthReport, NewClientDraft, Notice, Post, PostDraft, ReportNumbers, RevisionCategory, Route, SectionStep, State, ReportPeriod, WeekReport } from "./types";
 
@@ -32,13 +32,26 @@ function migrate(saved: State): State {
     return { ...person, platform: person.platform ?? (firstDirectory ? sample?.platform : undefined) ?? "", profileUrl: person.profileUrl ?? "", phone: person.phone ?? "", notes: person.notes ?? "", jobs: person.jobs ?? (firstDirectory ? sample?.jobs : undefined) ?? [] };
   });
   if (firstDirectory) for (const sample of seedFreelancers) if (sample.status === "Directory" && !freelancers.some((item) => item.id === sample.id)) freelancers.push(sample);
+  // Once: clear away the sample clients and everything that belongs to them, and keep anything the team added themselves.
+  const sampleIds = new Set(sampleClients.map((client) => client.id));
+  const sampleLeadIds = new Set(sampleLeads.map((lead) => lead.id));
+  const fresh = !saved.cleaned;
+  const nameOfSample = (id?: string) => saved.clients.find((client) => client.id === id)?.name;
+  const keep = <T extends { clientId: string }>(list: T[]) => (fresh ? list.filter((item) => !sampleIds.has(item.clientId)) : list);
   return {
     ...saved,
-    freelancers,
+    cleaned: true,
+    freelancers: fresh ? freelancers.map((person) => ({ ...person, jobs: person.jobs.map((job) => (job.clientId && sampleIds.has(job.clientId) ? { ...job, clientId: undefined, client: nameOfSample(job.clientId) ?? job.client } : job)) })) : freelancers,
+    ideas: keep(saved.ideas),
+    reports: keep(saved.reports),
+    invoices: keep(saved.invoices),
+    payouts: keep(saved.payouts),
+    leads: fresh ? saved.leads.filter((lead) => !sampleLeadIds.has(lead.id)) : saved.leads,
+    notices: fresh ? [] : saved.notices,
     playbook: saved.playbook ?? defaultPlaybook(),
-    posts: [...saved.posts, ...portalPosts.filter((post) => !saved.posts.some((item) => item.id === post.id))],
+    posts: keep(saved.posts),
     settings: { ...saved.settings, assets: [...saved.settings.assets, ...defaultAssets.filter((asset) => !saved.settings.assets.some((item) => item.id === asset.id))], sections, monthly: saved.settings.monthly ?? defaultMonthly(), monthLine: saved.settings.monthLine ?? defaultMonthLine(saved.settings.dates) },
-    clients: saved.clients.map((client) => ({ ...client, share: client.id === "housebuild" ? { ...client.share, postIds: [...new Set([...client.share.postIds, ...portalIds])] } : client.share, area: client.area ?? "marketing", setupPosts: client.setupPosts ?? 2, monthDone: client.monthDone ?? {}, packNotes: client.packNotes ?? { brand: "", brain: "", templates: "" } })),
+    clients: (fresh ? saved.clients.filter((client) => !sampleIds.has(client.id)) : saved.clients).map((client) => ({ ...client, area: client.area ?? "marketing", setupPosts: client.setupPosts ?? 2, monthDone: client.monthDone ?? {}, packNotes: client.packNotes ?? { brand: "", brain: "", templates: "" } })),
   };
 }
 
