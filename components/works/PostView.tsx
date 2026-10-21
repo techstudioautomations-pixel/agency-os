@@ -10,6 +10,7 @@ import { PostArt } from "./PostArt";
 import { Lightbox } from "./Lightbox";
 import { carouselPdf, isLinkedInCarousel, openFile, pagesForAttached, pagesIn, readPostFiles, saveFile, slidesOf, withoutFile } from "@/lib/works/pdf";
 import { CtaPicker } from "./CtaPicker";
+import { ChannelIcon } from "./ChannelIcon";
 import { statusTone } from "./Marketing";
 import { asset, Avatar, Button, Chip, ClientMark, Field, fieldClass } from "./kit";
 import { Shell } from "./Shell";
@@ -139,7 +140,7 @@ export function PostPreviewPanel({ post, client, canEdit, onEdit }: { post: Post
       {big && <Lightbox files={slidesOf(post.files).map((file) => ({ ...file, src: asset(file.src) }))} start={slide} onClose={() => setBig(false)} />}
       <div className="flex flex-wrap items-center gap-2 border-b border-[#F0EEE9] px-4 py-3">
         <div className="flex gap-1">
-          {post.platforms.map((item) => <button key={item} onClick={() => setChannel(item)} className={`rounded-lg px-3 py-1.5 text-[12px] font-bold ${channel === item ? "bg-[#1E2430] text-white" : "text-[#6B6760] hover:bg-[#F1F0ED]"}`}>{item}</button>)}
+          {post.platforms.map((item) => <button key={item} onClick={() => setChannel(item)} className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[12px] font-bold ${channel === item ? "bg-[#1E2430] text-white" : "text-[#6B6760] hover:bg-[#F1F0ED]"}`}><ChannelIcon name={item} size={16} />{item}</button>)}
         </div>
         <span className="ml-auto flex flex-wrap gap-1.5">
           {post.files.length > 0 && <Button size="sm" onClick={downloadAll} disabled={busy}><Download size={13} />{busy ? "Preparing…" : post.files.filter((file) => !file.pageOf).length > 1 ? `Download all (${post.files.filter((file) => !file.pageOf).length})` : "Download"}</Button>}
@@ -279,7 +280,7 @@ function PostEditor({ post, onDone }: { post: Post; onDone: () => void }) {
       </div>
       <div>
         <div className="mb-1.5 text-[12px] font-semibold text-[#55514B]">Channels</div>
-        <div className="flex flex-wrap gap-1.5">{channels.map((item) => <button key={item} onClick={() => toggleChannel(item)} aria-pressed={post.platforms.includes(item)} className={`rounded-full px-3 py-1.5 text-[12px] font-semibold ${post.platforms.includes(item) ? "bg-[#1E2430] text-white" : "bg-[#F1F0ED] text-[#6B6760]"}`}>{item}</button>)}</div>
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">{channels.map((item) => <button key={item} onClick={() => toggleChannel(item)} aria-pressed={post.platforms.includes(item)} className={`flex items-center gap-2.5 rounded-xl border-2 px-3 py-2 text-left text-[13px] font-bold transition ${post.platforms.includes(item) ? "border-[#2F6FDB] bg-[#F4F8FF]" : "border-[#E9E6E0] hover:border-[#C9C3B8]"}`}><ChannelIcon name={item} size={24} />{item}</button>)}</div>
       </div>
 
       {post.status.startsWith("Copy") ? (
@@ -320,7 +321,7 @@ function PostEditor({ post, onDone }: { post: Post; onDone: () => void }) {
         )}
         {different && (
           <div className="mb-2 flex flex-wrap gap-1.5">
-            {post.platforms.map((item) => <button key={item} onClick={() => setCaptionTab(item)} aria-pressed={tab === item} className={`rounded-lg px-3 py-1 text-[12px] font-bold ${tab === item ? "bg-[#EAF1FD] text-[#1F5BC4]" : "text-[#6B6760] hover:bg-[#F1F0ED]"}`}>{item}</button>)}
+            {post.platforms.map((item) => <button key={item} onClick={() => setCaptionTab(item)} aria-pressed={tab === item} className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[12px] font-bold ${tab === item ? "bg-[#EAF1FD] text-[#1F5BC4]" : "text-[#6B6760] hover:bg-[#F1F0ED]"}`}><ChannelIcon name={item} size={16} />{item}</button>)}
           </div>
         )}
         <textarea value={value} onChange={(event) => write(event.target.value)} rows={7} aria-label={different ? `${tab} caption` : "Caption"} className={`${fieldClass} leading-relaxed`} placeholder="Write the caption" />

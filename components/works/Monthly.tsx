@@ -2,7 +2,7 @@
 
 import { ArrowRight, Check } from "lucide-react";
 import { useStore } from "@/lib/works/store";
-import { isFreelancer, monthName, type MonthArea } from "@/lib/works/logic";
+import { isFreelancer, monthName, shiftMonth, type MonthArea } from "@/lib/works/logic";
 import type { Client } from "@/lib/works/types";
 import { Button, Chip } from "./kit";
 
@@ -14,7 +14,8 @@ export function useCanTick(areaId: MonthArea["id"]) {
 
 /** One monthly checklist. Steps that can be worked out from the posts and reports tick themselves. */
 export function MonthChecklist({ client, area, month }: { client: Client; area: MonthArea; month: string }) {
-  const { go, toggleMonthStep } = useStore();
+  const { go, toggleMonthStep, setMonth } = useStore();
+  const openReport = () => { setMonth(shiftMonth(month, -1)); go({ view: "marketing", clientId: client.id, tab: "results" }); };
   const canTick = useCanTick(area.id);
   const done = area.steps.filter((step) => step.done).length;
   return (
@@ -38,7 +39,9 @@ export function MonthChecklist({ client, area, month }: { client: Client; area: 
               <span className={`block text-[14px] ${step.done ? "text-[#9A958D] line-through" : "font-semibold"}`}>{step.label}</span>
               {step.hint && !step.done && <span className="block text-[12px] text-[#8B867E]">{step.hint}</span>}
             </span>
-            {step.go && <Button size="sm" onClick={() => go(step.go!)}>Open <ArrowRight size={13} /></Button>}
+            {step.key === "report-in" ? (
+              <Button size="sm" kind={step.done ? "secondary" : "primary"} onClick={openReport}>{step.done ? "Edit report" : "Add report"} <ArrowRight size={13} /></Button>
+            ) : step.go ? <Button size="sm" onClick={() => go(step.go!)}>Open <ArrowRight size={13} /></Button> : null}
           </li>
         ))}
       </ul>

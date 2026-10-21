@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { ArrowRight, Check, ChevronDown, ClipboardCopy, ExternalLink, FileUp, LayoutGrid, MessageCircle, Plus, Trash2, X } from "lucide-react";
 import { useStore } from "@/lib/works/store";
-import { agreedFor, areaItems, monthlyAreas, docxText, inReview, needsMe, progress, stageOf, isFreelancer, isMarketing, monthName, myClients, nameOf, personById, shortDate, splitIdeas, todayIso, turnOf } from "@/lib/works/logic";
+import { agreedFor, areaItems, isDraft, monthlyAreas, docxText, inReview, needsMe, progress, stageOf, isFreelancer, isMarketing, monthName, myClients, nameOf, personById, shortDate, splitIdeas, todayIso, turnOf } from "@/lib/works/logic";
 import type { Client, Idea, IdeaDecision, Persona, Pillar, Post, ReportNumbers, Strategy } from "@/lib/works/types";
 import { Shell } from "./Shell";
 import { PostArt } from "./PostArt";
@@ -14,6 +14,7 @@ import { ReviewMode } from "./ReviewMode";
 import { PackPane, packDocs, type DocKey } from "./StarterPack";
 import { Results } from "./Results";
 import { ExtraWork } from "./ExtraWork";
+import { ChannelIcon } from "./ChannelIcon";
 import { extrasFor } from "@/lib/works/logic";
 import { researchFromFile, researchFromText, type Research } from "@/lib/works/research";
 import { AttachField, Avatar, Button, Card, CardHead, Chip, ClientMark, Empty, Field, Segmented, fieldClass, tone } from "./kit";
@@ -174,7 +175,8 @@ export function PostTile({ post, showClient, scope, onOpen }: { post: Post; show
     <button onClick={() => (onOpen ? onOpen() : go({ view: "marketing", clientId: scope, postId: post.id }))} className={`group flex min-w-0 flex-col overflow-hidden rounded-2xl border bg-white text-left transition hover:-translate-y-0.5 hover:shadow-[0_10px_28px_rgba(30,36,48,.10)] ${mine ? "border-[#2F6FDB] shadow-[0_0_0_2px_rgba(47,111,219,.18)]" : "border-[#E9E6E0]"}`}>
       <div className="relative">
         <PostArt post={post} client={client} rounded="rounded-none" />
-        <span className="absolute bottom-2 left-2"><Chip t={status.t} className="shadow-sm">{status.label}</Chip></span>
+        <span className="absolute bottom-2 left-2"><Chip t={isDraft(post) ? "grey" : status.t} className="shadow-sm">{isDraft(post) ? "Draft" : status.label}</Chip></span>
+        <span className="absolute bottom-2 right-2 flex -space-x-1">{post.platforms.map((name) => <span key={name} className="rounded-md ring-2 ring-white"><ChannelIcon name={name} size={20} /></span>)}</span>
         {post.extra && <span className="absolute right-2 top-2 rounded-full bg-[#1E2430] px-2.5 py-1 text-[11px] font-bold text-white shadow">{post.extraType ?? "Extra"}</span>}
       </div>
       <div className="flex flex-1 flex-col p-3">
@@ -263,7 +265,7 @@ function suggestedDays(year: number, month: number, count: number, fromDay = 1) 
 }
 
 function PlanCalendar({ client, scope }: { client?: Client; scope: string }) {
-  const { state, go, movePost, addPost } = useStore();
+  const { state, go, movePost, openPostWizard } = useStore();
   const clients = myClients(state).filter(isMarketing);
   const [dragging, setDragging] = useState("");
   const [over, setOver] = useState("");
@@ -281,12 +283,12 @@ function PlanCalendar({ client, scope }: { client?: Client; scope: string }) {
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-3 text-[13px] text-[#55514B]">
-        <span className="font-semibold">Drag a post to another day to move it.</span>
-        {client && <span>{posts.length} of {agreedFor(client, state.month)} agreed posts have a date{freeSlots.length ? ` · ${freeSlots.length} open slot${freeSlots.length === 1 ? "" : "s"} suggested` : ""}</span>}
+        <span className="font-semibold">Drag a post to another day to move it. Click one to open it.</span>
+        {client && <span>{planned} of {agreedFor(client, state.month)} agreed posts have a date{freeSlots.length ? ` · ${freeSlots.length} open slot${freeSlots.length === 1 ? "" : "s"} suggested` : ""}</span>}
       </div>
       <div className="overflow-x-auto rounded-2xl border border-[#E9E6E0] bg-white">
-        <div className="grid min-w-[880px] grid-cols-7">
-          {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((name) => <div key={name} className="border-b border-[#F0EEE9] px-2.5 py-2 text-[11px] font-bold uppercase text-[#8B867E]">{name}</div>)}
+        <div className="grid min-w-[1000px] grid-cols-7">
+          {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((name) => <div key={name} className="border-b border-[#F0EEE9] px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-[#8B867E]">{name}</div>)}
           {Array.from({ length: cells }, (_, index) => {
             const day = index - offset + 1;
             const valid = day > 0 && day <= days;
@@ -299,36 +301,40 @@ function PlanCalendar({ client, scope }: { client?: Client; scope: string }) {
                 onDragOver={(event) => { if (valid) { event.preventDefault(); setOver(iso); } }}
                 onDragLeave={() => setOver("")}
                 onDrop={() => { if (dragging && iso) movePost(dragging, iso); setDragging(""); setOver(""); }}
-                className={`min-h-[132px] border-b border-r border-[#F5F3EF] p-1.5 transition ${over === iso ? "bg-[#EAF1FD]" : iso === today ? "bg-[#FBFCFF]" : ""}`}
+                className={`relative flex min-h-[230px] flex-col gap-1.5 border-b border-r border-[#F0EEE9] p-2 transition ${over && over === iso ? "bg-[#EAF1FD]" : iso === today ? "bg-[#FBFCFF]" : !valid ? "bg-[#FBFAF8]" : ""}`}
               >
-                {valid && <div className={`mb-1 text-[11px] font-bold ${iso === today ? "text-[#1F5BC4]" : "text-[#A8A39B]"}`}>{day}</div>}
-                <div className="space-y-1.5">
-                  {items.map((post) => {
-                    const postClient = state.clients.find((item) => item.id === post.clientId)!;
-                    const status = statusTone(post);
-                    return (
-                      <button key={post.id} draggable={post.status !== "Published"} onDragStart={() => setDragging(post.id)} onDragEnd={() => setDragging("")} onClick={() => go({ view: "marketing", clientId: scope, postId: post.id })} className="flex w-full items-center gap-1.5 rounded-lg border border-[#EEEBE5] bg-white p-1 text-left hover:border-[#C9C3B8]">
-                        <span className="w-9 shrink-0"><PostArt post={post} client={postClient} rounded="rounded-md" /></span>
-                        <span className="min-w-0">
-                          <span className="line-clamp-2 text-[11px] font-semibold leading-tight">{post.title}</span>
-                          <span className="mt-0.5 inline-block h-1.5 w-1.5 rounded-full" style={{ background: tone[status.t].dot }} /> <span className="text-[10px] text-[#8B867E]">{!client ? postClient.name : status.label}</span>
+                {valid && <div className={`text-[12px] font-extrabold ${iso === today ? "text-[#1F5BC4]" : "text-[#A8A39B]"}`}>{day}</div>}
+                {items.map((post) => {
+                  const postClient = state.clients.find((item) => item.id === post.clientId)!;
+                  const status = statusTone(post);
+                  const draft = isDraft(post);
+                  return (
+                    <button key={post.id} draggable={post.status !== "Published"} onDragStart={() => setDragging(post.id)} onDragEnd={() => setDragging("")} onClick={() => go({ view: "marketing", clientId: scope, postId: post.id })} className={`group relative min-h-[150px] flex-1 overflow-hidden rounded-xl text-left shadow-sm ring-1 ring-black/5 transition hover:shadow-md ${post.status === "Published" ? "" : "cursor-grab active:cursor-grabbing"}`}>
+                      <div className="absolute inset-0"><PostArt post={post} client={postClient} fill rounded="rounded-none" className="transition duration-300 group-hover:scale-[1.03]" /></div>
+                      <span className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 via-black/45 to-transparent px-2.5 pb-2 pt-10 text-white">
+                        <span className="line-clamp-2 block text-[12px] font-bold leading-tight">{post.title}</span>
+                        <span className="mt-1.5 flex items-center gap-1.5">
+                          <span className="flex -space-x-1">{post.platforms.map((name) => <span key={name} className="rounded-[5px] ring-1 ring-white"><ChannelIcon name={name} size={16} /></span>)}</span>
+                          <span className="inline-flex items-center gap-1 rounded-full bg-white/95 px-2 py-0.5 text-[10px] font-bold text-[#1E2430]"><span className="h-1.5 w-1.5 rounded-full" style={{ background: draft ? "#8B867E" : tone[status.t].dot }} />{draft ? "Draft" : status.label}</span>
                         </span>
-                      </button>
-                    );
-                  })}
-                  {slot && client && (
-                    <button onClick={() => { const id = addPost(client.id, "New post", iso); go({ view: "marketing", clientId: scope, postId: id }); }} className="w-full rounded-lg border-2 border-dashed border-[#D6D1C8] p-2 text-center text-[11px] font-semibold text-[#8B867E] hover:border-[#2F6FDB] hover:text-[#1F5BC4]">
-                      + Open slot
+                        {!client && <span className="mt-1 block text-[10px] font-semibold text-white/85">{postClient.name}</span>}
+                      </span>
+                      {post.extra && <span className="absolute right-1.5 top-1.5 rounded-full bg-[#1E2430] px-2 py-0.5 text-[10px] font-bold text-white">{post.extraType ?? "Extra"}</span>}
                     </button>
-                  )}
-                </div>
+                  );
+                })}
+                {slot && client && (
+                  <button onClick={() => openPostWizard({ clientId: client.id, date: iso })} className="grid min-h-[150px] flex-1 place-items-center rounded-xl border-2 border-dashed border-[#D6D1C8] text-center text-[12px] font-semibold text-[#8B867E] hover:border-[#2F6FDB] hover:text-[#1F5BC4]">
+                    <span><Plus size={16} className="mx-auto mb-1" />Open slot</span>
+                  </button>
+                )}
               </div>
             );
           })}
         </div>
       </div>
       <div className="flex flex-wrap gap-3 text-[12px] text-[#6B6760]">
-        {([["In progress", tone.grey.dot], ["In review", tone.purple.dot], ["With client", tone.amber.dot], ["Scheduled", tone.blue.dot], ["Approved / live", tone.green.dot]] as const).map(([label, dot]) => (
+        {([["Draft or being made", tone.grey.dot], ["In review", tone.purple.dot], ["With client", tone.amber.dot], ["Scheduled", tone.blue.dot], ["Approved / live", tone.green.dot]] as const).map(([label, dot]) => (
           <span key={label} className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full" style={{ background: dot }} />{label}</span>
         ))}
       </div>

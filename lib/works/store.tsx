@@ -86,7 +86,7 @@ function useStoreValue() {
   const [toast, setToast] = useState("");
   const toastTimer = useRef<number | undefined>(undefined);
   const [wizard, setWizard] = useState<{ open: boolean; leadId?: string }>({ open: false });
-  const [postWizard, setPostWizard] = useState<{ open: boolean; clientId?: string; ideaId?: string; assetId?: string }>({ open: false });
+  const [postWizard, setPostWizard] = useState<{ open: boolean; clientId?: string; ideaId?: string; assetId?: string; date?: string }>({ open: false });
   const stateRef = useRef(state);
   stateRef.current = state;
 
@@ -443,7 +443,7 @@ function useStoreValue() {
           if (idea) { idea.postId = id; idea.decision = "Approved"; }
           if (draft.send) notify(d, reviewerFor(d, client, post), `${client.name}: ${withArt ? "post" : "copy"} ready to review · ${post.title}`, postRoute(post), ["In app", "Email", "Google Chat"]);
         });
-        ping(draft.send ? "Sent for review. The reviewer has been notified." : "Saved as a draft");
+        ping(draft.send ? "Sent for review. The reviewer has been notified." : "Saved as a draft. Find it in Posts, under Needs me, and on the calendar.");
         return id;
       },
       ideaToPost: (ideaId: string) => {
@@ -680,7 +680,7 @@ function useStoreValue() {
     };
   }, [update, go, ping]);
 
-  return { state, ready, route, go, toast, ping, wizard, openWizard: (leadId?: string) => setWizard({ open: true, leadId }), closeWizard: () => setWizard({ open: false }), postWizard, openPostWizard: (opts: { clientId?: string; ideaId?: string; assetId?: string } = {}) => setPostWizard({ open: true, ...opts }), closePostWizard: () => setPostWizard({ open: false }), ...actions };
+  return { state, ready, route, go, toast, ping, wizard, openWizard: (leadId?: string) => setWizard({ open: true, leadId }), closeWizard: () => setWizard({ open: false }), postWizard, openPostWizard: (opts: { clientId?: string; ideaId?: string; assetId?: string; date?: string } = {}) => setPostWizard({ open: true, ...opts }), closePostWizard: () => setPostWizard({ open: false }), ...actions };
 }
 
 export function StoreProvider({ children }: { children: ReactNode }) {

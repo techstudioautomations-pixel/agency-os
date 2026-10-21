@@ -216,7 +216,7 @@ export function extrasFor(state: State, personId: string) {
     .filter((item) => item.made < item.asset.qty);
 }
 
-export type MonthStep = { id: string; label: string; done: boolean; manual: boolean; hint?: string; go?: Route };
+export type MonthStep = { id: string; label: string; done: boolean; manual: boolean; hint?: string; go?: Route; /** Which piece of work this step follows, when it ticks itself. */ key?: string };
 export type MonthArea = { id: "ops" | "freelancer"; label: string; color: string; blurb: string; steps: MonthStep[] };
 
 export function monthlyAreas(state: State, client: Client, month = state.month): MonthArea[] {
@@ -258,7 +258,7 @@ export function monthlyAreas(state: State, client: Client, month = state.month):
   const build = (role: "ops" | "freelancer"): MonthStep[] =>
     state.settings.monthly.filter((step) => step.role === role && applies(step)).map((step) => {
       const hit = step.auto ? auto[step.auto] : undefined;
-      return { id: step.id, label: text(step.label), done: hit ? hit.done : Boolean(ticks[step.id]), manual: !hit, hint: step.hint, go: hit?.go };
+      return { id: step.id, label: text(step.label), done: hit ? hit.done : Boolean(ticks[step.id]), manual: !hit, hint: step.hint, go: hit?.go, key: step.auto };
     });
   const name = monthName(month).split(" ")[0];
   return [
@@ -328,6 +328,17 @@ export function assetUsage(client: Client, posts: Post[], month: string): { asse
   }
   return client.assets.map((asset) => ({ asset, used: asset.period === "month" ? used[asset.id] ?? 0 : 0 }));
 }
+
+/** Which monthly item a post of this type counts towards for this client, and how much of it is already used. */
+export function planSlot(client: Client, posts: Post[], month: string, format: string) {
+  const usage = assetUsage(client, posts.filter((post) => !post.extra), month);
+  const matches = usage.filter((item) => item.asset.source === "package" && item.asset.period === "month" && formatGroup(item.asset.format) === formatGroup(format));
+  const pick = matches.find((item) => item.used < item.asset.qty) ?? matches[0];
+  return pick ? { asset: pick.asset, used: pick.used, qty: pick.asset.qty, over: pick.used >= pick.asset.qty } : undefined;
+}
+
+/** A post saved by the freelancer that has not been sent for review yet. */
+export const isDraft = (post: Post) => post.status === "Copy in progress" && !post.history.some((entry) => /Submitted|Sent /.test(entry.text));
 
 export const periodLabel = (asset: Pick<ClientAsset, "qty" | "period">) => `${asset.qty} a ${asset.period}`;
 

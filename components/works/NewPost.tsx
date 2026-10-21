@@ -2,13 +2,14 @@
 
 import { useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, FilePlus2, Lightbulb, Maximize2, Send, Trash2, UploadCloud, X } from "lucide-react";
+import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Check, FilePlus2, Lightbulb, Maximize2, Send, Trash2, UploadCloud, X } from "lucide-react";
 import { useStore } from "@/lib/works/store";
-import { agreedFor, isMarketing, monthName, myClients, reviewerFor, shiftMonth, shortDate } from "@/lib/works/logic";
+import { agreedFor, isMarketing, monthName, myClients, planSlot, reviewerFor, shiftMonth, shortDate } from "@/lib/works/logic";
 import type { PostFile } from "@/lib/works/types";
 import { Button, ClientMark, Field, fieldClass } from "./kit";
 import { Lightbox } from "./Lightbox";
 import { CtaPicker } from "./CtaPicker";
+import { ChannelIcon } from "./ChannelIcon";
 import { isLinkedInCarousel, pagesIn, readPostFiles, slidesOf, withoutFile } from "@/lib/works/pdf";
 
 const formats = ["Carousel", "Text post", "Single image", "Reel", "Document", "Newsletter"] as const;
@@ -50,13 +51,12 @@ function Wizard() {
 
   const [step, setStep] = useState(0);
   const [clientId, setClientId] = useState(firstClient);
-  const [month, setMonth] = useState(state.month);
-  const [date, setDate] = useState(`${state.month}-${pad(state.settings.dates.schedule)}`);
+  const [month, setMonth] = useState(postWizard.date?.slice(0, 7) ?? state.month);
+  const [date, setDate] = useState(postWizard.date ?? `${state.month}-${pad(state.settings.dates.schedule)}`);
   const [source, setSource] = useState<"idea" | "new">(idea ? "idea" : "new");
   const [ideaId, setIdeaId] = useState(idea?.id ?? "");
   const [title, setTitle] = useState(idea?.title ?? startAsset?.name ?? "");
   const [kind, setKind] = useState<"plan" | "extra">(startAsset ? "extra" : "plan");
-  const [planAsset, setPlanAsset] = useState("");
   const [extraPick, setExtraPick] = useState(startAsset ? `asset:${startAsset.id}` : "");
   const [extraName, setExtraName] = useState("");
   const [format, setFormat] = useState<Format>(startAsset ? formatFor(startAsset.format) : formatFor(idea?.format ?? "Carousel"));
@@ -74,13 +74,16 @@ function Wizard() {
   const client = clients.find((item) => item.id === clientId);
   const approved = state.ideas.filter((item) => item.clientId === clientId && item.decision === "Approved" && !item.postId);
   const planned = client ? state.posts.filter((post) => post.clientId === client.id && post.date.startsWith(month) && !post.extra).length : 0;
-  const planAssets = client?.assets.filter((asset) => asset.source === "package") ?? [];
   const clientExtras = client?.assets.filter((asset) => asset.kind === "extra" && asset.source !== "package") ?? [];
   const libraryExtras = state.settings.assets.filter((asset) => asset.kind === "extra" && !client?.assets.some((entry) => entry.assetId === asset.id));
   const pickedAsset = extraPick.startsWith("asset:") ? clientExtras.find((asset) => asset.id === extraPick.slice(6)) : undefined;
   const pickedLibrary = extraPick.startsWith("lib:") ? libraryExtras.find((asset) => asset.id === extraPick.slice(4)) : undefined;
   const extraType = kind === "extra" ? (pickedAsset?.name ?? pickedLibrary?.name ?? (extraName.trim() || "Extra")) : undefined;
-  const madeThisMonth = (assetId: string) => state.posts.filter((post) => post.assetId === assetId && post.date.startsWith(month)).length;
+  const hasPlan = Boolean(client?.assets.some((asset) => asset.source === "package"));
+  // The type of post decides what it counts as, for this client in this month.
+  const slot = client && kind === "plan" ? planSlot(client, state.posts, month, format) : undefined;
+  const notInPlan = kind === "plan" && hasPlan && !slot;
+  const nextMonth = shiftMonth(month, 1);
   const reviewers = state.people.filter((person) => person.role !== "freelancer");
   const defaultReviewer = client ? reviewerFor(state, client) : "";
   const channelList = client ? [...new Set([...client.platforms, ...channels])] : channels;
@@ -136,7 +139,7 @@ function Wizard() {
   ];
   const finish = (send: boolean) => {
     if (!client) return;
-    const id = createPost({ clientId: client.id, ideaId: kind === "plan" && source === "idea" ? ideaId : undefined, extra: kind === "extra" || undefined, extraType, assetId: kind === "extra" ? pickedAsset?.id : planAsset || undefined, title: title.trim() || "Untitled post", format, platforms: picked, date, copy: (useDifferent ? captionFor(picked[0]) : copy).trim(), captions: useDifferent ? Object.fromEntries(picked.map((channel) => [channel, captionFor(channel).trim()])) : {}, files, reviewerId: reviewerId || undefined, send });
+    const id = createPost({ clientId: client.id, ideaId: kind === "plan" && source === "idea" ? ideaId : undefined, extra: kind === "extra" || notInPlan || undefined, extraType: kind === "extra" ? extraType : notInPlan ? (formatLabel[format] ?? format) : undefined, assetId: kind === "extra" ? pickedAsset?.id : slot?.asset.id, title: title.trim() || "Untitled post", format, platforms: picked, date, copy: (useDifferent ? captionFor(picked[0]) : copy).trim(), captions: useDifferent ? Object.fromEntries(picked.map((channel) => [channel, captionFor(channel).trim()])) : {}, files, reviewerId: reviewerId || undefined, send });
     closePostWizard();
     go({ view: "marketing", clientId: client.id, postId: id });
   };
@@ -185,14 +188,6 @@ function Wizard() {
                   <div className="text-[12px] text-[#6B6760]">A brochure, video, e-book, lead magnet, flyer, exhibition material…</div>
                 </button>
               </div>
-              {kind === "plan" && planAssets.length > 0 && (
-                <Field label="Counts towards" hint="Optional. It shows how much of each item is made this month.">
-                  <select value={planAsset} onChange={(event) => setPlanAsset(event.target.value)} className={fieldClass}>
-                    <option value="">Not sure yet</option>
-                    {planAssets.map((asset) => <option key={asset.id} value={asset.id}>{asset.name} · {madeThisMonth(asset.id)} of {asset.qty} this month</option>)}
-                  </select>
-                </Field>
-              )}
               {kind === "extra" && (
                 <div className="space-y-3">
                   <Field label="Which extra?">
@@ -216,10 +211,17 @@ function Wizard() {
                   <input type="date" value={date} min={`${month}-01`} max={`${month}-31`} onChange={(event) => setDate(event.target.value)} className={fieldClass} />
                 </Field>
               </div>
+              {client && kind === "plan" && planned >= agreedFor(client, month) && (
+                <div className="flex flex-wrap gap-2 rounded-2xl bg-[#FFF3D9] px-4 py-3 text-[13px] text-[#6B4A06]">
+                  <span className="flex-1">Options: put it in next month, make it extra work, or keep going and it counts as an extra post this month.</span>
+                  <Button size="sm" onClick={() => chooseMonth(nextMonth)}>Use {monthName(nextMonth).split(" ")[0]}</Button>
+                  <Button size="sm" onClick={() => { setKind("extra"); setExtraPick("other"); }}>Make it extra work</Button>
+                </div>
+              )}
               {client && (
                 <div className="flex items-center gap-3 rounded-2xl bg-[#F8F7F4] p-4">
                   <ClientMark client={client} size={38} />
-                  {kind === "plan" ? <p className="text-[14px]"><b>{client.name}</b> has <b>{planned}</b> of <b>{agreedFor(client, month)}</b> posts planned for {monthName(month)}. This one will be number {planned + 1}.</p> : <p className="text-[14px]">Extra work does not count towards {client.name}&apos;s <b>{agreedFor(client, month)}</b> monthly posts.</p>}
+                  {kind === "plan" ? <p className="text-[14px]"><b>{client.name}</b> has <b>{planned}</b> of <b>{agreedFor(client, month)}</b> posts planned for {monthName(month)}. {planned >= agreedFor(client, month) ? <span className="font-semibold text-[#94600A]">That is the whole plan, so this one would be number {planned + 1}, over what they pay for.</span> : <>This one will be number {planned + 1}.</>}</p> : <p className="text-[14px]">Extra work does not count towards {client.name}&apos;s <b>{agreedFor(client, month)}</b> monthly posts.</p>}
                 </div>
               )}
             </div>
@@ -270,12 +272,26 @@ function Wizard() {
                   {formats.map((item) => <option key={item} value={item}>{formatLabel[item] ?? item}</option>)}
                 </select>
               </Field>
+              {kind === "plan" && client && slot && !slot.over && <p className="rounded-xl bg-[#E7F6EE] px-4 py-3 text-[13px] font-semibold text-[#17804A]">Counts as {slot.asset.name}: number {slot.used + 1} of {slot.qty} for {client.name} in {monthName(month).split(" ")[0]}.</p>}
+              {kind === "plan" && client && slot && slot.over && (
+                <div className="space-y-2 rounded-xl bg-[#FFF3D9] px-4 py-3 text-[13px] text-[#6B4A06]">
+                  <p><b>{slot.asset.name}:</b> {slot.used} of {slot.qty} already made in {monthName(month).split(" ")[0]}. This one goes over what {client.name} pays for.</p>
+                  <div className="flex flex-wrap gap-2"><Button size="sm" onClick={() => chooseMonth(nextMonth)}>Put it in {monthName(nextMonth).split(" ")[0]}</Button><Button size="sm" onClick={() => { setKind("extra"); setExtraPick("other"); setStep(0); }}>Make it extra work</Button></div>
+                </div>
+              )}
+              {notInPlan && client && <p className="rounded-xl bg-[#FFF3D9] px-4 py-3 text-[13px] font-semibold text-[#6B4A06]">{client.package} does not include {(formatLabel[format] ?? format).toLowerCase()} posts. It will be saved as extra work, so it is not counted in the monthly posts.</p>}
               <div>
                 <div className="mb-1.5 text-[12px] font-semibold text-[#55514B]">Where it goes</div>
-                <div className="flex flex-wrap gap-1.5">
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
                   {channelList.map((item) => {
                     const on = picked.includes(item);
-                    return <button key={item} onClick={() => setPlatforms(on ? picked.filter((value) => value !== item) : [...picked, item])} aria-pressed={on} className={`rounded-full px-3.5 py-2 text-[13px] font-semibold ${on ? "bg-[#1E2430] text-white" : "bg-[#F1F0ED] text-[#6B6760]"}`}>{item}</button>;
+                    return (
+                      <button key={item} onClick={() => setPlatforms(on ? picked.filter((value) => value !== item) : [...picked, item])} aria-pressed={on} className={`flex items-center gap-3 rounded-2xl border-2 px-3.5 py-3 text-left transition ${on ? "border-[#2F6FDB] bg-[#F4F8FF]" : "border-[#E9E6E0] hover:border-[#C9C3B8]"}`}>
+                        <ChannelIcon name={item} size={28} />
+                        <span className="flex-1 text-[14px] font-bold">{item}</span>
+                        <span className={`grid h-5 w-5 place-items-center rounded-full border-2 ${on ? "border-[#2F6FDB] bg-[#2F6FDB] text-white" : "border-[#D9D5CE]"}`}>{on && <Check size={12} strokeWidth={3.5} />}</span>
+                      </button>
+                    );
                   })}
                 </div>
               </div>
@@ -295,7 +311,7 @@ function Wizard() {
                 )}
                 {useDifferent && (
                   <div className="mb-2 flex flex-wrap gap-1.5">
-                    {picked.map((channel) => <button key={channel} onClick={() => setCaptionTab(channel)} aria-pressed={tab === channel} className={`rounded-lg px-3 py-1 text-[12px] font-bold ${tab === channel ? "bg-[#EAF1FD] text-[#1F5BC4]" : "text-[#6B6760] hover:bg-[#F1F0ED]"}`}>{channel}{captionFor(channel).trim() ? " ✓" : ""}</button>)}
+                    {picked.map((channel) => <button key={channel} onClick={() => setCaptionTab(channel)} aria-pressed={tab === channel} className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[12px] font-bold ${tab === channel ? "bg-[#EAF1FD] text-[#1F5BC4]" : "text-[#6B6760] hover:bg-[#F1F0ED]"}`}><ChannelIcon name={channel} size={16} />{channel}{captionFor(channel).trim() ? " ✓" : ""}</button>)}
                   </div>
                 )}
                 {idea?.angle || (ideaId && state.ideas.find((item) => item.id === ideaId)?.angle) ? <p className="mb-2 rounded-lg bg-[#F1F6FE] px-3 py-2 text-[12px] text-[#1F5BC4]">Started from the draft copy in the idea. Change anything you like.</p> : null}
@@ -365,6 +381,7 @@ function Wizard() {
                   ))}
                 </div>
               )}
+              <p className="rounded-xl bg-[#F8F7F4] px-4 py-3 text-[12px] leading-snug text-[#55514B]"><b>Save draft</b> keeps it with you in Posts, under Needs me, and on the calendar on its day. Nobody is told. <b>Send for review</b> tells the reviewer.</p>
               {!hasCaption && <p className="rounded-xl bg-[#FFF3D9] px-4 py-3 text-[13px] text-[#6B4A06]">Add {useDifferent ? "a caption for each channel" : "a caption"} to send it for review, or save it as a draft.</p>}
             </div>
           )}
