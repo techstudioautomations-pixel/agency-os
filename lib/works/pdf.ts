@@ -45,6 +45,30 @@ export async function pdfPages(data: ArrayBuffer, name: string, parentId: string
   }
 }
 
+/** The text of a PDF, line by line. Works for PDFs that hold real text (exports from tools), not for scans or pictures. */
+export async function pdfText(data: ArrayBuffer, maxPages = 30): Promise<string> {
+  const pdfjs = await load();
+  const doc = await pdfjs.getDocument({ data: new Uint8Array(data.slice(0)) }).promise;
+  let out = "";
+  for (let number = 1; number <= Math.min(doc.numPages, maxPages); number++) {
+    const page = await doc.getPage(number);
+    const content = await page.getTextContent();
+    let lastY: number | undefined;
+    for (const item of content.items) {
+      if (!("str" in item)) continue;
+      const y = item.transform[5];
+      if (lastY !== undefined) out += Math.abs(y - lastY) > 3 ? "\n" : " ";
+      out += item.str;
+      lastY = item.hasEOL ? undefined : y;
+      if (item.hasEOL) out += "\n";
+    }
+    out += "\n";
+    page.cleanup();
+  }
+  await doc.destroy();
+  return out;
+}
+
 /** The shape of a picture, so it can be shown whole. */
 const imageRatio = (src: string) =>
   new Promise<number | undefined>((resolve) => {

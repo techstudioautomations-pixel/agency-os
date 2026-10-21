@@ -12,7 +12,6 @@ import { PostReview } from "./PostView";
 import { MonthChecklist } from "./Monthly";
 import { ReviewMode } from "./ReviewMode";
 import { PackPane, packDocs, type DocKey } from "./StarterPack";
-import { Results } from "./Results";
 import { ExtraWork } from "./ExtraWork";
 import { ChannelIcon } from "./ChannelIcon";
 import { extrasFor } from "@/lib/works/logic";
@@ -50,7 +49,7 @@ export function MarketingPage({ clientId, tab, postId, filter }: { clientId?: st
   }
 
   const requested = tab ?? "posts";
-  const current = !client && (requested in packTabs || requested === "month") ? "posts" : requested === "strategy" ? "posts" : requested;
+  const current = !client && (requested in packTabs || requested === "month") ? "posts" : requested === "strategy" || requested === "results" ? "posts" : requested;
   const inScope = (item: { clientId: string }) => (client ? item.clientId === client.id : clients.some((c) => c.id === item.clientId));
   const mineCount = (id?: string) => state.posts.filter((item) => (id ? item.clientId === id : inScope(item)) && item.date.startsWith(state.month) && needsMe(state, item)).length;
   const monthAreas = client ? monthlyAreas(state, client).filter((area) => !isFreelancer(state) || area.id === "freelancer") : [];
@@ -93,7 +92,6 @@ export function MarketingPage({ clientId, tab, postId, filter }: { clientId?: st
           {railItem("posts", "Posts", state.posts.filter((item) => inScope(item) && item.date.startsWith(state.month)).length)}
           {railItem("ideas", "Ideas", state.ideas.filter((idea) => inScope(idea) && idea.month === state.month && idea.decision === "New").length)}
           {railItem("calendar", "Calendar")}
-          {railItem("results", "Results")}
           {client && monthAreas.length > 0 && railItem("month", isFreelancer(state) ? "My checklist" : "This month", monthOpen)}
           {(extraCount > 0 || current === "extra") && isFreelancer(state) && railItem("extra", "Extra work", extraCount)}
         </nav>
@@ -108,7 +106,6 @@ export function MarketingPage({ clientId, tab, postId, filter }: { clientId?: st
               {monthAreas.map((area) => <div key={area.id} className="rounded-2xl border border-[#E9E6E0] bg-white p-5"><MonthChecklist client={client} area={area} month={state.month} /></div>)}
             </div>
           )}
-          {current === "results" && <Results client={client} />}
           {current === "extra" && isFreelancer(state) && <ExtraWork personId={state.me} clientId={client?.id} />}
         </div>
       </div>

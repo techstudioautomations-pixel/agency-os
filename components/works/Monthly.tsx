@@ -14,8 +14,8 @@ export function useCanTick(areaId: MonthArea["id"]) {
 
 /** One monthly checklist. Steps that can be worked out from the posts and reports tick themselves. */
 export function MonthChecklist({ client, area, month }: { client: Client; area: MonthArea; month: string }) {
-  const { go, toggleMonthStep, setMonth } = useStore();
-  const openReport = () => { setMonth(shiftMonth(month, -1)); go({ view: "marketing", clientId: client.id, tab: "results" }); };
+  const { go, toggleMonthStep } = useStore();
+  const openReport = () => go({ view: "reports", clientId: client.id, month: shiftMonth(month, -1) });
   const canTick = useCanTick(area.id);
   const done = area.steps.filter((step) => step.done).length;
   return (

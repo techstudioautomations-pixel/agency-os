@@ -25,7 +25,7 @@ function Screen() {
     case "marketing":
       return <MarketingPage clientId={route.clientId} tab={route.tab} postId={route.postId} filter={route.filter} />;
     case "reports":
-      return <ReportsPage />;
+      return <ReportsPage clientId={route.clientId} month={route.month} />;
     case "leads":
       return <Leads leadId={route.leadId} />;
     case "freelancers":

@@ -330,14 +330,15 @@ export type ReportNumbers = {
   screenshots: string;
 };
 
-/** A report for part of the month: week 1, 2 or 3. The full month report is the MonthReport itself. */
+/** A report for part of the month: one week, or weeks in a row. The full month report is the MonthReport itself. */
 export type WeekReport = {
   byPlatform?: Record<string, ReportNumbers & { savedAt: string; savedBy: string }>;
   checks?: Record<string, string>;
   submittedAt?: string;
   freelancerReport?: Attachment;
 };
-export type ReportPeriod = "w1" | "w2" | "w3" | "month";
+/** "month" for the full month, "w2" for week 2, "w1-2" for weeks 1 and 2 together. */
+export type ReportPeriod = string;
 
 export type MonthReport = {
   id: string;
@@ -352,8 +353,8 @@ export type MonthReport = {
   checks?: Record<string, string>;
   /** When the freelancer handed the report to operations. */
   submittedAt?: string;
-  /** Week 1, 2 and 3 reports, if the freelancer sends them. */
-  weekly?: Partial<Record<"w1" | "w2" | "w3", WeekReport>>;
+  /** Reports for one week or several weeks in a row, if the freelancer sends them that way. Keyed like "w1" or "w1-2". */
+  weekly?: Record<string, WeekReport>;
   checked: boolean;
   summary: string;
   recommendations: string;
@@ -387,15 +388,26 @@ export type Lead = {
   clientId?: string;
 };
 
+/** Work a freelancer did for us: what, for whom, and what it cost. */
+export type FreelancerJob = { id: string; date: string; clientId?: string; client?: string; what: string; amount: number; link?: string };
+
 export type Freelancer = Person & {
   speciality: string;
+  /** Where we found them: Fiverr, Upwork, Direct, Other. */
+  platform: string;
+  profileUrl: string;
+  phone: string;
+  notes: string;
+  /** Work done for us, newest first. */
+  jobs: FreelancerJob[];
   rate: string;
   currency: string;
   paymentMethod: string;
   capacity: number;
   services: string;
   portfolio: string;
-  status: "Active" | "Trial" | "Offboarded";
+  /** Directory: someone we know about but have not hired. */
+  status: "Active" | "Trial" | "Offboarded" | "Directory";
   checklist: CheckItem[];
 };
 
@@ -481,7 +493,7 @@ export type Route =
   | { view: "clients" }
   | { view: "client"; clientId: string; tab?: string; sub?: string; postId?: string }
   | { view: "marketing"; clientId?: string; tab?: string; postId?: string; filter?: string }
-  | { view: "reports" }
+  | { view: "reports"; clientId?: string; month?: string }
   | { view: "leads"; leadId?: string }
   | { view: "freelancers"; freelancerId?: string }
   | { view: "finance" }

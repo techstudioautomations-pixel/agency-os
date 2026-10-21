@@ -3,7 +3,7 @@
 import { useState, type ReactNode } from "react";
 import { Bell, BookOpen, ChevronDown, ChevronLeft, ChevronRight, CircleDollarSign, FileBarChart, Home, LayoutGrid, Menu, Send, Settings as SettingsIcon, Sparkles, Users, X } from "lucide-react";
 import { useStore } from "@/lib/works/store";
-import { ago, everyone, gate, isFreelancer, me, monthName, myClients, shiftMonth, turnOf } from "@/lib/works/logic";
+import { ago, everyone, isHired, gate, isFreelancer, me, monthName, myClients, shiftMonth, turnOf } from "@/lib/works/logic";
 import type { Route } from "@/lib/works/types";
 import { Avatar, Chip, ClientMark, Light } from "./kit";
 
@@ -33,7 +33,7 @@ export function Shell({ title, sub, actions, children }: { title: ReactNode; sub
         { view: "today", label: "Today", icon: Home },
         { view: "clients", label: "Clients", icon: LayoutGrid },
         { view: "marketing", label: "Marketing", icon: Sparkles, badge: contentWaiting },
-        { view: "reports", label: "Reports", icon: FileBarChart },
+        { view: "reports", label: "Monthly reports", icon: FileBarChart },
         ...(person.role === "owner" ? [{ view: "leads" as const, label: "Leads", icon: Send }] : []),
         { view: "freelancers", label: "Freelancers", icon: Users },
         ...(person.role === "owner" ? [{ view: "finance" as const, label: "Finance", icon: CircleDollarSign }] : []),
@@ -98,7 +98,7 @@ export function Shell({ title, sub, actions, children }: { title: ReactNode; sub
           {who && (
             <div className="absolute bottom-[68px] left-3 right-3 z-10 rounded-2xl border border-[#E9E6E0] bg-white p-2 shadow-xl">
               <div className="px-2 py-1.5 text-[11px] font-bold uppercase tracking-wide text-[#9A958D]">View as</div>
-              {everyone(state).filter((p) => !("status" in p) || p.status !== "Offboarded").map((p) => (
+              {everyone(state).filter((p) => !("status" in p) || isHired(p)).map((p) => (
                 <button key={p.id} onClick={() => { store.setMe(p.id); setWho(false); go({ view: "today" }); }} className={`flex w-full items-center gap-2.5 rounded-xl p-2 text-left ${p.id === state.me ? "bg-[#EEF2FA]" : "hover:bg-[#F6F5F2]"}`}>
                   <Avatar name={p.name} color={p.color} size={26} />
                   <span className="flex-1 text-[13px] font-semibold">{p.name}</span>

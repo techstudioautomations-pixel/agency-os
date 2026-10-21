@@ -63,7 +63,7 @@ function Wizard() {
   const appliesHere = (section: (typeof settings.sections)[number]) => !section.areas || section.areas.includes(area);
   const suggested = new Set(settings.sections.filter((section) => appliesHere(section) && (section.always || assets.some((asset) => settings.assets.find((entry) => entry.id === asset.assetId)?.sections.includes(section.id)))).map((section) => section.id));
   const picked = (id: string) => sectionOverride[id] ?? suggested.has(id);
-  const assignable = state.freelancers.filter((person) => person.status !== "Offboarded" && canBeAssigned(person));
+  const assignable = state.freelancers.filter(canBeAssigned);
 
   function chooseArea(next: AreaKind) {
     setArea(next);

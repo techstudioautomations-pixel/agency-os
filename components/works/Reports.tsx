@@ -1,13 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import { Check, ChevronLeft, ChevronRight, Download } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, ChevronLeft, ChevronRight, Download } from "lucide-react";
 import { useStore } from "@/lib/works/store";
-import { isFreelancer, isFullReport, isOwner, monthName, myClients, nameOf, shiftMonth, shortDate, todayIso } from "@/lib/works/logic";
+import { isFreelancer, isFullReport, isOwner, monthName, myClients, nameOf, reportIn, reportParts, shiftMonth, shortDate, todayIso } from "@/lib/works/logic";
 import { monthFacts, reportHtml } from "@/lib/works/report";
 import type { Client } from "@/lib/works/types";
 import { Shell } from "./Shell";
-import { AttachField, Bar, Card, Chip, ClientMark, Empty, tone } from "./kit";
+import { AttachField, Bar, Button, Card, Chip, ClientMark, Empty, tone } from "./kit";
+import { ReportBuilder } from "./ReportBuilder";
 
 function MonthPicker({ month, onChange }: { month: string; onChange: (month: string) => void }) {
   return (
@@ -21,14 +22,24 @@ function MonthPicker({ month, onChange }: { month: string; onChange: (month: str
 
 const Tick = ({ done }: { done: boolean }) => (done ? <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-[#1D9E5A] text-white"><Check size={12} strokeWidth={3} /></span> : <span className="h-5 w-5 shrink-0 rounded-full border-2 border-dashed border-[#CFCAC2]" />);
 
-export function ReportsPage() {
+export function ReportsPage({ clientId, month: routeMonth }: { clientId?: string; month?: string }) {
   const { state, go, attachReport, updateReport } = useStore();
-  const [month, setMonth] = useState(shiftMonth(state.month, -1));
+  const month = routeMonth ?? shiftMonth(state.month, -1);
+  const setMonth = (next: string) => go({ view: "reports", clientId, month: next });
   const freelancer = isFreelancer(state);
   const owner = isOwner(state);
+  const open = clientId ? myClients(state).find((client) => client.id === clientId) : undefined;
   const clients = myClients(state).filter((client) => client.startDate.slice(0, 7) <= month);
+
+  if (open) {
+    return (
+      <Shell title={open.name} sub={`${monthName(month)} · the freelancer's report`} actions={<><Button kind="ghost" onClick={() => go({ view: "reports", month })}><ArrowLeft size={15} />All clients</Button><MonthPicker month={month} onChange={setMonth} /></>}>
+        <ReportBuilder key={`${open.id}-${month}`} client={open} month={month} />
+      </Shell>
+    );
+  }
   const rows = clients.map((client) => ({ client, report: state.reports.find((item) => item.clientId === client.id && item.month === month), facts: monthFacts(client, month, state.posts) }));
-  const inCount = rows.filter((row) => row.report?.freelancerReport || row.report?.numbers).length;
+  const inCount = rows.filter((row) => reportIn(row.report)).length;
   const sentCount = rows.filter((row) => row.report?.sentAt).length;
   const financeCount = rows.filter((row) => row.report?.financeSentAt).length;
 
@@ -50,7 +61,7 @@ export function ReportsPage() {
   ];
 
   return (
-    <Shell title={freelancer ? "Monthly reports" : "Reports"} sub={freelancer ? "Hand in each client's monthly report by the 5th." : `${monthName(month)} month-end for every client.`} actions={<MonthPicker month={month} onChange={setMonth} />}>
+    <Shell title="Monthly reports" sub={freelancer ? "Hand in each client's monthly report by the 5th." : `${monthName(month)} month-end for every client.`} actions={<MonthPicker month={month} onChange={setMonth} />}>
       <div className={`mb-5 grid gap-3 ${summary.length === 3 ? "sm:grid-cols-3" : summary.length === 2 ? "sm:grid-cols-2" : ""}`}>
         {summary.map((item) => (
           <div key={item.label} className="rounded-2xl p-4" style={{ background: tone[item.t].bg }}>
@@ -64,13 +75,13 @@ export function ReportsPage() {
         <div className="space-y-3">
           {rows.map(({ client, report, facts }) => {
             const delivered = Math.max(facts.published, Number(report?.numbers?.postsPublished) || 0);
-            const done = [Boolean(report?.freelancerReport || report?.numbers), ...(!freelancer ? [Boolean(report?.sentAt)] : []), ...(owner ? [Boolean(report?.financeSentAt)] : [])];
+            const done = [reportIn(report), ...(!freelancer ? [Boolean(report?.sentAt)] : []), ...(owner ? [Boolean(report?.financeSentAt)] : [])];
             const complete = done.every(Boolean);
             return (
               <Card key={client.id} className={complete ? "border-[#BFE6CF]" : ""}>
                 <div className="flex flex-wrap items-center gap-3">
                   <ClientMark client={client} size={38} />
-                  <button onClick={() => go(freelancer ? { view: "marketing", clientId: client.id, tab: "results" } : { view: "client", clientId: client.id, tab: "reporting" })} className="min-w-0 flex-1 text-left">
+                  <button onClick={() => go({ view: "reports", clientId: client.id, month })} className="min-w-0 flex-1 text-left">
                     <div className="text-[15px] font-bold hover:text-[#1F5BC4]">{client.name}</div>
                     <div className="text-[12px] text-[#8B867E]">{delivered} of {client.agreedPosts} posts delivered · {nameOf(state, client.freelancerId)}</div>
                   </button>
@@ -78,12 +89,12 @@ export function ReportsPage() {
                 </div>
                 <div className={`mt-3 grid gap-2.5 ${done.length === 3 ? "lg:grid-cols-3" : done.length === 2 ? "md:grid-cols-2" : ""}`}>
                   <div className="flex flex-wrap items-center gap-2 rounded-xl bg-[#F8F7F4] px-3 py-2.5">
-                    <Tick done={Boolean(report?.freelancerReport || report?.numbers)} />
+                    <Tick done={reportIn(report)} />
                     <span className="text-[13px] font-semibold">Freelancer report</span>
-                    {(["w1", "w2", "w3"] as const).some((week) => report?.weekly?.[week]) && (
-                      <span className="flex gap-1">{(["w1", "w2", "w3"] as const).map((week) => <span key={week} title={`Week ${week.slice(1)} report`} className={`rounded-md px-1.5 py-0.5 text-[11px] font-bold ${report?.weekly?.[week]?.submittedAt ? "bg-[#E6F5EC] text-[#17804A]" : "bg-[#EEECE7] text-[#8B867E]"}`}>W{week.slice(1)}</span>)}</span>
+                    {reportParts(report).length > 0 && (
+                      <span className="flex flex-wrap gap-1">{reportParts(report).map((part) => <span key={part.key} title={part.submitted ? "Handed in" : "Saved, not handed in yet"} className={`rounded-md px-1.5 py-0.5 text-[11px] font-bold ${part.submitted ? "bg-[#E6F5EC] text-[#17804A]" : "bg-[#EEECE7] text-[#6B6760]"}`}>{part.label}{part.submitted ? " ✓" : ""}</span>)}</span>
                     )}
-                    <span className="ml-auto"><AttachField value={report?.freelancerReport} onChange={(file) => attachReport(client.id, month, "freelancerReport", file)} compact /></span>
+                    <span className="ml-auto"><Button size="sm" kind={reportIn(report) ? "secondary" : "primary"} onClick={() => go({ view: "reports", clientId: client.id, month })}>{reportIn(report) ? "Open" : freelancer ? "Add report" : "Open"} <ArrowRight size={13} /></Button></span>
                   </div>
                   {!freelancer && (
                     <div className="flex flex-wrap items-center gap-2 rounded-xl bg-[#F8F7F4] px-3 py-2.5">

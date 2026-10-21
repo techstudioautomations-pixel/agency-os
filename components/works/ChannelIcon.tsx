@@ -41,6 +41,20 @@ export function ChannelIcon({ name, size = 22, className = "" }: { name: string;
           <path d="M15.5 5.5c.3 1.5 1.3 2.5 2.7 2.7v2.2c-1-.1-1.9-.4-2.7-.9v4.6c0 2.6-2 4.4-4.4 4.4-2.4 0-4.2-1.8-4.2-4.2 0-2.6 2.2-4.5 4.7-4.1v2.3c-1.2-.4-2.4.4-2.4 1.8 0 1.1.9 2 2 2 1.2 0 2.1-.9 2.1-2.2V5.5z" fill="#fff" />
         </svg>
       );
+    case "X":
+      return (
+        <svg {...box}>
+          <rect width="24" height="24" rx="6" fill="#111" />
+          <path d="M6.2 6h3.3l2.7 3.6L15.4 6h1.9l-4.2 4.9 4.8 7.1h-3.3l-3-4-3.5 4H6.2l4.6-5.3z" fill="#fff" />
+        </svg>
+      );
+    case "YouTube":
+      return (
+        <svg {...box}>
+          <rect width="24" height="24" rx="6" fill="#E62117" />
+          <path d="M10 8.6v6.8l5.8-3.4z" fill="#fff" />
+        </svg>
+      );
     case "Newsletter":
       return <span className={`inline-grid shrink-0 place-items-center rounded-[6px] bg-[#0F8F8F] text-white ${className}`} style={{ width: size, height: size }}><Mail size={Math.round(size * 0.62)} /></span>;
     default:

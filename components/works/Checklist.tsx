@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Check, ChevronDown, ClipboardCopy } from "lucide-react";
 import { useStore } from "@/lib/works/store";
-import { gate, nameOf, personById, progress, shortDate } from "@/lib/works/logic";
+import { gate, isHired, nameOf, personById, progress, shortDate } from "@/lib/works/logic";
 import type { CheckItem } from "@/lib/works/types";
 import { Avatar, Bar, Button, Chip, Light, tone } from "./kit";
 
@@ -107,7 +107,7 @@ export function PhaseChecklist({
                         <div className="flex flex-wrap items-center gap-2 text-[12px]">
                           <select value={item.owner} onChange={(event) => onUpdate(item.id, { owner: event.target.value })} aria-label="Owner" className="rounded-lg border border-[#E2DED7] bg-white px-2 py-1 font-semibold">
                             <option value="client">Client</option>
-                            {[...state.people, ...state.freelancers].map((person) => <option key={person.id} value={person.id}>{person.name}</option>)}
+                            {[...state.people, ...state.freelancers.filter(isHired)].map((person) => <option key={person.id} value={person.id}>{person.name}</option>)}
                           </select>
                           {!done && <button onClick={() => onUpdate(item.id, { status: item.status === "Requested" ? "Not asked" : "Requested" })} className="rounded-lg bg-[#FFF3D9] px-2.5 py-1 font-semibold text-[#94600A]">{item.status === "Requested" ? "Undo “asked”" : "Mark as asked / waiting"}</button>}
                           <button onClick={() => onUpdate(item.id, { status: item.status === "N/A" ? "Not asked" : "N/A" })} className="rounded-lg bg-[#F1F0ED] px-2.5 py-1 font-semibold text-[#55514B]">{item.status === "N/A" ? "Undo N/A" : "Not applicable"}</button>

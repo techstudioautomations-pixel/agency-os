@@ -206,7 +206,7 @@ export function How() {
               title="Month-end report"
               sub="Each client gets a row on the Reports page. Attach the file, tick it sent, and the month is closed."
               nodes={[
-                { icon: <FileBarChart2 size={17} />, title: "Freelancer report in", who: "Freelancer, by the 5th", color: "#2F6FDB", rule: "Marketing → Results: a checklist, key numbers per platform and the report, then hand it to operations." },
+                { icon: <FileBarChart2 size={17} />, title: "Freelancer report in", who: "Freelancer, by the 5th", color: "#2F6FDB", rule: "Monthly reports: upload the report (the key numbers are read from it), check them, then hand it to operations. It can cover one week, weeks in a row, or the full month." },
                 { icon: <ClipboardCheck size={17} />, title: "Client report built", who: "Operations", color: "#E08A1E", rule: "From the freelancer report. A starter report can be downloaded from Reports." },
                 { icon: <Send size={17} />, title: "Client report sent", who: "Operations", color: "#1D9E5A", rule: "Attach the final report and tick it sent." },
                 { icon: <ShieldCheck size={17} />, title: "Finance statement sent", who: "María", color: "#7C5CD6", rule: "Owners only: download, attach and tick per client in Finance." },

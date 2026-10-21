@@ -3,7 +3,7 @@
 import { useState, type ReactNode } from "react";
 import { ArrowRight, Check, ChevronDown, ExternalLink, FileText, FolderOpen, KeyRound, Link2, Pencil, Plus, ShieldAlert, Sparkles, Trash2 } from "lucide-react";
 import { useStore } from "@/lib/works/store";
-import { agreedFor, areaLabel, qaGroups, canBeAssigned, firstMonthOf, gate, isFirstMonth, isFreelancer, isMarketing, isOwner, missing, money, monthName, monthlyAreas, nameOf, personById, progress, shiftMonth, shortDate, todayIso } from "@/lib/works/logic";
+import { agreedFor, areaLabel, qaGroups, canBeAssigned, reportIn, isHired, firstMonthOf, gate, isFirstMonth, isFreelancer, isMarketing, isOwner, missing, money, monthName, monthlyAreas, nameOf, personById, progress, shiftMonth, shortDate, todayIso } from "@/lib/works/logic";
 import type { AccessItem, ApprovalMode, Client, ClientFile } from "@/lib/works/types";
 import { Shell } from "./Shell";
 import { GateBanner } from "./Checklist";
@@ -207,7 +207,7 @@ function Overview({ client }: { client: Client }) {
           <Row label="Freelancer" value={fl?.name} editing={editing}>
             <select value={client.freelancerId ?? ""} onChange={(event) => assignFreelancer(client.id, event.target.value)} className={select}>
               <option value="">Not assigned</option>
-              {state.freelancers.filter((person) => person.status !== "Offboarded").map((person) => <option key={person.id} value={person.id}>{person.name}{canBeAssigned(person) ? "" : " · NDA/contract missing"}</option>)}
+              {state.freelancers.filter(isHired).map((person) => <option key={person.id} value={person.id}>{person.name}{canBeAssigned(person) ? "" : " · NDA/contract missing"}</option>)}
             </select>
           </Row>
         </Card>
@@ -323,7 +323,7 @@ function Access({ client }: { client: Client }) {
 
 // ─── Reporting: one row per month, attach and tick ───
 function Reporting({ client }: { client: Client }) {
-  const { state, attachReport, updateReport } = useStore();
+  const { state, go, attachReport, updateReport } = useStore();
   const owner = isOwner(state);
   const months = Array.from({ length: 6 }, (_, index) => shiftMonth(state.month, -index)).filter((month) => month >= client.startDate.slice(0, 7));
   const tick = (done: boolean) => (done ? <Check size={14} className="text-[#1D9E5A]" /> : <span className="h-3.5 w-3.5 rounded-full border-2 border-[#CFCAC2]" />);
@@ -335,7 +335,7 @@ function Reporting({ client }: { client: Client }) {
         const posts = state.posts.filter((post) => post.clientId === client.id && post.date.startsWith(month) && !post.extra);
         const delivered = Math.max(posts.filter((post) => post.status === "Published").length, Number(report?.numbers?.postsPublished) || 0);
         const sent = Boolean(report?.sentAt);
-        const steps = [Boolean(report?.freelancerReport || report?.numbers), sent, ...(owner ? [Boolean(report?.financeSentAt)] : [])];
+        const steps = [reportIn(report), sent, ...(owner ? [Boolean(report?.financeSentAt)] : [])];
         const doneCount = steps.filter(Boolean).length;
         const complete = doneCount === steps.length;
         return (
@@ -347,8 +347,11 @@ function Reporting({ client }: { client: Client }) {
             </div>
             <div className={`mt-3 grid gap-3 ${owner ? "md:grid-cols-3" : "md:grid-cols-2"}`}>
               <div className="rounded-xl bg-[#F8F7F4] p-3">
-                <div className="mb-2 flex items-center gap-1.5 text-[12px] font-bold">{tick(Boolean(report?.freelancerReport || report?.numbers))}Freelancer&apos;s report</div>
-                <AttachField value={report?.freelancerReport} onChange={(file) => attachReport(client.id, month, "freelancerReport", file)} compact />
+                <div className="mb-2 flex items-center gap-1.5 text-[12px] font-bold">{tick(reportIn(report))}Freelancer&apos;s report</div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <AttachField value={report?.freelancerReport} onChange={(file) => attachReport(client.id, month, "freelancerReport", file)} compact />
+                  <button onClick={() => go({ view: "reports", clientId: client.id, month })} className="rounded-lg px-2 py-1 text-[12px] font-semibold text-[#1F5BC4] hover:bg-[#EEF2FA]">Open numbers</button>
+                </div>
               </div>
               <div className="rounded-xl bg-[#F8F7F4] p-3">
                 <div className="mb-2 flex items-center gap-1.5 text-[12px] font-bold">{tick(sent)}Client report {sent && <span className="font-semibold text-[#17804A]">· sent {shortDate(report!.sentAt)}</span>}</div>

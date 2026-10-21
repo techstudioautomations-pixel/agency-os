@@ -1,13 +1,13 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { buildClientChecklist, defaultAssets, portalIds, portalPosts, defaultMonthLine, defaultMonthly, defaultPlaybook, defaultSections, newShare, piecesPerMonth, seedState } from "./seed";
-import { canBeAssigned, monthlyAreas, monthName, nameOf, reviewerFor, todayIso } from "./logic";
+import { buildClientChecklist, freelancerChecklistTemplate, freelancers as seedFreelancers, makeChecklist, defaultAssets, portalIds, portalPosts, defaultMonthLine, defaultMonthly, defaultPlaybook, defaultSections, newShare, piecesPerMonth, seedState } from "./seed";
+import { canBeAssigned, isHired, monthlyAreas, nameOf, periodName, reviewerFor, todayIso } from "./logic";
 import type { CheckItem, Client, ClientAsset, ClientSection, ClientShare, Idea, Lead, MonthReport, NewClientDraft, Notice, Post, PostDraft, ReportNumbers, RevisionCategory, Route, SectionStep, State, ReportPeriod, WeekReport } from "./types";
 
 const KEY = "theworks-os-v5";
-/** The week 1, 2 or 3 report inside a month report, created when first needed. */
-const weekOf = (report: MonthReport, period: Exclude<ReportPeriod, "month">): WeekReport => {
+/** The report for one week or weeks in a row inside a month report, created when first needed. */
+const weekOf = (report: MonthReport, period: ReportPeriod): WeekReport => {
   const weekly = report.weekly ?? (report.weekly = {});
   return weekly[period] ?? (weekly[period] = {});
 };
@@ -25,8 +25,16 @@ function migrate(saved: State): State {
     return { ...section, areas: section.areas ?? fresh.areas, steps };
   });
   for (const section of defaults) if (!sections.some((item) => item.id === section.id)) sections.push(section);
+  // The directory: where each freelancer came from, how to reach them, and the work they did for us.
+  const firstDirectory = saved.freelancers.every((person) => person.platform === undefined);
+  const freelancers = saved.freelancers.map((person) => {
+    const sample = seedFreelancers.find((item) => item.id === person.id);
+    return { ...person, platform: person.platform ?? (firstDirectory ? sample?.platform : undefined) ?? "", profileUrl: person.profileUrl ?? "", phone: person.phone ?? "", notes: person.notes ?? "", jobs: person.jobs ?? (firstDirectory ? sample?.jobs : undefined) ?? [] };
+  });
+  if (firstDirectory) for (const sample of seedFreelancers) if (sample.status === "Directory" && !freelancers.some((item) => item.id === sample.id)) freelancers.push(sample);
   return {
     ...saved,
+    freelancers,
     playbook: saved.playbook ?? defaultPlaybook(),
     posts: [...saved.posts, ...portalPosts.filter((post) => !saved.posts.some((item) => item.id === post.id))],
     settings: { ...saved.settings, assets: [...saved.settings.assets, ...defaultAssets.filter((asset) => !saved.settings.assets.some((item) => item.id === asset.id))], sections, monthly: saved.settings.monthly ?? defaultMonthly(), monthLine: saved.settings.monthLine ?? defaultMonthLine(saved.settings.dates) },
@@ -43,6 +51,7 @@ export function routeToHash(route: Route) {
   if (route.view === "view") parts.push(route.token);
   if (route.view === "leads" && route.leadId) parts.push(route.leadId);
   if (route.view === "freelancers" && route.freelancerId) parts.push(route.freelancerId);
+  if (route.view === "reports" && (route.clientId || route.month)) parts.push(route.clientId ?? "all", route.month ?? "");
   return `#/${parts.join("/").replace(/\/+$/, "")}`;
 }
 export function hashToRoute(hash: string): Route {
@@ -60,8 +69,9 @@ export function hashToRoute(hash: string): Route {
       return { view, leadId: a || undefined };
     case "freelancers":
       return { view, freelancerId: a || undefined };
-    case "clients":
     case "reports":
+      return { view, clientId: a && a !== "all" ? a : undefined, month: b || undefined };
+    case "clients":
     case "finance":
     case "how":
       return { view };
@@ -568,7 +578,7 @@ function useStoreValue() {
         update((d) => {
           const { post, client } = withPost(d, id);
           post.comments.push({ id: uid("c"), by: d.me, body, at: stamp(), kind: "comment" });
-          const mentioned = [...d.people, ...d.freelancers].filter((person) => body.includes(`@${person.name.split(" ")[0]}`)).map((person) => person.id);
+          const mentioned = [...d.people, ...d.freelancers.filter(isHired)].filter((person) => body.includes(`@${person.name.split(" ")[0]}`)).map((person) => person.id);
           const recipients = new Set([...mentioned, d.me === client.freelancerId ? reviewerFor(d, client, post) : client.freelancerId ?? ""]);
           recipients.forEach((to) => notify(d, to, `${nameOf(d, d.me)} commented on ${post.title}`, postRoute(post)));
         }),
@@ -622,7 +632,7 @@ function useStoreValue() {
           const client = d.clients.find((c) => c.id === clientId)!;
           const report = d.reports.find((item) => item.clientId === clientId && item.month === month);
           if (!report) return;
-          const label = period === "month" ? `${monthName(month)} report` : `week ${period.slice(1)} report for ${monthName(month)}`;
+          const label = period === "month" ? `${periodName(period, month)} report` : `report for ${periodName(period, month)}`;
           if (period === "month") report.submittedAt = todayIso();
           else weekOf(report, period).submittedAt = todayIso();
           notify(d, client.opsId, `${client.name}: the freelancer handed in the ${label}`, { view: "client", clientId, tab: "reporting" });
@@ -653,6 +663,20 @@ function useStoreValue() {
         }),
       // Freelancers
       updateFreelancer: (id: string, patch: Partial<State["freelancers"][number]>) => update((d) => { Object.assign(d.freelancers.find((item) => item.id === id)!, patch); }),
+      /** Adds someone to the directory. They are not hired until a trial starts. */
+      addFreelancer: (draft: { name: string; platform: string; profileUrl: string; email: string; speciality: string }) => {
+        const id = uid("fl");
+        update((d) => {
+          const palette = ["#8E5CD9", "#E08A1E", "#3D8BD9", "#D94F70", "#1B9C85", "#C2578A", "#4C8B6F"];
+          d.freelancers.push({ id, name: draft.name, role: "freelancer", title: draft.speciality, email: draft.email, color: palette[d.freelancers.length % palette.length], speciality: draft.speciality, platform: draft.platform, profileUrl: draft.profileUrl, phone: "", notes: "", jobs: [], rate: "", currency: "USD", paymentMethod: "", capacity: 3, services: "", portfolio: "", status: "Directory", checklist: makeChecklist(freelancerChecklistTemplate, `fl-${id}`, 0) });
+        });
+        ping(`${draft.name} added to the directory`);
+        return id;
+      },
+      deleteFreelancer: (id: string) => {
+        update((d) => { d.freelancers = d.freelancers.filter((item) => item.id !== id); });
+        ping("Removed from the directory");
+      },
       updateFreelancerCheck: (freelancerId: string, itemId: string, patch: Partial<CheckItem>) =>
         update((d) => {
           const item = d.freelancers.find((f) => f.id === freelancerId)!.checklist.find((entry) => entry.id === itemId)!;

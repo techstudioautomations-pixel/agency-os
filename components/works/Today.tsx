@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { ArrowRight, BarChart3, CheckCircle2, ChevronDown, Lightbulb, Plus } from "lucide-react";
 import { useStore } from "@/lib/works/store";
-import { agreedFor, canBeAssigned, gate, inReview, isFreelancer, isMarketing, me, monthName, monthlyAreas, myClients, personById, progress, shiftMonth, todayIso, turnOf } from "@/lib/works/logic";
+import { agreedFor, canBeAssigned, isHired, gate, inReview, isFreelancer, isMarketing, me, monthName, monthlyAreas, myClients, personById, progress, shiftMonth, todayIso, turnOf } from "@/lib/works/logic";
 import type { Post } from "@/lib/works/types";
 import { Shell } from "./Shell";
 import { ExtraAlert } from "./ExtraWork";
@@ -99,7 +99,7 @@ function QuickActions() {
           <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-[#FFF3D9] text-[#94600A]"><Lightbulb size={20} /></span>
           <span><span className="block text-[15px] font-bold">Ideas deck</span><span className="block text-[12px] text-[#6B6760]">Add ideas or pick an approved one</span></span>
         </button>
-        <button onClick={() => go({ view: "marketing", clientId: only, tab: "results" })} className="flex items-center gap-3 rounded-2xl border border-[#E2DED7] p-4 text-left transition hover:border-[#C9C3B8]">
+        <button onClick={() => go({ view: "reports", clientId: only, month: shiftMonth(state.month, -1) })} className="flex items-center gap-3 rounded-2xl border border-[#E2DED7] p-4 text-left transition hover:border-[#C9C3B8]">
           <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-[#E8F0FD] text-[#1F5BC4]"><BarChart3 size={20} /></span>
           <span><span className="block text-[15px] font-bold">Month-end report</span><span className="block text-[12px] text-[#6B6760]">Numbers and the report</span></span>
         </button>
@@ -205,7 +205,7 @@ export function Today() {
               <button onClick={() => go({ view: "freelancers" })} className="inline-flex items-center gap-1 text-[13px] font-semibold text-[#1F5BC4]">Freelancers <ArrowRight size={14} /></button>
             </div>
             <div className="overflow-hidden rounded-2xl border border-[#E9E6E0] bg-white">
-              {state.freelancers.filter((item) => item.status !== "Offboarded").map((item) => {
+              {state.freelancers.filter(isHired).map((item) => {
                 const accounts = state.clients.filter((client) => client.freelancerId === item.id);
                 return (
                   <button key={item.id} onClick={() => go({ view: "freelancers", freelancerId: item.id })} className="flex w-full flex-wrap items-center gap-3 border-b border-[#F5F3EF] px-4 py-3 text-left last:border-0 hover:bg-[#FBFAF8]">

@@ -1,4 +1,4 @@
-import type { CheckItem, Client, ClientAsset, Freelancer, MonthlyStep, PackageDef, Person, Post, PostStatus, Route, State } from "./types";
+import type { CheckItem, Client, ClientAsset, Freelancer, MonthReport, MonthlyStep, PackageDef, Person, Post, PostStatus, Route, State } from "./types";
 import { freelancerGateLabels } from "./seed";
 
 // ─── Dates ───
@@ -50,8 +50,11 @@ export function gate(items: CheckItem[]) {
   return { light: "red" as const, label: `${hard.length} missing`, blocking: hard };
 }
 
+/** Hired people work for us. The rest of the directory is for reference. */
+export const isHired = (freelancer: Freelancer) => freelancer.status === "Active" || freelancer.status === "Trial";
+
 export const canBeAssigned = (freelancer: Freelancer) =>
-  freelancer.status !== "Offboarded" && freelancerGateLabels.every((label) => freelancer.checklist.find((item) => item.label === label)?.status === "Received");
+  isHired(freelancer) && freelancerGateLabels.every((label) => freelancer.checklist.find((item) => item.label === label)?.status === "Received");
 
 /** Friendly labels: internal tasks read To do / In progress / Done; client items read Not asked / Requested / Received. */
 export const statusLabel = (item: CheckItem, status = item.status) =>
@@ -191,6 +194,53 @@ export async function docxText(file: File): Promise<string> {
 
 
 
+// ─── Report periods: a week, weeks in a row, or the full month ───
+export const periodKey = (from: number, to: number) => (from === to ? `w${from}` : `w${from}-${to}`);
+export const periodWeeks = (period: string): [number, number] | undefined => {
+  const match = /^w(\d)(?:-(\d))?$/.exec(period);
+  return match ? [Number(match[1]), Number(match[2] ?? match[1])] : undefined;
+};
+/** First and last day of a report week: 1-7, 8-14, 15-21, then 22 to the end of the month. */
+export const weekDays = (month: string, week: number): [number, number] => {
+  const [year, number] = month.split("-").map(Number);
+  const last = new Date(year, number, 0).getDate();
+  return week >= 4 ? [22, last] : [(week - 1) * 7 + 1, week * 7];
+};
+export const periodName = (period: string, month: string) => {
+  const weeks = periodWeeks(period);
+  if (!weeks) return monthName(month);
+  const [from, to] = weeks;
+  const short = new Date(`${month}-01T12:00:00`).toLocaleDateString("en-IE", { month: "short" });
+  return `${from === to ? `Week ${from}` : `Weeks ${from}-${to}`} (${weekDays(month, from)[0]}-${weekDays(month, to)[1]} ${short})`;
+};
+export const partHasContent = (part?: { byPlatform?: object; freelancerReport?: object }) => Boolean(part && (part.freelancerReport || Object.keys(part.byPlatform ?? {}).length));
+/** Which weeks of a month are covered by a saved report. */
+export const coveredWeeks = (report?: MonthReport) => {
+  const covered = new Set<number>();
+  for (const [key, part] of Object.entries(report?.weekly ?? {})) {
+    const weeks = periodWeeks(key);
+    if (weeks && partHasContent(part)) for (let n = weeks[0]; n <= weeks[1]; n++) covered.add(n);
+  }
+  return covered;
+};
+/** The reports saved for a month, one chip each: the full month and any weeks. */
+export const reportParts = (report?: MonthReport) => {
+  const parts: { key: string; label: string; submitted: boolean }[] = [];
+  if (report && (report.freelancerReport || report.numbers || Object.keys(report.byPlatform ?? {}).length)) parts.push({ key: "month", label: "Full month", submitted: Boolean(report.submittedAt) });
+  for (const [key, part] of Object.entries(report?.weekly ?? {}).sort(([a], [b]) => a.localeCompare(b))) {
+    const weeks = periodWeeks(key);
+    if (weeks && partHasContent(part)) parts.push({ key, label: weeks[0] === weeks[1] ? `Week ${weeks[0]}` : `Weeks ${weeks[0]}-${weeks[1]}`, submitted: Boolean(part.submittedAt) });
+  }
+  return parts;
+};
+/** Has the freelancer's report for the month come in? Either the full month, or every week covered. */
+export const reportIn = (report?: MonthReport) => {
+  if (!report) return false;
+  if (report.freelancerReport || report.numbers) return true;
+  const covered = coveredWeeks(report);
+  return [1, 2, 3, 4].every((week) => covered.has(week));
+};
+
 // ─── Checklist areas ───
 export const areaOf = (item: CheckItem): string => item.area ?? "onboarding";
 export const areaItems = (items: CheckItem[], areaId: string) => items.filter((item) => areaOf(item) === areaId);
@@ -243,7 +293,7 @@ export function monthlyAreas(state: State, client: Client, month = state.month):
     "posts-approved": { done: approved >= target, go: marketing("posts") },
     "posts-scheduled": { done: scheduled >= target && target > 0, go: marketing("calendar") },
     submitted: { done: posts.length >= target && !posts.some((post) => post.status === "Copy in progress" || post.status === "Design in progress"), go: marketing("posts") },
-    "report-in": { done: Boolean(report?.freelancerReport || report?.numbers), go: reporting },
+    "report-in": { done: reportIn(report), go: reporting },
     "report-sent": { done: Boolean(report?.sentAt), go: reporting },
     "finance-sent": { done: Boolean(report?.financeSentAt), go: reporting },
     "invoice-paid": { done: invoice?.status === "Paid", go: finance },

@@ -448,8 +448,22 @@ const serviceList: Record<string, string> = {
   eve: ["Carousel design | $40", "Single image | $20", "Brand template set | $150"].join("\n"),
   sam: "Short video edit | To agree",
 };
+const platformOf: Record<string, string> = { chelsie: "Upwork", velinda: "Fiverr", ryan: "Upwork", eve: "Fiverr", sam: "Direct" };
+const jobsOf: Record<string, Freelancer["jobs"]> = {
+  chelsie: [
+    { id: "j-chelsie-1", date: "", clientId: "marker", what: "LinkedIn carousels and copy, last month", amount: 110, link: "" },
+    { id: "j-chelsie-2", date: "", what: "Brand voice sample for the agency website", amount: 60, link: "", client: "The Works" },
+  ],
+  velinda: [{ id: "j-velinda-1", date: "", clientId: "housebuild", what: "Instagram carousels and a reel, last month", amount: 100, link: "" }],
+  eve: [{ id: "j-eve-1", date: "", what: "Brand template set (Canva)", amount: 150, link: "", client: "The Works" }],
+};
 const freelancer = (id: string, name: string, color: string, speciality: string, rate: string, capacity: number, status: Freelancer["status"], done: number): Freelancer => ({
   id,
+  platform: platformOf[id] ?? "",
+  profileUrl: "",
+  phone: "",
+  notes: "",
+  jobs: (jobsOf[id] ?? []).map((job, index) => ({ ...job, date: ago(30 + index * 12) })),
   name,
   role: "freelancer",
   title: speciality,
@@ -473,6 +487,17 @@ export const freelancers: Freelancer[] = [
   freelancer("eve", "Eve", "#D94F70", "Design and content delivery", "$166 / client / month", 4, "Active", 11),
   { ...freelancer("sam", "Sam (trial)", "#5A6B7D", "Motion and video", "To agree", 2, "Trial", 3), email: "sam@example.com" },
 ];
+/** Two example entries so the directory is not empty. Delete them when real ones go in. */
+const directoryEntry = (id: string, name: string, platform: string, speciality: string, services: string, color: string): Freelancer => ({
+  ...freelancer(id, name, color, speciality, "", 0, "Directory", 0),
+  platform,
+  services,
+  notes: "Example entry. Delete it when you add real ones.",
+});
+freelancers.push(
+  directoryEntry("dana", "Dana (example)", "Fiverr", "Reels and short video editing", ["Reel edit (under 30s) | $55", "Story set | $18"].join("\n"), "#C2578A"),
+  directoryEntry("marco", "Marco (example)", "Upwork", "B2B copywriter", ["LinkedIn text post | $20", "Newsletter | $60"].join("\n"), "#4C8B6F"),
+);
 // Sam's NDA is out for signature, so Sam cannot be assigned yet.
 freelancers[4].checklist[6] = { ...freelancers[4].checklist[6], status: "Requested", date: ago(2) };
 
