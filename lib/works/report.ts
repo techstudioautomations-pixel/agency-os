@@ -1,4 +1,4 @@
-import { monthName } from "./logic";
+import { monthName, monthView } from "./logic";
 import type { Client, MonthReport, Post, RevisionCategory } from "./types";
 
 const esc = (value: string) => value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
@@ -14,7 +14,8 @@ export function monthFacts(client: Client, month: string, posts: Post[]): MonthF
 }
 
 /** Client-ready report. Essential: one page. Growth: adds recommendations and the post list. */
-export function reportHtml(client: Client, report: MonthReport, facts: MonthFacts, full = false) {
+export function reportHtml(client: Client, source: MonthReport, facts: MonthFacts, full = false) {
+  const report = monthView(source);
   const n = report.numbers;
   const growth = full;
   const tile = (label: string, value: string, note = "") => `<div class="tile"><small>${esc(label)}</small><b>${esc(value || "—")}</b>${note ? `<span>${esc(note)}</span>` : ""}</div>`;

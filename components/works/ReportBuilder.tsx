@@ -84,7 +84,7 @@ export function ReportBuilder({ client, month }: { client: Client; month: string
             <span className="text-[12px] text-[#8B867E]">{weekDays(month, 1)[0]}-{weekDays(month, 4)[1]}</span>
           </button>
         </div>
-        <p className="mt-2 text-[12px] text-[#8B867E]">Click a week to pick it. Click the next week to add it to the same report. Click an end week again to take it off.</p>
+        <p className="mt-2 text-[12px] text-[#8B867E]">Click a week to pick it. Click the next week to add it to the same report. Click an end week again to take it off. The client report uses the full-month report if there is one, otherwise the numbers from the last week reported.</p>
         {overlapping.length > 0 && <p className="mt-3 rounded-xl bg-[#FFF3D9] px-3.5 py-2.5 text-[13px] text-[#6B4A06]">{overlapping.join(" and ")} already has its own report. This one will count for those weeks too.</p>}
         {parts.length > 0 && (
           <div className="mt-3 flex flex-wrap items-center gap-1.5 text-[12px] text-[#6B6760]">

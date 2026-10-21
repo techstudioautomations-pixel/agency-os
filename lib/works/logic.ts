@@ -233,6 +233,15 @@ export const reportParts = (report?: MonthReport) => {
   }
   return parts;
 };
+/** The report as the client report should see it. With no full-month report, the numbers come from the weekly report that reaches furthest into the month. */
+export const monthView = (report: MonthReport): MonthReport => {
+  if (report.numbers || Object.keys(report.byPlatform ?? {}).length) return report;
+  const latest = Object.entries(report.weekly ?? {})
+    .map(([key, part]) => ({ end: periodWeeks(key)?.[1] ?? 0, by: part.byPlatform ?? {} }))
+    .filter((item) => item.end && Object.keys(item.by).length)
+    .sort((a, b) => b.end - a.end)[0];
+  return latest ? { ...report, byPlatform: latest.by, numbers: { ...latest.by[Object.keys(latest.by)[0]] } } : report;
+};
 /** Has the freelancer's report for the month come in? Either the full month, or every week covered. */
 export const reportIn = (report?: MonthReport) => {
   if (!report) return false;
