@@ -239,12 +239,6 @@ function PostBoard({ client, scope, initial }: { client?: Client; scope: string;
       {filter === order[0] && shown.length === 0 && (
         <div className="flex items-center gap-3 rounded-2xl border border-[#CFE8D9] bg-[#EAF6EF] px-5 py-4 text-[14px] font-semibold text-[#17804A]"><Check size={18} />{freelancer ? "Nothing needs you right now." : "Nothing is waiting for your approval."}</div>
       )}
-      {filter === order[0] && shown.length === 0 && posts.filter((post) => !groups.posted(post) && !groups.approved(post)).length > 0 && (
-        <div>
-          <h3 className="mb-2 text-[15px] font-bold">Still moving</h3>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">{posts.filter((post) => !groups.posted(post) && !groups.approved(post)).map((post) => <PostTile key={post.id} post={post} showClient={!client} scope={scope} onOpen={open(post)} />)}</div>
-        </div>
-      )}
       {filter !== order[0] && shown.length === 0 && <Empty title="No posts here">Try another filter or month.</Empty>}
       {shown.length > 0 && (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">

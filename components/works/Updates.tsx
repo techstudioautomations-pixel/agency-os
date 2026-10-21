@@ -54,7 +54,12 @@ function Composer() {
     setBusy("Reading the pictures…");
     try {
       const read = await readPostFiles([...list].filter((file) => file.type.startsWith("image/")));
-      setItems((current) => [...current, ...read.files.filter((file) => file.kind === "image").map((file) => ({ ...base(), key: key(), title: bare(file.name), format: pictureAs, files: [file] }))]);
+      setItems((current) => {
+        // A file name like {3918627F-BF44-…} or IMG_2041 is no title. Those posts are numbered instead.
+        const messy = (name: string) => /^[{(]?[0-9a-f-]{16,}[})]?$/i.test(name) || /^(img|image|screenshot|screen shot|whatsapp|photo|dsc|pxl)[\s_-]*[\d\s._-]*/i.test(name) && /\d{3,}/.test(name);
+        let count = current.filter((item) => item.format === pictureAs).length;
+        return [...current, ...read.files.filter((file) => file.kind === "image").map((file) => ({ ...base(), key: key(), title: messy(bare(file.name)) ? `${pictureAs} ${++count}` : bare(file.name), format: pictureAs, files: [file] }))];
+      });
       setNotes(read.notes);
     } finally { setBusy(""); }
   };
