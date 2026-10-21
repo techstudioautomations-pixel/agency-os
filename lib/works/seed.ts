@@ -353,7 +353,6 @@ export const defaultMonthly = (): MonthlyStep[] => [
   { id: "f1", role: "freelancer", when: "first", needs: "marketing", label: "Starter pack read: brand guide, strategy brain, Canva templates" },
   { id: "f2", role: "freelancer", when: "first", needs: "marketing", label: "Questions sent to operations" },
   { id: "f3", role: "freelancer", when: "first", needs: "marketing", label: "Account audit done" },
-  { id: "f4", role: "freelancer", when: "first", needs: "marketing", auto: "submitted", label: "First {n} posts sent for review" },
   // Freelancer: every month after
   { id: "f10", role: "freelancer", when: "regular", needs: "marketing", auto: "ideas-uploaded", label: "Ideas uploaded" },
   { id: "f11", role: "freelancer", when: "regular", needs: "marketing", auto: "posts-started", label: "All {n} posts started" },

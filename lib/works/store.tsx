@@ -77,7 +77,7 @@ function migrate(saved: State): State {
     playbook: saved.playbook ?? defaultPlaybook(),
     updates: saved.updates ?? [],
     posts: keep(saved.posts),
-    settings: { ...saved.settings, assets: [...saved.settings.assets, ...defaultAssets.filter((asset) => !saved.settings.assets.some((item) => item.id === asset.id))], sections, monthly: saved.settings.monthly ?? defaultMonthly(), monthLine: saved.settings.monthLine ?? defaultMonthLine(saved.settings.dates), rates: { ...defaultRates, ...saved.settings.rates } },
+    settings: { ...saved.settings, assets: [...saved.settings.assets, ...defaultAssets.filter((asset) => !saved.settings.assets.some((item) => item.id === asset.id))], sections, monthly: (saved.settings.monthly ?? defaultMonthly()).filter((step) => step.id !== "f4"), monthLine: saved.settings.monthLine ?? defaultMonthLine(saved.settings.dates), rates: { ...defaultRates, ...saved.settings.rates } },
     clients: (fresh ? saved.clients.filter((client) => !sampleIds.has(client.id)) : saved.clients).map((client) => ({ ...client, team: client.team ?? (client.freelancerId ? [{ id: client.freelancerId, role: "" }] : []), area: client.area ?? "marketing", setupPosts: client.setupPosts ?? 2, monthDone: client.monthDone ?? {}, packNotes: client.packNotes ?? { brand: "", brain: "", templates: "" } })),
   };
   // The first four clients are added once. Clients added by hand are kept, and ones deleted later do not come back.
