@@ -3,7 +3,7 @@
 import { useRef, useState } from "react";
 import { ArrowLeft, ArrowRight, Camera, Check, ExternalLink, FolderOpen, Plus, Search, ShieldCheck, ShieldX, Trash2, UserPlus, X } from "lucide-react";
 import { useStore } from "@/lib/works/store";
-import { canBeAssigned, isFreelancer, isHired, isOwner, missing, money, progress, shortDate, todayIso, turnOf } from "@/lib/works/logic";
+import { canBeAssigned, currencies, isFreelancer, isHired, isOwner, missing, money, progress, shortDate, todayIso, turnOf } from "@/lib/works/logic";
 import { fileToPhoto } from "@/lib/works/image";
 import type { Freelancer } from "@/lib/works/types";
 import { Shell } from "./Shell";
@@ -11,8 +11,10 @@ import { PhaseChecklist } from "./Checklist";
 import { Avatar, Bar, Button, Card, CardHead, Chip, ClientMark, Empty, Field, Segmented, fieldClass, tone } from "./kit";
 
 /** Services are stored one per line as "Service | price". */
-const parseServices = (text: string) => text.split("\n").map((line) => line.split("|").map((part) => part.trim())).filter(([name]) => name).map(([name, price = ""]) => ({ name, price }));
-const formatServices = (list: { name: string; price: string }[]) => list.map((item) => `${item.name} | ${item.price}`).join("\n");
+const parseServices = (text: string) => text.split("\n").map((line) => line.split("|").map((part) => part.trim())).filter(([name]) => name).map(([name, price = "", currency = ""]) => ({ name, price, currency }));
+const formatServices = (list: { name: string; price: string; currency: string }[]) => list.map((item) => `${item.name} | ${item.price} | ${item.currency}`).join("\n");
+/** "$45" as it was typed, or "€45" when it was entered as an amount and a currency. */
+const priceOf = (item: { price: string; currency: string }) => (item.currency && /^\d+(\.\d+)?$/.test(item.price) ? money(Number(item.price), item.currency) : item.price);
 
 const platforms = ["Fiverr", "Upwork", "Direct", "Other"];
 const platformColor: Record<string, string> = { Fiverr: "#1DBF73", Upwork: "#14A800", Direct: "#2F6FDB", Other: "#8B867E" };
@@ -127,7 +129,7 @@ function Directory() {
                 </button>
                 <div className="flex min-w-[150px] flex-col items-start gap-1"><PlatformTag name={person.platform} /><span className="truncate text-[12px] text-[#6B6760]">{person.email}</span></div>
                 <div className="min-w-[200px] flex-1 text-[12px] text-[#55514B]">
-                  {services.slice(0, 2).map((item) => <div key={item.name} className="truncate">{item.name}{owner && item.price ? <b> · {item.price}</b> : ""}</div>)}
+                  {services.slice(0, 2).map((item) => <div key={item.name} className="truncate">{item.name}{owner && item.price ? <b> · {priceOf(item)}</b> : ""}</div>)}
                   {services.length > 2 && <div className="text-[#8B867E]">+{services.length - 2} more</div>}
                   {services.length === 0 && <span className="text-[#8B867E]">No services listed</span>}
                 </div>
@@ -191,10 +193,11 @@ function FreelancerProfile({ person }: { person: Freelancer }) {
   const accounts = state.clients.filter((client) => client.freelancerId === person.id);
   const set = (patch: Partial<Freelancer>) => store.updateFreelancer(person.id, patch);
   const services = parseServices(person.services);
-  const [service, setService] = useState({ name: "", price: "" });
+  const [service, setService] = useState({ name: "", price: "", currency: person.currency || "USD" });
   const open = missing(person.checklist);
   const status = statusChip(person.status);
   const sum = total(person);
+  const seesPrices = owner || self;
 
   return (
     <Shell title={person.name} sub={person.speciality || "Not in a role yet"} actions={self ? undefined : <Button kind="ghost" onClick={() => go({ view: "freelancers" })}><ArrowLeft size={15} />All freelancers</Button>}>
@@ -226,9 +229,9 @@ function FreelancerProfile({ person }: { person: Freelancer }) {
       {!hired && !self && (
         <div className="mb-5 flex flex-wrap items-center gap-3 rounded-2xl border border-[#E9E6E0] bg-white p-4">
           <div className="min-w-[220px] flex-1 text-[13px] text-[#55514B]">
-            <b className="text-[14px] text-[#1E2430]">{person.status === "Offboarded" ? "Worked for us before." : "In the directory, not hired."}</b> {person.status === "Offboarded" ? "Their past work is below." : "Starting a trial opens the NDA and contract checklist, and lets you assign them to a client once those are signed."}
+            <b className="text-[14px] text-[#1E2430]">{person.status === "Offboarded" ? "Worked for us before." : "In the directory, not hired."}</b> {person.status === "Offboarded" ? "Their past work is below." : "Hiring opens the setup checklist, with the NDA and contract, and lets you assign them to a client once those are signed."}
           </div>
-          <Button kind="primary" onClick={() => set({ status: "Trial" })}>{person.status === "Offboarded" ? "Hire again (trial)" : "Start trial"}</Button>
+          <Button kind="primary" onClick={() => set({ status: "Active" })}>{person.status === "Offboarded" ? "Hire again" : "Hire"}</Button>
           {person.status === "Directory" && accounts.length === 0 && <Button onClick={() => { store.deleteFreelancer(person.id); go({ view: "freelancers" }); }}><Trash2 size={14} />Remove</Button>}
         </div>
       )}
@@ -273,20 +276,20 @@ function FreelancerProfile({ person }: { person: Freelancer }) {
           )}
 
           <Card>
-            <CardHead title="Services and prices" />
+            <CardHead title="Services and prices" sub={self ? "Only you and the owners see the prices." : owner ? "Prices are visible to owners and to the freelancer." : "Prices are visible to owners and to the freelancer, not to operations."} />
             <ul className="space-y-1.5">
               {services.map((item, index) => (
                 <li key={index} className="flex items-center gap-2 rounded-xl bg-[#F8F7F4] px-3 py-2 text-[13px]">
                   <span className="flex-1 font-semibold">{item.name}</span>
-                  {owner && <span className="font-bold">{item.price}</span>}
+                  {seesPrices && <span className="font-bold">{priceOf(item)}</span>}
                   <button onClick={() => set({ services: formatServices(services.filter((_, i) => i !== index)) })} aria-label={`Remove ${item.name}`} className="text-[#B5B0A8] hover:text-[#B83232]"><Trash2 size={14} /></button>
                 </li>
               ))}
               {services.length === 0 && <li className="text-[13px] text-[#8B867E]">No services listed yet.</li>}
             </ul>
-            <form onSubmit={(event) => { event.preventDefault(); if (!service.name.trim()) return; set({ services: formatServices([...services, { name: service.name.trim(), price: service.price.trim() }]) }); setService({ name: "", price: "" }); }} className="mt-3 flex gap-2">
+            <form onSubmit={(event) => { event.preventDefault(); if (!service.name.trim()) return; set({ services: formatServices([...services, { name: service.name.trim(), price: service.price.trim(), currency: service.price.trim() ? service.currency : "" }]) }); setService({ ...service, name: "", price: "" }); }} className="mt-3 flex flex-wrap gap-2">
               <input value={service.name} onChange={(event) => setService({ ...service, name: event.target.value })} placeholder="Carousel design" aria-label="Service" className="min-w-0 flex-1 rounded-xl border border-[#E2DED7] px-3 py-2 text-[13px]" />
-              {owner && <input value={service.price} onChange={(event) => setService({ ...service, price: event.target.value })} placeholder="$40 each" aria-label="Price" className="w-28 rounded-xl border border-[#E2DED7] px-3 py-2 text-[13px]" />}
+              {seesPrices && <><input value={service.price} inputMode="decimal" onChange={(event) => setService({ ...service, price: event.target.value.replace(/[^\d.]/g, "") })} placeholder="Amount" aria-label="Amount" className="w-24 rounded-xl border border-[#E2DED7] px-3 py-2 text-[13px]" /><select value={service.currency} onChange={(event) => setService({ ...service, currency: event.target.value })} aria-label="Currency" className="rounded-xl border border-[#E2DED7] bg-white px-2 py-2 text-[13px] font-bold">{currencies.map((item) => <option key={item}>{item}</option>)}</select></>}
               <Button type="submit" size="sm"><Plus size={13} /></Button>
             </form>
           </Card>
@@ -404,7 +407,8 @@ function ProfileFiles({ person }: { person: Freelancer }) {
       )}
       <div className="flex flex-wrap gap-2">
         <input value={label} onChange={(event) => setLabel(event.target.value)} placeholder="Name of the file, for example CV" aria-label="Name of the file" className="min-w-[180px] flex-1 rounded-xl border border-[#E2DED7] px-3 py-2 text-[13px]" />
-        <Button size="sm" onClick={() => input.current?.click()}><Plus size={13} />Upload a file</Button>
+        <Button size="sm" onClick={() => input.current?.click()}><Plus size={13} />Add a file</Button>
+        <button onClick={() => { const url = window.prompt("Paste the link (Drive, Docs, a website…)"); if (url && /^https?:\/\//.test(url.trim())) store.updateFreelancer(person.id, { files: [...person.files, { id: `file-${Date.now().toString(36)}`, label: label.trim() || url.replace(/^https?:\/\/(www\.)?/, "").slice(0, 30), name: "link", url: url.trim(), addedAt: todayIso() }] }), setLabel(""); }} className="rounded-xl px-2.5 py-1.5 text-[12px] font-semibold text-[#1F5BC4] hover:bg-[#EEF2FA]">or add a link</button>
         <input ref={input} type="file" className="sr-only" onChange={(event) => { pick(event.target.files?.[0]); event.target.value = ""; }} />
       </div>
     </Card>

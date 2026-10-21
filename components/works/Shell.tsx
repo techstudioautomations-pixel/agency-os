@@ -26,8 +26,6 @@ export function Shell({ title, sub, actions, children }: { title: ReactNode; sub
         { view: "today", label: "My work", icon: Home },
         { view: "marketing", label: "Marketing", icon: Sparkles, badge: contentWaiting },
         { view: "reports", label: "Monthly reports", icon: FileBarChart },
-        { view: "freelancers", label: "My profile", icon: Users, route: { view: "freelancers", freelancerId: state.me } },
-        { view: "how", label: "How we work", icon: BookOpen },
         ...(person.role === "owner" ? [{ view: "settings" as const, label: "Settings", icon: SettingsIcon }] : []),
       ]
     : [
@@ -42,6 +40,8 @@ export function Shell({ title, sub, actions, children }: { title: ReactNode; sub
         ...(person.role === "owner" ? [{ view: "settings" as const, label: "Settings", icon: SettingsIcon }] : []),
       ];
 
+  // A freelancer uses these now and then, so they sit just above their name instead of in the main list.
+  const footer: NavItem[] = freelancer ? [{ view: "freelancers", label: "My profile", icon: Users, route: { view: "freelancers", freelancerId: state.me } }, { view: "how", label: "How we work", icon: BookOpen }] : [];
   const active = route.view === "client" ? "clients" : route.view;
   const clients = myClients(state);
 
@@ -87,6 +87,15 @@ export function Shell({ title, sub, actions, children }: { title: ReactNode; sub
             ))}
           </div>
         </nav>
+        {footer.length > 0 && (
+          <div className="space-y-0.5 border-t border-[#E9E6E0] px-3 py-2">
+            {footer.map(({ view, label, icon: Icon, route: target }) => (
+              <button key={label} onClick={() => { go(target ?? ({ view } as Route)); setMenu(false); }} aria-current={active === view ? "page" : undefined} className={`flex w-full items-center gap-2.5 rounded-lg px-3 py-1.5 text-left text-[13px] font-semibold transition ${active === view ? "bg-[#EEF2FA] text-[#1F5BC4]" : "text-[#6B6760] hover:bg-[#F6F5F2]"}`}>
+                <Icon size={15} />{label}
+              </button>
+            ))}
+          </div>
+        )}
         <div className="relative border-t border-[#E9E6E0] p-3">
           <button onClick={() => setWho(!who)} className="flex w-full items-center gap-2.5 rounded-xl p-2 text-left hover:bg-[#F6F5F2]" aria-expanded={who}>
             <Avatar name={person.name} color={person.color} photo={person.photo} size={32} />
