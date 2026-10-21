@@ -4,7 +4,7 @@ import { useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Check, FilePlus2, Lightbulb, Maximize2, Send, Trash2, UploadCloud, X } from "lucide-react";
 import { useStore } from "@/lib/works/store";
-import { agreedFor, isMarketing, isPlanAsset, monthName, myClients, planSlot, reviewerFor, shiftMonth, shortDate } from "@/lib/works/logic";
+import { agreedFor, clientChannels, isMarketing, isPlanAsset, monthName, myClients, planSlot, reviewerFor, shiftMonth, shortDate } from "@/lib/works/logic";
 import type { PostFile } from "@/lib/works/types";
 import { Button, ClientMark, Field, fieldClass } from "./kit";
 import { Lightbox } from "./Lightbox";
@@ -86,7 +86,7 @@ function Wizard() {
   const nextMonth = shiftMonth(month, 1);
   const reviewers = state.people.filter((person) => person.role !== "freelancer");
   const defaultReviewer = client ? reviewerFor(state, client) : "";
-  const channelList = client ? [...new Set([...client.platforms, ...channels])] : channels;
+  const channelList = clientChannels(client);
   const picked = platforms.length ? platforms : client?.platforms.slice(0, 1) ?? [];
   const rule = kind === "extra" ? extraAttach : attach[format];
   const day = Number(date.slice(8, 10)) || 1;

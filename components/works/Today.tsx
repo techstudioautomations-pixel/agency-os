@@ -8,9 +8,10 @@ import type { Post } from "@/lib/works/types";
 import { Shell } from "./Shell";
 import { ExtraAlert } from "./ExtraWork";
 import { UpdatesBlock } from "./Updates";
+import { AvailabilityDot } from "./Availability";
 import { PostArt } from "./PostArt";
 import { statusTone } from "./Marketing";
-import { Avatar, Bar, Chip, ClientMark, Light, tone } from "./kit";
+import { Avatar, Bar, Button, Chip, ClientMark, Light, tone } from "./kit";
 
 function Strip({ title, sub, posts, empty, onAll }: { title: string; sub: string; posts: Post[]; empty: string; onAll: () => void }) {
   const { state, go } = useStore();
@@ -113,6 +114,34 @@ function QuickActions() {
   );
 }
 
+/** Messages for people who are only on Fiverr, Upwork or WhatsApp. Copy the text, send it there, tick it off. */
+function RelayBlock() {
+  const { state, markRelayed, ping } = useStore();
+  const queue = state.notices.filter((notice) => notice.relay && !notice.relay.done).slice(0, 8);
+  if (queue.length === 0) return null;
+  return (
+    <section>
+      <div className="mb-3"><h2 className="text-[18px] font-extrabold">To send by hand</h2><p className="text-[13px] text-[#6B6760]">These freelancers are not in the app, so what we would tell them waits here. Send it on their platform, then tick it off.</p></div>
+      <ul className="overflow-hidden rounded-2xl border border-[#E9E6E0] bg-white">
+        {queue.map((notice) => {
+          const person = state.freelancers.find((item) => item.id === notice.to);
+          if (!person) return null;
+          const message = `Hi ${person.name.split(" ")[0]}, ${notice.text.charAt(0).toLowerCase()}${notice.text.slice(1)}`;
+          return (
+            <li key={notice.id} className="flex flex-wrap items-center gap-3 border-b border-[#F5F3EF] px-4 py-3 last:border-0">
+              <Avatar name={person.name} color={person.color} photo={person.photo} size={30} />
+              <span className="min-w-[200px] flex-1"><span className="block text-[13px] font-bold">{person.name} · on {notice.relay!.via} <AvailabilityDot person={person} size={8} /></span><span className="block text-[13px] text-[#55514B]">{notice.text}</span></span>
+              <Button size="sm" onClick={async () => { try { await navigator.clipboard.writeText(message); ping("Message copied"); } catch { ping("Copy was blocked"); } }}>Copy message</Button>
+              {person.profileUrl && <a href={person.profileUrl} target="_blank" rel="noreferrer" className="text-[12px] font-semibold text-[#1F5BC4] hover:underline">Open {notice.relay!.via}</a>}
+              <Button size="sm" kind="good" onClick={() => markRelayed(notice.id)}>Sent</Button>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
+  );
+}
+
 export function Today() {
   const { state, go } = useStore();
   const person = me(state);
@@ -147,6 +176,7 @@ export function Today() {
             onAll={() => go({ view: "marketing", clientId: "all", tab: "posts", filter: "review" })}
           />
         )}
+        {!freelancer && <RelayBlock />}
         <UpdatesBlock />
         <Strip title="Going out this week" sub="Approved and scheduled posts for the next 7 days." posts={thisWeek} empty="Nothing scheduled for the next 7 days." onAll={() => go({ view: "marketing", clientId: "all", tab: "calendar" })} />
 
@@ -216,7 +246,7 @@ export function Today() {
                 return (
                   <button key={item.id} onClick={() => go({ view: "freelancers", freelancerId: item.id })} className="flex w-full flex-wrap items-center gap-3 border-b border-[#F5F3EF] px-4 py-3 text-left last:border-0 hover:bg-[#FBFAF8]">
                     <Avatar name={item.name} color={item.color} photo={item.photo} size={34} />
-                    <span className="w-36 min-w-0"><span className="block truncate text-[14px] font-bold">{item.name}</span><span className="block truncate text-[12px] text-[#8B867E]">{item.speciality}</span></span>
+                    <span className="w-36 min-w-0"><span className="flex items-center gap-2 truncate text-[14px] font-bold">{item.name}<AvailabilityDot person={item} size={9} /></span><span className="block truncate text-[12px] text-[#8B867E]">{item.speciality}</span></span>
                     <span className="flex min-w-0 flex-1 flex-wrap gap-1.5">
                       {accounts.map((client) => <span key={client.id} className="flex items-center gap-1.5 rounded-full border border-[#ECE9E3] py-0.5 pl-0.5 pr-2.5 text-[12px] font-semibold"><ClientMark client={client} size={20} />{client.name}</span>)}
                       {accounts.length === 0 && <span className="text-[12px] text-[#8B867E]">{canBeAssigned(state, item) ? "Free to take a client" : "Not assignable yet: NDA or contract missing"}</span>}

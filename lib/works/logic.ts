@@ -87,6 +87,14 @@ export function gate(items: CheckItem[]) {
   return { light: "red" as const, label: `${hard.length} missing`, blocking: hard };
 }
 
+/** The channels chosen for a client, plus Newsletter when they get one. Anything already on a post stays in the list so it can be taken off. */
+export const clientChannels = (client: Client | undefined, current: string[] = []) => {
+  const fallback = ["LinkedIn", "Instagram", "Facebook", "TikTok", "Newsletter"];
+  if (!client || client.platforms.length === 0) return [...new Set([...fallback, ...current])];
+  const newsletter = client.assets.some((asset) => /newsletter/i.test(`${asset.name} ${asset.format}`));
+  return [...new Set([...client.platforms, ...(newsletter ? ["Newsletter"] : []), ...current])];
+};
+
 /** Hired people work for us. The rest of the directory is for reference. */
 export const isHired = (freelancer: Freelancer) => freelancer.status === "Active" || freelancer.status === "Trial";
 /** On the team, including someone paused for a while. */
@@ -97,6 +105,35 @@ export const payChannels = ["Revolut", "Bank transfer", "PayPal", "Wise", "Fiver
 export const fileLabels = ["CV", "Portfolio", "NDA", "Contract", "Other"];
 export const toolChoices = ["OS login", "Google Chat", "Drive folder", "Canva seat", "Publishing tool"];
 export const defaultToolNames = ["OS login", "Google Chat", "Drive folder", "Canva seat", "Publishing tool"];
+
+export const timezoneOptions = ["Europe/Dublin", "Europe/London", "Europe/Madrid", "Europe/Berlin", "Europe/Athens", "Europe/Istanbul", "Africa/Lagos", "Africa/Cairo", "Africa/Johannesburg", "Asia/Dubai", "Asia/Karachi", "Asia/Kolkata", "Asia/Dhaka", "Asia/Jakarta", "Asia/Manila", "Asia/Singapore", "Asia/Tokyo", "Australia/Sydney", "America/New_York", "America/Chicago", "America/Mexico_City", "America/El_Salvador", "America/Bogota", "America/Sao_Paulo", "America/Argentina/Buenos_Aires", "America/Los_Angeles"];
+export const reachOptions = ["App", "Fiverr", "Upwork", "WhatsApp", "Email"];
+const cityOf = (zone: string) => zone.split("/").pop()!.replace(/_/g, " ");
+/** "Jakarta · GMT+7 · 21:40" */
+export function timezoneLabel(zone: string, now = new Date()) {
+  try {
+    const offset = new Intl.DateTimeFormat("en", { timeZone: zone, timeZoneName: "shortOffset" }).formatToParts(now).find((part) => part.type === "timeZoneName")?.value ?? "";
+    const time = new Intl.DateTimeFormat("en-GB", { timeZone: zone, hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(now);
+    return `${cityOf(zone)} · ${offset} · ${time} now`;
+  } catch { return zone; }
+}
+/** Is it working time for them right now, where they are? */
+export function availabilityNow(person: Freelancer, now = new Date()): { state: "on" | "off" | "unknown"; text: string } {
+  if (!person.timezone) return { state: "unknown", text: "Time zone not set" };
+  try {
+    const parts = new Intl.DateTimeFormat("en-GB", { timeZone: person.timezone, weekday: "short", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(now);
+    const get = (type: string) => parts.find((part) => part.type === type)?.value ?? "";
+    const day = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].indexOf(get("weekday")) + 1;
+    const minutes = Number(get("hour")) * 60 + Number(get("minute"));
+    const toMinutes = (value: string) => { const [h, m] = value.split(":").map(Number); return (h || 0) * 60 + (m || 0); };
+    const from = toMinutes(person.hours.from);
+    const to = toMinutes(person.hours.to);
+    const inside = from <= to ? minutes >= from && minutes < to : minutes >= from || minutes < to;
+    const on = person.hours.days.includes(day) && inside;
+    const clock = `${get("hour")}:${get("minute")}`;
+    return { state: on ? "on" : "off", text: `${on ? "Working now" : "Outside working hours"} · ${clock} for them (${cityOf(person.timezone)})` };
+  } catch { return { state: "unknown", text: "Time zone not set" }; }
+}
 
 /** Services are kept one per line as "Service | amount | currency". */
 export const serviceList = (text: string) => text.split("\n").map((line) => line.split("|").map((part) => part.trim())).filter(([name]) => name).map(([name, price = "", currency = ""]) => ({ name, price, currency }));

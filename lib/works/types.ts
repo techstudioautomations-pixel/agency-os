@@ -439,6 +439,12 @@ export type Freelancer = Person & {
   /** What they do. `speciality` is these joined with commas. */
   specialities: string[];
   availability: { mode: "hours" | "projects"; amount: number };
+  /** Where they are, so we can tell whether it is working time for them. An IANA name such as "Asia/Jakarta". */
+  timezone: string;
+  /** Their working hours there, and the days (1 is Monday, 7 is Sunday). */
+  hours: { from: string; to: string; days: number[] };
+  /** How to reach them: the app, or only on Fiverr, Upwork or WhatsApp. */
+  reachVia: string;
   fees: FreelancerFee[];
   tools: FreelancerTool[];
   trialDone: boolean;
@@ -479,6 +485,8 @@ export type Notice = {
   at: string;
   read: boolean;
   channels: ("In app" | "Email" | "Google Chat")[];
+  /** Set when the person cannot be reached through the app, only on Fiverr, Upwork or WhatsApp. Someone sends it there by hand. */
+  relay?: { via: string; done: boolean };
   link: Route;
 };
 

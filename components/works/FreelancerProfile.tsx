@@ -3,10 +3,11 @@
 import { useRef, useState } from "react";
 import { ArrowLeft, ArrowRight, Camera, Check, ExternalLink, FolderOpen, Pause, Play, Plus, ShieldCheck, ShieldX, Trash2, Upload } from "lucide-react";
 import { useStore } from "@/lib/works/store";
-import { canBeAssigned, clientCurrency, clientTeam, currencies, fileLabels, fromBase, isFreelancer, isHired, isOnTeam, isOwner, money, monthName, occurrencesIn, payChannels, serviceList, setupProgress, setupSteps, shiftMonth, shortDate, specialityOptions, todayIso, toBase, toolChoices, turnOf, worksOn, type Occurrence } from "@/lib/works/logic";
+import { reachOptions, canBeAssigned, clientCurrency, clientTeam, currencies, fileLabels, fromBase, isFreelancer, isHired, isOnTeam, isOwner, money, monthName, occurrencesIn, payChannels, serviceList, setupProgress, setupSteps, shiftMonth, shortDate, specialityOptions, todayIso, toBase, toolChoices, turnOf, worksOn, type Occurrence } from "@/lib/works/logic";
 import { fileToPhoto } from "@/lib/works/image";
 import type { Client, Freelancer, FreelancerFee } from "@/lib/works/types";
 import { Shell } from "./Shell";
+import { AvailabilityDot, HoursEditor } from "./Availability";
 import { PlatformTag, formatServices, jobsTotal, platforms, priceOf, statusChip } from "./FreelancerBits";
 import { Avatar, Button, Card, CardHead, Chip, ClientMark, Field, Segmented, fieldClass } from "./kit";
 
@@ -137,6 +138,7 @@ function SetupChecklist({ person }: { person: Freelancer }) {
             <input type="number" min={0} value={person.availability.amount || ""} onChange={(event) => set({ availability: { ...person.availability, amount: Number(event.target.value) || 0 } })} aria-label="How much they are available" placeholder="0" className={`${smallInput} w-20`} />
             <span className="text-[13px] text-[#6B6760]">{person.availability.mode === "hours" ? "hours a week" : "projects at a time"}</span>
           </div>
+          <HoursEditor person={person} />
         </StepRow>
 
         <StepRow done={done("services")} title="Service list" hint="Add them under Services and prices." />
@@ -372,10 +374,14 @@ function SelfProfile({ person }: { person: Freelancer }) {
       <div className="mb-5 flex flex-wrap items-center gap-4 rounded-2xl p-5" style={{ background: `linear-gradient(120deg, ${person.color}22, #ffffff)` }}>
         <PhotoPicker person={person} />
         <div className="min-w-[200px] flex-1">
-          <div className="flex flex-wrap items-center gap-2"><Chip t={status.t}>{status.label}</Chip></div>
+          <div className="flex flex-wrap items-center gap-2"><Chip t={status.t}>{status.label}</Chip><AvailabilityDot person={person} label /></div>
           <div className="mt-2 text-[13px] text-[#55514B]">{[person.email, person.phone].filter(Boolean).join(" · ") || "No contact yet"}</div>
         </div>
       </div>
+      <Card className="mb-5">
+        <CardHead title="Where I am and when I work" sub="The team sees a green or red circle by your name, so they know if it is a good time to write." />
+        <HoursEditor person={person} />
+      </Card>
       <div className="grid gap-5 xl:grid-cols-[1.1fr_.9fr]">
         <ProfileFiles person={person} />
         <Card>
@@ -432,6 +438,7 @@ function TeamProfile({ person }: { person: Freelancer }) {
           <div className="flex flex-wrap items-center gap-2">
             <Chip t={status.t}>{status.label}</Chip>
             <PlatformTag name={person.platform} />
+            <AvailabilityDot person={person} label />
             {hired && <Chip t={ok ? "green" : "amber"}>{ok ? <><ShieldCheck size={12} />NDA and contract signed</> : <><ShieldX size={12} />NDA or contract not signed yet</>}</Chip>}
           </div>
           <div className="mt-2 text-[13px] text-[#55514B]">{[person.email, person.phone].filter(Boolean).join(" · ") || "No contact yet"}</div>
@@ -502,6 +509,7 @@ function TeamProfile({ person }: { person: Freelancer }) {
                 <Field label="Found on"><select value={person.platform} onChange={(event) => set({ platform: event.target.value })} className={fieldClass}><option value="">Not set</option>{platforms.map((name) => <option key={name}>{name}</option>)}</select></Field>
                 <Field label="Status"><select value={person.status} onChange={(event) => set({ status: event.target.value as Freelancer["status"] })} className={fieldClass}><option value="Directory">Not hired</option><option value="Trial">Trial</option><option value="Active">Active</option><option value="Paused">Paused</option><option value="Offboarded">Past</option></select></Field>
               </div>
+              <Field label="How we reach them" hint={["Fiverr", "Upwork", "WhatsApp"].includes(person.reachVia) ? "They are not in the app. What we would tell them is queued on Today, to send there by hand." : "Through the app."}><select value={person.reachVia} onChange={(event) => set({ reachVia: event.target.value })} className={fieldClass}>{reachOptions.map((name) => <option key={name} value={name}>{name === "App" ? "In the app" : name === "Email" ? "By email" : `Only on ${name}`}</option>)}</select></Field>
               <Field label="Profile link (Fiverr or Upwork, if it applies)"><input value={person.profileUrl} onChange={(event) => set({ profileUrl: event.target.value })} className={fieldClass} placeholder="https://…" /></Field>
               <Field label="Drive link"><input value={person.driveUrl} onChange={(event) => set({ driveUrl: event.target.value })} className={fieldClass} placeholder="https://drive.google.com/…" /></Field>
               <Field label="Most accounts at once"><input type="number" min={0} value={person.capacity} onChange={(event) => set({ capacity: Number(event.target.value) })} className={fieldClass} /></Field>

@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { ArrowRight, Check, ChevronDown, ClipboardCopy, ExternalLink, FileUp, LayoutGrid, MessageCircle, Plus, Trash2, X } from "lucide-react";
 import { useStore } from "@/lib/works/store";
-import { agreedFor, areaItems, isDraft, monthlyAreas, docxText, inReview, needsMe, progress, stageOf, isFreelancer, isMarketing, monthName, myClients, nameOf, personById, shortDate, splitIdeas, todayIso, turnOf } from "@/lib/works/logic";
+import { shiftMonth, agreedFor, areaItems, isDraft, monthlyAreas, docxText, inReview, needsMe, progress, stageOf, isFreelancer, isMarketing, monthName, myClients, nameOf, personById, shortDate, splitIdeas, todayIso, turnOf } from "@/lib/works/logic";
 import type { Client, Idea, IdeaDecision, Persona, Pillar, Post, ReportNumbers, Strategy } from "@/lib/works/types";
 import { Shell } from "./Shell";
 import { PostArt } from "./PostArt";
@@ -352,7 +352,7 @@ function IdeasView({ client }: { client?: Client }) {
   const freelancer = isFreelancer(state);
   const clients = myClients(state).filter(isMarketing);
   const [filter, setFilter] = useState<IdeaDecision | "All">(freelancer ? "Approved" : "New");
-  const [allMonths, setAllMonths] = useState(false);
+  const [monthFilter, setMonthFilter] = useState("all");
   const [importing, setImporting] = useState(false);
   const [text, setText] = useState("");
   const [source, setSource] = useState("Pasted text");
@@ -362,7 +362,7 @@ function IdeasView({ client }: { client?: Client }) {
   const [openId, setOpenId] = useState("");
   const [filed, setFiled] = useState<{ source: string; clientId: string; counts: Record<IdeaDecision, number>; facts: number; ctas: number } | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
-  const ideas = state.ideas.filter((idea) => (client ? idea.clientId === client.id : clients.some((c) => c.id === idea.clientId)) && (allMonths || idea.month === state.month));
+  const ideas = state.ideas.filter((idea) => (client ? idea.clientId === client.id : clients.some((c) => c.id === idea.clientId)) && (monthFilter === "all" || idea.month === monthFilter));
   const shown = ideas.filter((idea) => filter === "All" || idea.decision === filter);
   const parsed: Research | null = text.trim() ? researchFromText(text) : fileResearch;
   const counts = (decision: string) => parsed?.ideas.filter((idea) => idea.decision === decision).length ?? 0;
@@ -387,12 +387,17 @@ function IdeasView({ client }: { client?: Client }) {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <Segmented value={filter} onChange={setFilter} options={(["New", "Approved", "Maybe", "Rejected", "Done", "All"] as const).filter((value) => value !== "Done" || ideas.some((idea) => idea.decision === "Done")).map((value) => ({ value, label: value === "All" ? "All" : <span className="inline-flex items-center gap-1.5"><i className="inline-block h-2 w-2 rounded-full not-italic" style={{ background: decisionStyle[value].bar }} />{decisionStyle[value].label}</span>, count: value === "All" ? ideas.length : ideas.filter((idea) => idea.decision === value).length }))} />
         <div className="flex flex-wrap items-center gap-2">
-          <label className="flex items-center gap-1.5 text-[13px] font-semibold text-[#55514B]"><input type="checkbox" checked={allMonths} onChange={(event) => setAllMonths(event.target.checked)} />All months</label>
-          {client && (
+          <select value={monthFilter} onChange={(event) => setMonthFilter(event.target.value)} aria-label="Month" className="rounded-xl border border-[#E2DED7] bg-white px-3 py-2 text-[13px] font-semibold">
+            <option value="all">All months</option>
+            {[...new Set([shiftMonth(state.month, -1), state.month, shiftMonth(state.month, 1), shiftMonth(state.month, 2), ...state.ideas.map((idea) => idea.month)])].sort().map((value) => <option key={value} value={value}>{monthName(value)}</option>)}
+          </select>
+          {client ? (
             <>
               <Button onClick={() => fileInput.current?.click()}><FileUp size={15} />Upload document</Button>
               <Button kind="primary" onClick={() => { if (importing) closeImport(); else { setImporting(true); setSource("Pasted text"); } }}><Plus size={15} />Add ideas</Button>
             </>
+          ) : (
+            <span className="rounded-xl bg-[#FFF3D9] px-3 py-2 text-[13px] font-semibold text-[#6B4A06]">Select a client (top right) to upload a document or add ideas.</span>
           )}
           <input ref={fileInput} type="file" accept=".docx,.txt,.md,.csv,.pdf" className="sr-only" aria-label="Upload ideas document" onChange={(event) => { const file = event.target.files?.[0]; if (file) readFile(file); event.target.value = ""; }} />
         </div>
@@ -406,7 +411,7 @@ function IdeasView({ client }: { client?: Client }) {
               <p className="mt-0.5 text-[13px] text-[#55514B]">Everything from the document is now in the app. Tap a number to see those ideas.</p>
               <div className="mt-3 flex flex-wrap gap-2">
                 {(["New", "Approved", "Maybe", "Rejected", "Done"] as const).filter((decision) => filed.counts[decision] > 0).map((decision) => (
-                  <button key={decision} onClick={() => { setAllMonths(true); setFilter(decision); }} className="inline-flex items-center gap-2 rounded-full border border-[#E2DED7] bg-white px-3.5 py-1.5 text-[13px] font-semibold hover:border-[#C9C3B8]"><i className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: decisionStyle[decision].bar }} />{filed.counts[decision]} {decisionStyle[decision].label.toLowerCase()}</button>
+                  <button key={decision} onClick={() => { setMonthFilter("all"); setFilter(decision); }} className="inline-flex items-center gap-2 rounded-full border border-[#E2DED7] bg-white px-3.5 py-1.5 text-[13px] font-semibold hover:border-[#C9C3B8]"><i className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: decisionStyle[decision].bar }} />{filed.counts[decision]} {decisionStyle[decision].label.toLowerCase()}</button>
                 ))}
                 {filed.facts > 0 && <button onClick={() => go({ view: "client", clientId: filed.clientId, tab: "strategy" })} className="rounded-full bg-[#EAF1FD] px-3.5 py-1.5 text-[13px] font-semibold text-[#1F5BC4]">{filed.facts} facts on the Strategy tab →</button>}
                 {filed.ctas > 0 && <button onClick={() => go({ view: "client", clientId: filed.clientId, tab: "strategy" })} className="rounded-full bg-[#EAF1FD] px-3.5 py-1.5 text-[13px] font-semibold text-[#1F5BC4]">{filed.ctas} calls to action →</button>}
@@ -473,7 +478,7 @@ function IdeasView({ client }: { client?: Client }) {
                     </div>
                   )}
                   <div className="flex gap-2">
-                    <Button kind="primary" disabled={!importable} onClick={() => { const chosen = include.ideas ? parsed.ideas : []; importResearch(client.id, { facts: include.facts ? parsed.facts : [], ctas: include.ctas ? parsed.ctas : [], brief: include.facts ? parsed.brief : "", ideas: chosen, source }); setFiled({ source, clientId: client.id, counts: { New: chosen.filter((idea) => idea.decision === "New").length, Approved: chosen.filter((idea) => idea.decision === "Approved").length, Maybe: 0, Rejected: chosen.filter((idea) => idea.decision === "Rejected").length, Done: chosen.filter((idea) => idea.decision === "Done").length }, facts: include.facts ? parsed.facts.length : 0, ctas: include.ctas ? parsed.ctas.length : 0 }); closeImport(); setAllMonths(true); setFilter("All"); }}>File it all</Button>
+                    <Button kind="primary" disabled={!importable} onClick={() => { const chosen = include.ideas ? parsed.ideas : []; importResearch(client.id, { facts: include.facts ? parsed.facts : [], ctas: include.ctas ? parsed.ctas : [], brief: include.facts ? parsed.brief : "", ideas: chosen, source }); setFiled({ source, clientId: client.id, counts: { New: chosen.filter((idea) => idea.decision === "New").length, Approved: chosen.filter((idea) => idea.decision === "Approved").length, Maybe: 0, Rejected: chosen.filter((idea) => idea.decision === "Rejected").length, Done: chosen.filter((idea) => idea.decision === "Done").length }, facts: include.facts ? parsed.facts.length : 0, ctas: include.ctas ? parsed.ctas.length : 0 }); closeImport(); setMonthFilter("all"); setFilter("All"); }}>File it all</Button>
                     <Button kind="ghost" onClick={closeImport}>Cancel</Button>
                   </div>
                 </div>

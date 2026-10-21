@@ -16,8 +16,8 @@ const uid = (prefix: string) => `${prefix}-${Date.now().toString(36)}-${Math.ran
 const stamp = () => new Date().toISOString();
 
 /** Where a new post's art lives: the maker's own Canva and Drive for this client, or the client's Drive folder. */
-function makerLinks(d: State, client: Client) {
-  const mine = client.team?.find((member) => member.id === d.me) ?? client.team?.find((member) => member.id === client.freelancerId);
+function makerLinks(d: State, client: Client, who = d.me) {
+  const mine = client.team?.find((member) => member.id === who) ?? client.team?.find((member) => member.id === client.freelancerId);
   return { designLink: mine?.links?.canva ?? "", driveLink: mine?.links?.drive || client.links.drive || "" };
 }
 
@@ -59,7 +59,7 @@ function migrate(saved: State): State {
   });
   for (const section of defaults) if (!sections.some((item) => item.id === section.id)) sections.push(section);
   // The directory: where each freelancer came from, how to reach them, and the work they did for us. The sample freelancers are cleared once.
-  const freelancers = (saved.freelancersCleared ? saved.freelancers : saved.freelancers.filter((person) => !sampleFreelancerIds.includes(person.id))).map((person) => ({ ...person, platform: person.platform ?? "", profileUrl: person.profileUrl ?? "", driveUrl: person.driveUrl ?? "", files: person.files ?? [], specialities: person.specialities ?? (person.speciality ? [person.speciality] : []), availability: person.availability ?? { mode: "hours" as const, amount: 0 }, fees: person.fees ?? [], tools: person.tools ?? defaultToolNames.map((name) => ({ id: `tool-${name}`, name, done: false, login: "", link: "", kept: "" })), trialDone: person.trialDone ?? false, ndaDate: person.ndaDate ?? "", contractDate: person.contractDate ?? "", phone: person.phone ?? "", notes: person.notes ?? "", jobs: person.jobs ?? [] }));
+  const freelancers = (saved.freelancersCleared ? saved.freelancers : saved.freelancers.filter((person) => !sampleFreelancerIds.includes(person.id))).map((person) => ({ ...person, platform: person.platform ?? "", profileUrl: person.profileUrl ?? "", driveUrl: person.driveUrl ?? "", files: person.files ?? [], specialities: person.specialities ?? (person.speciality ? [person.speciality] : []), availability: person.availability ?? { mode: "hours" as const, amount: 0 }, timezone: person.timezone ?? "", hours: person.hours ?? { from: "09:00", to: "17:00", days: [1, 2, 3, 4, 5] }, reachVia: person.reachVia ?? "App", fees: person.fees ?? [], tools: person.tools ?? defaultToolNames.map((name) => ({ id: `tool-${name}`, name, done: false, login: "", link: "", kept: "" })), trialDone: person.trialDone ?? false, ndaDate: person.ndaDate ?? "", contractDate: person.contractDate ?? "", phone: person.phone ?? "", notes: person.notes ?? "", jobs: person.jobs ?? [] }));
   // Once: clear away the sample clients and everything that belongs to them, and keep anything the team added themselves.
   const sampleIds = new Set(sampleClients.map((client) => client.id));
   const sampleLeadIds = new Set(sampleLeads.map((lead) => lead.id));
@@ -153,7 +153,10 @@ const StoreContext = createContext<Ctx | null>(null);
 
 function notify(d: Draft, to: string | undefined, text: string, link: Route, channels: Notice["channels"] = ["In app", "Email"]) {
   if (!to || to === d.me || to === "client" || to === "unassigned") return;
-  d.notices.unshift({ id: uid("n"), to, text, at: stamp(), read: false, channels, link });
+  // Someone who is only on Fiverr, Upwork or WhatsApp is not reached by the app, so the message is queued for someone to send there.
+  const person = d.freelancers.find((item) => item.id === to);
+  const relay = person && ["Fiverr", "Upwork", "WhatsApp"].includes(person.reachVia) ? { via: person.reachVia, done: false } : undefined;
+  d.notices.unshift({ id: uid("n"), to, text, at: stamp(), read: false, channels, link, relay });
 }
 
 function useStoreValue() {
@@ -472,6 +475,7 @@ function useStoreValue() {
           const member = d.clients.find((item) => item.id === clientId)!.team?.find((entry) => entry.id === freelancerId);
           if (member) member.role = role;
         }),
+      markRelayed: (noticeId: string) => update((d) => { const notice = d.notices.find((item) => item.id === noticeId); if (notice?.relay) notice.relay.done = true; }),
       /** Marks payments as paid for a month, in the currency they were actually paid in. */
       payOccurrences: (items: { personId: string; feeId: string; month: string }[], currency: string) => {
         update((d) => {
@@ -569,7 +573,7 @@ function useStoreValue() {
        * Sends an update: a message and the posts that come with it. Each post is a draft that stays with the freelancer, or goes for review.
        * Nobody is told about drafts. The reviewer gets one notice for everything sent for review.
        */
-      createUpdate: (input: { clientId: string; date: string; message: string; reviewerId?: string; items: UpdateItem[] }) => {
+      createUpdate: (input: { clientId: string; date: string; message: string; reviewerId?: string; by?: string; items: UpdateItem[] }) => {
         const id = uid("upd");
         let sent = 0;
         update((d) => {
@@ -584,16 +588,16 @@ function useStoreValue() {
             const post: Post = {
               id: postId, updateId: id, clientId: client.id, extra: notInPlan || undefined, extraType: notInPlan ? item.format : undefined, assetId: slot?.asset.id, reviewerId: input.reviewerId || undefined,
               title: item.title, format: item.format, platforms: item.platforms.length ? item.platforms : [client.platforms[0] ?? "LinkedIn"], date: item.date,
-              status: !item.send ? "Copy in progress" : withArt ? "Design review" : "Copy review", copy: item.copy, captions: {}, files: item.files, art: item.title, ...makerLinks(d, client), version: 1,
+              status: !item.send ? "Copy in progress" : withArt ? "Design review" : "Copy review", copy: item.copy, captions: {}, files: item.files, art: item.title, ...makerLinks(d, client, input.by ?? d.me), version: 1,
               comments: [], history: [{ at: stamp(), by: d.me, text: "Added in an update" }], needsExpert: /regulation|part [a-z]|span|load|fire|compliance|certif/i.test(item.title), expertOk: false, waitingSince: todayIso(),
             };
             if (item.send) { post.history.unshift({ at: stamp(), by: d.me, text: withArt ? "Sent copy and artwork for review (v1)" : "Sent copy for review (v1)" }); sent += 1; }
             d.posts.push(post);
             postIds.push(postId);
           }
-          d.updates.unshift({ id, clientId: client.id, by: d.me, date: input.date, at: stamp(), message: input.message, reviewerId: input.reviewerId || undefined, postIds });
+          d.updates.unshift({ id, clientId: client.id, by: input.by ?? d.me, date: input.date, at: stamp(), message: input.message, reviewerId: input.reviewerId || undefined, postIds });
           const first = d.posts.find((post) => post.id === postIds[0]);
-          if (sent > 0 && first) notify(d, reviewerFor(d, client, first), `${nameOf(d, d.me)} sent an update for ${client.name}: ${sent} post${sent === 1 ? "" : "s"} to review`, { view: "marketing", clientId: client.id, tab: "updates" }, ["In app", "Email", "Google Chat"]);
+          if (sent > 0 && first) notify(d, reviewerFor(d, client, first), `${nameOf(d, input.by ?? d.me)} sent an update for ${client.name}: ${sent} post${sent === 1 ? "" : "s"} to review`, { view: "marketing", clientId: client.id, tab: "updates" }, ["In app", "Email", "Google Chat"]);
         });
         ping(sent ? `Update sent. The reviewer has been told about ${sent} post${sent === 1 ? "" : "s"}.` : "Update saved. Everything in it is still a draft, so nobody has been told.");
         return id;
@@ -806,11 +810,11 @@ function useStoreValue() {
       // Freelancers
       updateFreelancer: (id: string, patch: Partial<State["freelancers"][number]>) => update((d) => { Object.assign(d.freelancers.find((item) => item.id === id)!, patch); }),
       /** Adds someone to the directory. They are not hired until a trial starts. */
-      addFreelancer: (draft: { name: string; platform: string; profileUrl: string; driveUrl?: string; email: string; specialities: string[]; fee?: Omit<FreelancerFee, "id"> }) => {
+      addFreelancer: (draft: { name: string; platform: string; reachVia?: string; profileUrl: string; driveUrl?: string; email: string; specialities: string[]; fee?: Omit<FreelancerFee, "id"> }) => {
         const id = uid("fl");
         update((d) => {
           const palette = ["#8E5CD9", "#E08A1E", "#3D8BD9", "#D94F70", "#1B9C85", "#C2578A", "#4C8B6F"];
-          d.freelancers.push({ id, name: draft.name, role: "freelancer", title: draft.specialities.join(", "), email: draft.email, color: palette[d.freelancers.length % palette.length], speciality: draft.specialities.join(", "), specialities: draft.specialities, availability: { mode: "hours", amount: 0 }, fees: draft.fee ? [{ ...draft.fee, id: uid("fee") }] : [], tools: defaultToolNames.map((name) => ({ id: uid("tool"), name, done: false, login: "", link: "", kept: "" })), trialDone: false, ndaDate: "", contractDate: "", platform: draft.platform, profileUrl: draft.profileUrl, driveUrl: draft.driveUrl ?? "", files: [], phone: "", notes: "", jobs: [], rate: "", currency: "USD", paymentMethod: "", capacity: 3, services: "", portfolio: "", status: "Directory", checklist: makeChecklist(freelancerChecklistTemplate, `fl-${id}`, 0) });
+          d.freelancers.push({ id, name: draft.name, role: "freelancer", title: draft.specialities.join(", "), email: draft.email, color: palette[d.freelancers.length % palette.length], speciality: draft.specialities.join(", "), specialities: draft.specialities, availability: { mode: "hours", amount: 0 }, timezone: "", hours: { from: "09:00", to: "17:00", days: [1, 2, 3, 4, 5] }, reachVia: draft.reachVia ?? "App", fees: draft.fee ? [{ ...draft.fee, id: uid("fee") }] : [], tools: defaultToolNames.map((name) => ({ id: uid("tool"), name, done: false, login: "", link: "", kept: "" })), trialDone: false, ndaDate: "", contractDate: "", platform: draft.platform, profileUrl: draft.profileUrl, driveUrl: draft.driveUrl ?? "", files: [], phone: "", notes: "", jobs: [], rate: "", currency: "USD", paymentMethod: "", capacity: 3, services: "", portfolio: "", status: "Directory", checklist: makeChecklist(freelancerChecklistTemplate, `fl-${id}`, 0) });
         });
         ping(`${draft.name} added to the directory`);
         return id;

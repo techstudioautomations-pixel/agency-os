@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Check, ChevronLeft, ChevronRight, Download, ExternalLink, Maximize2, Pencil, ShieldCheck, Trash2, UploadCloud, X } from "lucide-react";
 import { useStore } from "@/lib/works/store";
-import { worksOn, ago, isFreelancer, isOwner, nameOf, personById, qaGroups, qaItemsFor, qaProgress, reviewerFor, shortDate, stageOf, stages, turnOf } from "@/lib/works/logic";
+import { clientChannels, worksOn, ago, isFreelancer, isOwner, nameOf, personById, qaGroups, qaItemsFor, qaProgress, reviewerFor, shortDate, stageOf, stages, turnOf } from "@/lib/works/logic";
 import type { Client, Post, PostFile, RevisionCategory } from "@/lib/works/types";
 import { buildZip, safeName } from "@/lib/zip";
 import { PostArt } from "./PostArt";
@@ -203,6 +203,7 @@ export function PostPreviewPanel({ post, client, canEdit, onEdit }: { post: Post
 
 // ─── Left, edit mode: everything the freelancer fills in, in one place ───
 function PostEditor({ post, onDone }: { post: Post; onDone: () => void }) {
+  const editorClient = useStore().state.clients.find((item) => item.id === post.clientId);
   const store = useStore();
   const set = (patch: Partial<Post>) => store.updatePost(post.id, patch);
   const filesRef = useRef(post.files);
@@ -280,7 +281,7 @@ function PostEditor({ post, onDone }: { post: Post; onDone: () => void }) {
       </div>
       <div>
         <div className="mb-1.5 text-[12px] font-semibold text-[#55514B]">Channels</div>
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">{channels.map((item) => <button key={item} onClick={() => toggleChannel(item)} aria-pressed={post.platforms.includes(item)} className={`flex items-center gap-2.5 rounded-xl border-2 px-3 py-2 text-left text-[13px] font-bold transition ${post.platforms.includes(item) ? "border-[#2F6FDB] bg-[#F4F8FF]" : "border-[#E9E6E0] hover:border-[#C9C3B8]"}`}><ChannelIcon name={item} size={24} />{item}</button>)}</div>
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">{clientChannels(editorClient, post.platforms).map((item) => <button key={item} onClick={() => toggleChannel(item)} aria-pressed={post.platforms.includes(item)} className={`flex items-center gap-2.5 rounded-xl border-2 px-3 py-2 text-left text-[13px] font-bold transition ${post.platforms.includes(item) ? "border-[#2F6FDB] bg-[#F4F8FF]" : "border-[#E9E6E0] hover:border-[#C9C3B8]"}`}><ChannelIcon name={item} size={24} />{item}</button>)}</div>
       </div>
 
       {post.status.startsWith("Copy") ? (

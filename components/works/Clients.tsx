@@ -14,6 +14,7 @@ import { StarterPack } from "./StarterPack";
 import { StrategyView } from "./Marketing";
 import { PayButton } from "./Pay";
 import { AccessAssets, ClientFilesTab, StrategyDocs } from "./ClientDocs";
+import { AvailabilityDot } from "./Availability";
 import { PaymentsPanel } from "./FreelancerProfile";
 import { AttachField, Avatar, Bar, Button, Card, CardHead, Chip, ClientMark, Empty, Field, Light, Ring, Segmented, fieldClass, tone } from "./kit";
 
@@ -230,6 +231,7 @@ function Overview({ client }: { client: Client }) {
                   <div key={id} className="flex flex-wrap items-center gap-2">
                     <Avatar name={person.name} color={person.color} photo={person.photo} size={24} />
                     <span className="text-[14px] font-semibold">{person.name}</span>
+                    <AvailabilityDot person={person} size={9} />
                     <input value={member?.role ?? ""} onChange={(event) => setTeamRole(client.id, id, event.target.value)} placeholder="What they do, e.g. SEO" aria-label={`What ${person.name} does`} className="min-w-[140px] flex-1 rounded-lg border border-[#E2DED7] px-2.5 py-1 text-[13px]" />
                     {member?.links?.canva && <a href={member.links.canva} target="_blank" rel="noreferrer" className="rounded-full bg-[#EEF2FA] px-2 py-0.5 text-[11px] font-semibold text-[#1F5BC4]">Canva</a>}
                     {member?.links?.drive && <a href={member.links.drive} target="_blank" rel="noreferrer" className="rounded-full bg-[#EEF2FA] px-2 py-0.5 text-[11px] font-semibold text-[#1F5BC4]">Drive</a>}

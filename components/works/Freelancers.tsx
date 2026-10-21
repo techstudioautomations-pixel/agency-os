@@ -7,6 +7,7 @@ import { worksOn, canBeAssigned, currencies, isFreelancer, isHired, isOnTeam, is
 import type { Freelancer } from "@/lib/works/types";
 import { Shell } from "./Shell";
 import { FreelancerProfile } from "./FreelancerProfile";
+import { AvailabilityDot } from "./Availability";
 import { PlatformTag, jobsTotal, platforms, priceOf, statusChip } from "./FreelancerBits";
 import { Avatar, Bar, Button, Chip, ClientMark, Empty, Field, Segmented, fieldClass, tone } from "./kit";
 
@@ -39,7 +40,7 @@ export function Freelancers({ freelancerId }: { freelancerId?: string }) {
                 <div className="flex items-center gap-3 p-4" style={{ background: `${person.color}12` }}>
                   <Avatar name={person.name} color={person.color} photo={person.photo} size={48} />
                   <div className="min-w-0 flex-1">
-                    <div className="truncate text-[16px] font-bold">{person.name}</div>
+                    <div className="flex items-center gap-2 truncate text-[16px] font-bold">{person.name}<AvailabilityDot person={person} size={9} /></div>
                     <div className="truncate text-[12px] text-[#6B6760]">{person.speciality}</div>
                   </div>
                   <Chip t={statusChip(person.status).t}>{statusChip(person.status).label}</Chip>
@@ -107,7 +108,7 @@ function Directory() {
                 <button onClick={() => go({ view: "freelancers", freelancerId: person.id })} className="flex min-w-[220px] flex-1 items-center gap-3 text-left">
                   <Avatar name={person.name} color={person.color} photo={person.photo} size={42} />
                   <span className="min-w-0">
-                    <span className="block truncate text-[15px] font-bold hover:text-[#1F5BC4]">{person.name}</span>
+                    <span className="flex items-center gap-2 truncate text-[15px] font-bold hover:text-[#1F5BC4]">{person.name}<AvailabilityDot person={person} size={9} /></span>
                     <span className="block truncate text-[12px] text-[#6B6760]">{person.speciality || "No speciality yet"}</span>
                   </span>
                 </button>
@@ -136,13 +137,14 @@ function Directory() {
 function AddFreelancer({ onClose }: { onClose: () => void }) {
   const { addFreelancer, go } = useStore();
   const [draft, setDraft] = useState({ name: "", platform: "Fiverr", profileUrl: "", driveUrl: "", email: "" });
+  const [onlyThere, setOnlyThere] = useState(false);
   const [specialities, setSpecialities] = useState<string[]>([]);
   const [pay, setPay] = useState({ what: "", amount: "", currency: "USD", channel: payChannels[0], frequency: "monthly" as "monthly" | "one-time", date: todayIso() });
   const submit = (event: React.FormEvent) => {
     event.preventDefault();
     if (!draft.name.trim()) return;
     const amount = Number(pay.amount);
-    const id = addFreelancer({ ...draft, name: draft.name.trim(), specialities, fee: amount > 0 ? { what: pay.what.trim(), kind: "standard", amount, currency: pay.currency, channel: pay.channel, frequency: pay.frequency, date: pay.date || todayIso(), custom: pay.what.trim() ? undefined : undefined } : undefined });
+    const id = addFreelancer({ ...draft, reachVia: onlyThere && ["Fiverr", "Upwork"].includes(draft.platform) ? draft.platform : "App", name: draft.name.trim(), specialities, fee: amount > 0 ? { what: pay.what.trim(), kind: "standard", amount, currency: pay.currency, channel: pay.channel, frequency: pay.frequency, date: pay.date || todayIso(), custom: pay.what.trim() ? undefined : undefined } : undefined });
     onClose();
     go({ view: "freelancers", freelancerId: id });
   };
@@ -163,6 +165,7 @@ function AddFreelancer({ onClose }: { onClose: () => void }) {
         <Field label="Found on"><select value={draft.platform} onChange={(event) => setDraft({ ...draft, platform: event.target.value })} className={fieldClass}>{platforms.map((name) => <option key={name}>{name}</option>)}</select></Field>
         <Field label="Profile link (Fiverr or Upwork, if it applies)"><input value={draft.profileUrl} onChange={(event) => setDraft({ ...draft, profileUrl: event.target.value })} placeholder="https://www.fiverr.com/…" className={fieldClass} /></Field>
         <Field label="Drive link"><input value={draft.driveUrl} onChange={(event) => setDraft({ ...draft, driveUrl: event.target.value })} placeholder="https://drive.google.com/…" className={fieldClass} /></Field>
+        {["Fiverr", "Upwork"].includes(draft.platform) && <label className="flex items-start gap-2 rounded-xl bg-[#F8F7F4] px-3 py-2.5 text-[13px]"><input type="checkbox" checked={onlyThere} onChange={(event) => setOnlyThere(event.target.checked)} className="mt-0.5 h-4 w-4" /><span><b>Only reachable on {draft.platform}.</b> They do not use the app, so messages for them are queued on Today to send there by hand.</span></label>}
         <Field label="Email"><input type="email" value={draft.email} onChange={(event) => setDraft({ ...draft, email: event.target.value })} className={fieldClass} /></Field>
         <div className="space-y-2 rounded-2xl bg-[#F8F7F4] p-3.5">
           <div className="text-[12px] font-bold text-[#55514B]">How we pay them (optional, owners only)</div>

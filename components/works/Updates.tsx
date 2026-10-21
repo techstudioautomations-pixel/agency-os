@@ -3,7 +3,7 @@
 import { useRef, useState } from "react";
 import { ArrowRight, FilePlus2, Image as ImageIcon, Loader2, Plus, Send, Trash2, X } from "lucide-react";
 import { useStore } from "@/lib/works/store";
-import { ago, isDraft, isFreelancer, isMarketing, myClients, personById, reviewerFor, shortDate, todayIso } from "@/lib/works/logic";
+import { clientChannels, ago, isDraft, isHired, isFreelancer, isMarketing, myClients, personById, reviewerFor, shortDate, todayIso } from "@/lib/works/logic";
 import { pdfSlice, readPostFiles } from "@/lib/works/pdf";
 import type { Client, FreelancerUpdate, Post, PostFile } from "@/lib/works/types";
 import { PostArt } from "./PostArt";
@@ -34,6 +34,8 @@ function Composer() {
   const [date, setDate] = useState(todayIso());
   const [message, setMessage] = useState("");
   const [reviewerId, setReviewerId] = useState("");
+  const [by, setBy] = useState("");
+  const onBehalf = !isFreelancer(state);
   const [send, setSend] = useState(true);
   const [pictureAs, setPictureAs] = useState("Text post");
   const [items, setItems] = useState<Item[]>([]);
@@ -106,10 +108,10 @@ function Composer() {
     } finally { setBusy(""); }
   };
 
-  const ready = Boolean(client) && (items.length > 0 || message.trim().length > 0) && items.every((item) => item.title.trim());
+  const ready = Boolean(client) && (!onBehalf || Boolean(by)) && (items.length > 0 || message.trim().length > 0) && items.every((item) => item.title.trim());
   const submit = () => {
     if (!client || !ready) return;
-    createUpdate({ clientId: client.id, date, message: message.trim(), reviewerId: reviewerId || undefined, items: items.map(({ title, format, platforms, date: itemDate, copy, files, send: itemSend }) => ({ title: title.trim(), format, platforms, date: itemDate || date, copy, files, send: itemSend })) });
+    createUpdate({ clientId: client.id, date, message: message.trim(), reviewerId: reviewerId || undefined, by: onBehalf ? by : undefined, items: items.map(({ title, format, platforms, date: itemDate, copy, files, send: itemSend }) => ({ title: title.trim(), format, platforms, date: itemDate || date, copy, files, send: itemSend })) });
     closeUpdate();
     go({ view: "marketing", clientId: client.id, tab: "updates" });
   };
@@ -125,6 +127,9 @@ function Composer() {
         </div>
 
         <div className="space-y-5 overflow-y-auto px-6 py-5">
+          {onBehalf && (
+            <Field label="From which freelancer" hint="For someone who sends their work by Fiverr, Upwork or WhatsApp. You log it for them."><select value={by} onChange={(event) => setBy(event.target.value)} className={fieldClass}><option value="">Choose…</option>{state.freelancers.filter((person) => isHired(person)).map((person) => <option key={person.id} value={person.id}>{person.name}{person.reachVia !== "App" ? ` · ${person.reachVia}` : ""}</option>)}</select></Field>
+          )}
           <div className="grid gap-3 sm:grid-cols-3">
             <Field label="Client"><select value={clientId} onChange={(event) => setClientId(event.target.value)} className={fieldClass}><option value="">Choose…</option>{clients.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></Field>
             <Field label="Date of the update"><input type="date" value={date} onChange={(event) => setDate(event.target.value)} className={fieldClass} /></Field>
@@ -195,7 +200,7 @@ function Composer() {
                       </div>
                       <div className="flex flex-wrap items-center gap-2">
                         <select value={item.format} onChange={(event) => patch(item.key, { format: event.target.value })} aria-label="Type of post" className="rounded-lg border border-[#E2DED7] bg-white px-2 py-1.5 text-[12px] font-semibold">{formats.map((name) => <option key={name}>{name}</option>)}</select>
-                        <span className="flex gap-1">{(client ? [...new Set([...client.platforms, ...channelChoices.slice(0, 3)])] : channelChoices.slice(0, 3)).map((name) => { const on = item.platforms.includes(name); return <button key={name} type="button" onClick={() => patch(item.key, { platforms: on ? item.platforms.filter((value) => value !== name) : [...item.platforms, name] })} aria-pressed={on} aria-label={name} title={name} className={`rounded-lg p-1 ring-2 ${on ? "ring-[#2F6FDB]" : "opacity-40 ring-transparent"}`}><ChannelIcon name={name} size={20} /></button>; })}</span>
+                        <span className="flex gap-1">{clientChannels(client, item.platforms).map((name) => { const on = item.platforms.includes(name); return <button key={name} type="button" onClick={() => patch(item.key, { platforms: on ? item.platforms.filter((value) => value !== name) : [...item.platforms, name] })} aria-pressed={on} aria-label={name} title={name} className={`rounded-lg p-1 ring-2 ${on ? "ring-[#2F6FDB]" : "opacity-40 ring-transparent"}`}><ChannelIcon name={name} size={20} /></button>; })}</span>
                         <input type="date" value={item.date} onChange={(event) => patch(item.key, { date: event.target.value })} aria-label="Date of the post" title="The day it should go out" className="rounded-lg border border-[#E2DED7] px-2 py-1 text-[12px]" />
                         <Segmented size="sm" value={item.send ? "review" : "draft"} onChange={(value) => patch(item.key, { send: value === "review" })} options={[{ value: "review", label: "For review" }, { value: "draft", label: "Draft" }]} />
                       </div>
@@ -236,7 +241,7 @@ export function UpdatesList({ client }: { client?: Client }) {
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-3">
         <p className="min-w-[220px] flex-1 text-[13px] text-[#6B6760]">{freelancer ? "Your updates to the team. Send one with everything you made, and say which posts are drafts and which are for review." : "What the freelancers have sent, newest first."}</p>
-        {freelancer && <Button kind="primary" onClick={() => openUpdate(client?.id)}><Send size={14} />Send an update</Button>}
+        <Button kind="primary" onClick={() => openUpdate(client?.id)}><Send size={14} />{freelancer ? "Send an update" : "Log an update for a freelancer"}</Button>
       </div>
       {list.length === 0 ? <Empty title="No updates yet">{freelancer ? "Send one to tell the team what you made today." : "When a freelancer sends one, it shows here."}</Empty> : list.map((item) => <UpdateCard key={item.id} update={item} onOpen={(post) => go({ view: "marketing", clientId: client?.id ?? "all", postId: post.id })} />)}
     </div>
