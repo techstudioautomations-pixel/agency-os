@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ArrowRight, Check, Download, Plus, Trash2 } from "lucide-react";
+import { ArrowRight, Check, Download, Pencil, Plus, Trash2 } from "lucide-react";
 import { useStore } from "@/lib/works/store";
 import { approx, clientCostsBase, clientCostsIn, clientCurrency, clientTeam, currencies, freelancerCostBase, fixedCostsBase, fixedCostsIn, fromBase, incomeBase, isOwner, money, monthName, nameOf, occurrencesIn, otherFreelancerCostBase, shiftMonth, shortDate, todayIso, toBase, type Occurrence } from "@/lib/works/logic";
 import type { Client, State } from "@/lib/works/types";
@@ -96,6 +96,8 @@ export function Finance() {
   const { state, go, setInvoice, setFixedCosts, ping, attachReport, updateReport } = store;
   const cur = state.settings.currency;
   const [cost, setCost] = useState({ label: "", amount: "", currency: cur, category: "Software", frequency: "monthly" as "monthly" | "one-time" });
+  const [editing, setEditing] = useState("");
+  const [draft, setDraft] = useState({ label: "", amount: "", currency: cur, category: "Software", frequency: "monthly" as "monthly" | "one-time" });
   if (!isOwner(state)) return <Shell title="Finance"><Empty title="Owner access only">Client fees, margins and agency costs are visible to owners.</Empty></Shell>;
 
   const month = state.month;
@@ -238,11 +240,34 @@ export function Finance() {
               )}
               {fixedList.map((item) => {
                 const itemCur = item.currency ?? cur;
+                if (editing === item.id) {
+                  const save = () => {
+                    const amount = Number(draft.amount);
+                    if (!draft.label.trim() || !(amount > 0)) return;
+                    setFixedCosts(state.fixedCosts.map((entry) => (entry.id === item.id ? { ...entry, label: draft.label.trim(), amount, currency: draft.currency, category: draft.category, frequency: draft.frequency, month: draft.frequency === "one-time" ? entry.month ?? month : undefined } : entry)));
+                    setEditing("");
+                  };
+                  return (
+                    <li key={item.id} className="space-y-2 bg-[#F8F7F4] px-3 py-3">
+                      <div className="flex flex-wrap gap-2">
+                        <input value={draft.label} onChange={(event) => setDraft({ ...draft, label: event.target.value })} aria-label="Cost" className="min-w-[140px] flex-1 rounded-xl border border-[#E2DED7] bg-white px-3 py-2 text-[13px]" />
+                        <input type="number" min={0} value={draft.amount} onChange={(event) => setDraft({ ...draft, amount: event.target.value })} aria-label="Amount" className="w-28 rounded-xl border border-[#E2DED7] bg-white px-3 py-2 text-[13px]" />
+                        <select value={draft.currency} onChange={(event) => setDraft({ ...draft, currency: event.target.value })} aria-label="Currency" className="rounded-xl border border-[#E2DED7] bg-white px-2 py-2 text-[13px] font-bold">{currencies.map((entry) => <option key={entry}>{entry}</option>)}</select>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <select value={draft.category} onChange={(event) => setDraft({ ...draft, category: event.target.value })} aria-label="Type" className="rounded-xl border border-[#E2DED7] bg-white px-2.5 py-1.5 text-[13px] font-semibold">{[...new Set(["Software", "Freelancers", "Operations", "People", "Legal", "Other", draft.category])].map((entry) => <option key={entry}>{entry}</option>)}</select>
+                        <Segmented size="sm" value={draft.frequency} onChange={(frequency) => setDraft({ ...draft, frequency })} options={[{ value: "monthly", label: "Monthly" }, { value: "one-time", label: "One time" }]} />
+                        <span className="ml-auto flex gap-2"><Button size="sm" onClick={() => setEditing("")}>Cancel</Button><Button size="sm" kind="primary" onClick={save}><Check size={13} />Save</Button></span>
+                      </div>
+                    </li>
+                  );
+                }
                 return (
                   <li key={item.id} className={`flex items-center gap-2 py-2.5 text-[13px] ${activeFixed.has(item.id) ? "" : "text-[#9A958D]"}`}>
                     <span className="flex-1 font-semibold">{item.label}<span className="ml-2 text-[11px] font-normal text-[#8B867E]">{item.category} · {(item.frequency ?? "monthly") === "monthly" ? "monthly" : `one time, ${item.month ? monthName(item.month) : ""}`}{!activeFixed.has(item.id) && " · not this month"}</span></span>
                     <b>{money(item.amount, itemCur)}</b>
                     {itemCur !== cur && <span className="text-[11px] text-[#8B867E]">{approx(state, item.amount, itemCur)}</span>}
+                    <button aria-label={`Edit ${item.label}`} onClick={() => { setDraft({ label: item.label, amount: String(item.amount), currency: itemCur, category: item.category, frequency: item.frequency ?? "monthly" }); setEditing(item.id); }} className="text-[#B5B0A8] hover:text-[#1F5BC4]"><Pencil size={14} /></button>
                     <button aria-label={`Remove ${item.label}`} onClick={() => setFixedCosts(state.fixedCosts.filter((entry) => entry.id !== item.id))} className="text-[#B5B0A8] hover:text-[#B83232]"><Trash2 size={14} /></button>
                   </li>
                 );

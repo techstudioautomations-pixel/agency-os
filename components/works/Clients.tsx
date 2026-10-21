@@ -427,9 +427,11 @@ function Reporting({ client }: { client: Client }) {
 
 // ─── Finance (owners): the one place to add and change what a client costs ───
 function ClientFinance({ client }: { client: Client }) {
-  const { state, updateClient, setInvoice, addCost, removeCost } = useStore();
+  const { state, updateClient, setInvoice, addCost, updateCost, removeCost } = useStore();
   const cur = state.settings.currency;
   const month = state.month;
+  const [editing, setEditing] = useState("");
+  const [draft, setDraft] = useState({ label: "", amount: "", currency: cur, recurring: false });
   const [cost, setCost] = useState({ label: "", amount: "", currency: cur, recurring: false });
   const invoice = state.invoices.find((item) => item.clientId === client.id && item.month === month);
   const active = new Set(clientCostsIn(client, month).map((item) => item.id));
@@ -474,13 +476,25 @@ function ClientFinance({ client }: { client: Client }) {
               <tbody>
                 {[...client.costs].sort((a, b) => a.month.localeCompare(b.month)).map((item) => {
                   const itemCur = item.currency ?? cur;
+                  if (editing === item.id) {
+                    const save = () => { const amount = Number(draft.amount); if (!draft.label.trim() || !(amount > 0)) return; updateCost(client.id, item.id, { label: draft.label.trim(), amount, currency: draft.currency, recurring: draft.recurring }); setEditing(""); };
+                    return (
+                      <tr key={item.id} className="border-t border-[#F5F3EF] bg-[#F8F7F4]">
+                        <td className="px-3.5 py-2"><input value={draft.label} onChange={(event) => setDraft({ ...draft, label: event.target.value })} aria-label="Cost description" className="w-full rounded-lg border border-[#E2DED7] bg-white px-2.5 py-1.5 text-[13px]" /></td>
+                        <td className="px-3"><label className="flex items-center gap-1.5 text-[12px] font-semibold"><input type="checkbox" checked={draft.recurring} onChange={(event) => setDraft({ ...draft, recurring: event.target.checked })} />Monthly</label></td>
+                        <td className="px-3 text-right"><span className="inline-flex items-center gap-1"><input type="number" min={0} value={draft.amount} onChange={(event) => setDraft({ ...draft, amount: event.target.value })} aria-label="Amount" className="w-24 rounded-lg border border-[#E2DED7] bg-white px-2 py-1.5 text-right text-[13px]" /><select value={draft.currency} onChange={(event) => setDraft({ ...draft, currency: event.target.value })} aria-label="Currency" className="rounded-lg border border-[#E2DED7] bg-white px-1.5 py-1.5 text-[12px] font-bold">{currencies.map((entry) => <option key={entry}>{entry}</option>)}</select></span></td>
+                        <td className="px-3" />
+                        <td className="pr-3 text-right"><span className="inline-flex gap-1.5"><button onClick={save} aria-label="Save" className="text-[#17804A]"><Check size={15} /></button><button onClick={() => setEditing("")} aria-label="Cancel" className="text-[#B5B0A8] hover:text-[#B83232]"><X size={15} /></button></span></td>
+                      </tr>
+                    );
+                  }
                   return (
                     <tr key={item.id} className={`border-t border-[#F5F3EF] ${active.has(item.id) ? "" : "text-[#9A958D]"}`}>
                       <td className="px-3.5 py-2.5 font-semibold">{item.label}</td>
                       <td className="px-3 text-[12px]">{item.recurring ? <>Monthly from {monthName(item.month)}</> : <>One time · {monthName(item.month)}</>}{!active.has(item.id) && <span className="ml-1.5">· not this month</span>}</td>
                       <td className="px-3 text-right font-bold">{money(item.amount, itemCur)}</td>
                       <td className="px-3 text-right">{itemCur === cur ? <span className="text-[#B5B0A8]">—</span> : money(toBase(state, item.amount, itemCur), cur)}</td>
-                      <td className="pr-3 text-right"><button onClick={() => removeCost(client.id, item.id)} aria-label={`Remove ${item.label}`} className="text-[#B5B0A8] hover:text-[#B83232]"><Trash2 size={14} /></button></td>
+                      <td className="pr-3 text-right"><span className="inline-flex gap-2"><button onClick={() => { setDraft({ label: item.label, amount: String(item.amount), currency: itemCur, recurring: item.recurring }); setEditing(item.id); }} aria-label={`Edit ${item.label}`} className="text-[#B5B0A8] hover:text-[#1F5BC4]"><Pencil size={14} /></button><button onClick={() => removeCost(client.id, item.id)} aria-label={`Remove ${item.label}`} className="text-[#B5B0A8] hover:text-[#B83232]"><Trash2 size={14} /></button></span></td>
                     </tr>
                   );
                 })}

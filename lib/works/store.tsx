@@ -260,6 +260,7 @@ function useStoreValue() {
         update((d) => { d.clients.find((c) => c.id === clientId)!.costs.push({ ...cost, id: uid("cost"), month: d.month }); });
         ping("Cost added. It also shows in Finance.");
       },
+      updateCost: (clientId: string, id: string, patch: Partial<{ label: string; amount: number; currency: string; recurring: boolean }>) => update((d) => { const item = d.clients.find((c) => c.id === clientId)!.costs.find((entry) => entry.id === id); if (item) Object.assign(item, patch); }),
       removeCost: (clientId: string, id: string) => update((d) => { const client = d.clients.find((c) => c.id === clientId)!; client.costs = client.costs.filter((item) => item.id !== id); }),
       addCheck: (clientId: string, areaId: string, title: string) => {
         update((d) => {
