@@ -98,6 +98,10 @@ export type Client = {
   ownerId: string;
   opsId: string;
   freelancerId?: string;
+  /** What the client pays in. Missing means the main currency in Settings. */
+  currency?: string;
+  /** What we pay the freelancer in for this client. Missing means the freelancer's own currency. */
+  freelancerCurrency?: string;
   freelancerFee: number;
   fee: number;
   addOnFee: number;
@@ -413,7 +417,8 @@ export type Freelancer = Person & {
 };
 
 export type Invoice = { clientId: string; month: string; status: "Not sent" | "Sent" | "Paid"; date: string };
-export type Payout = { clientId: string; month: string; status: "Paid"; date: string };
+/** A freelancer payment. The amount is in the currency it was paid in. */
+export type Payout = { clientId: string; month: string; status: "Paid"; date: string; amount?: number; currency?: string };
 export type FixedCost = { id: string; label: string; amount: number; category: string };
 
 export type Notice = {
@@ -487,6 +492,8 @@ export type Settings = {
   taxSetAside: number;
   dates: { capture: number; plan: number; design: number; approval: number; schedule: number };
   currency: string;
+  /** What one unit of another currency is worth in the main currency. USD: 0.86 means 1 USD = 0.86 EUR. */
+  rates?: Record<string, number>;
 };
 
 export type Route =
@@ -508,6 +515,8 @@ export type State = {
   cleaned?: boolean;
   /** Set once the sample freelancers have been cleared away. */
   freelancersCleared?: boolean;
+  /** Set once the first four clients have been added. */
+  launchClientsAdded?: boolean;
   me: string;
   month: string;
   people: Person[];
@@ -547,6 +556,10 @@ export type NewClientDraft = {
   approvalMode: ApprovalMode;
   freelancerId?: string;
   fee: number;
+  /** What the client pays in. Missing means the main currency in Settings. */
+  currency?: string;
+  /** Channels they are posted on. */
+  platforms?: string[];
   addOnFee: number;
   leadId?: string;
 };

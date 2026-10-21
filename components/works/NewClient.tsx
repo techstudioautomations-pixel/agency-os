@@ -3,7 +3,8 @@
 import { useState } from "react";
 import { ArrowLeft, ArrowRight, Check, ClipboardCopy, Globe, Megaphone, Minus, Plus, Shapes, Trash2, X } from "lucide-react";
 import { useStore } from "@/lib/works/store";
-import { canBeAssigned, money, monthName, shiftMonth, todayIso } from "@/lib/works/logic";
+import { canBeAssigned, currencies, money, monthName, shiftMonth, todayIso, toBase } from "@/lib/works/logic";
+import { ChannelIcon } from "./ChannelIcon";
 import { packageAssets } from "@/lib/works/seed";
 import { clientColors, fileToLogo } from "@/lib/works/image";
 import type { ApprovalMode, AreaKind, AssetKind, ClientAsset, NewClientDraft } from "@/lib/works/types";
@@ -56,6 +57,8 @@ function Wizard() {
   const [sectionOverride, setSectionOverride] = useState<Record<string, boolean>>({});
   const [custom, setCustom] = useState({ name: "", format: "Document", qty: "1", price: "" });
   const [libraryPick, setLibraryPick] = useState("");
+  const [currency, setCurrency] = useState(settings.currency);
+  const [platforms, setPlatforms] = useState<string[]>(["LinkedIn"]);
 
   const pkg = settings.packages.find((item) => item.id === packageId);
   const addOnTotal = assets.filter((asset) => asset.source !== "package").reduce((sum, asset) => sum + (asset.price ?? 0) * (asset.period === "month" ? asset.qty : 0), 0);
@@ -103,7 +106,7 @@ function Wizard() {
       area, areaName: area === "custom" ? areaName.trim() || "Custom" : undefined, description: description.trim() || undefined, startDate: startDate || todayIso(), setupPosts: area === "marketing" ? setupPosts : 0,
       name: name.trim(), color, logo, sector: sector.trim(), mainContact: contact, approver, billingContact: billing.trim(),
       packageId: area === "marketing" && pkg ? pkg.id : "custom", assets, sectionIds: settings.sections.filter((section) => appliesHere(section) && picked(section.id)).map((section) => section.id),
-      approvalMode, freelancerId: freelancerId || undefined, fee: Number(fee) || 0, addOnFee: addOnTotal, leadId: lead?.id,
+      approvalMode, freelancerId: freelancerId || undefined, fee: Number(fee) || 0, currency, platforms: area === "marketing" ? platforms : undefined, addOnFee: addOnTotal, leadId: lead?.id,
     };
     const id = createClient(draft);
     closeWizard();
@@ -221,7 +224,7 @@ function Wizard() {
                   <Button onClick={addCustom} disabled={!custom.name.trim()}><Plus size={14} />Add</Button>
                 </div>
               </div>
-              <Field label={`Price · ${settings.currency}`} hint="For a project, enter the total. For ongoing work, enter the monthly fee, and say which in the description."><input type="number" min={0} value={fee} onChange={(event) => setFee(event.target.value)} className={fieldClass} /></Field>
+              <Field label={`Price · ${currency}`} hint="For a project, enter the total. For ongoing work, enter the monthly fee, and say which in the description."><div className="flex gap-2"><input type="number" min={0} value={fee} onChange={(event) => setFee(event.target.value)} className={fieldClass} /><select aria-label="Currency" value={currency} onChange={(event) => setCurrency(event.target.value)} className="mt-1 rounded-xl border border-[#E2DED7] bg-white px-3 text-[14px] font-bold">{currencies.map((item) => <option key={item}>{item}</option>)}</select></div></Field>
             </div>
           )}
 
@@ -281,8 +284,17 @@ function Wizard() {
                 </div>
               </div>
 
+              <div>
+                <div className="mb-1.5 text-[12px] font-semibold text-[#55514B]">Channels they are posted on</div>
+                <div className="flex flex-wrap gap-2">
+                  {["LinkedIn", "Instagram", "Facebook", "TikTok", "X", "YouTube"].map((name) => {
+                    const on = platforms.includes(name);
+                    return <button key={name} type="button" onClick={() => setPlatforms(on ? platforms.filter((item) => item !== name) : [...platforms, name])} aria-pressed={on} className={`inline-flex items-center gap-2 rounded-xl border-2 px-3 py-1.5 text-[13px] font-bold ${on ? "border-[#2F6FDB] bg-[#F4F8FF]" : "border-[#E9E6E0] hover:border-[#C9C3B8]"}`}><ChannelIcon name={name} size={18} />{name}</button>;
+                  })}
+                </div>
+              </div>
               <div className="grid gap-3 sm:grid-cols-2">
-                <Field label={`Monthly fee · ${settings.currency}`} hint="Starts from the package price. Edit it if you agreed something different."><input type="number" min={0} value={fee} onChange={(event) => setFee(event.target.value)} className={fieldClass} /></Field>
+                <Field label={`Monthly fee · ${currency}`} hint={`Starts from the package price. Edit it if you agreed something different.${currency !== settings.currency && Number(fee) ? ` About ${money(toBase(state, Number(fee), currency), settings.currency)} at the rate in Settings.` : ""}`}><div className="flex gap-2"><input type="number" min={0} value={fee} onChange={(event) => setFee(event.target.value)} className={fieldClass} /><select aria-label="Currency" value={currency} onChange={(event) => setCurrency(event.target.value)} className="mt-1 rounded-xl border border-[#E2DED7] bg-white px-3 text-[14px] font-bold">{currencies.map((item) => <option key={item}>{item}</option>)}</select></div></Field>
                 <div className="rounded-xl bg-[#F8F7F4] p-3 text-[13px]"><div className="font-semibold">Add-ons with a price</div><div className="mt-0.5 text-[20px] font-extrabold">{money(addOnTotal, settings.currency)}</div><div className="text-[12px] text-[#8B867E]">per month, on top of the fee</div></div>
               </div>
             </div>

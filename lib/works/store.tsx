@@ -1,8 +1,8 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { buildClientChecklist, clients as sampleClients, leads as sampleLeads, freelancerChecklistTemplate, makeChecklist, sampleFreelancerIds, defaultAssets, defaultMonthLine, defaultMonthly, defaultPlaybook, defaultSections, newShare, piecesPerMonth, seedState } from "./seed";
-import { canBeAssigned, isHired, monthlyAreas, nameOf, periodName, reviewerFor, todayIso } from "./logic";
+import { buildClientChecklist, launchClientDrafts, clients as sampleClients, leads as sampleLeads, freelancerChecklistTemplate, makeChecklist, sampleFreelancerIds, defaultAssets, defaultMonthLine, defaultMonthly, defaultPlaybook, defaultSections, newShare, piecesPerMonth, seedState } from "./seed";
+import { canBeAssigned, defaultRates, isHired, monthlyAreas, nameOf, periodName, reviewerFor, todayIso } from "./logic";
 import type { CheckItem, Client, ClientAsset, ClientSection, ClientShare, Idea, Lead, MonthReport, NewClientDraft, Notice, Post, PostDraft, ReportNumbers, RevisionCategory, Route, SectionStep, State, ReportPeriod, WeekReport } from "./types";
 
 const KEY = "theworks-os-v5";
@@ -13,6 +13,32 @@ const weekOf = (report: MonthReport, period: ReportPeriod): WeekReport => {
 };
 const uid = (prefix: string) => `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
 const stamp = () => new Date().toISOString();
+
+/** Builds a new client and its checklists from what the New client pop-up collects. */
+function makeClient(d: State, id: string, draft: NewClientDraft): Client {
+  const pkg = d.settings.packages.find((item) => item.id === draft.packageId);
+  const sections = d.settings.sections.filter((section) => draft.sectionIds.includes(section.id));
+  const marketing = draft.area === "marketing";
+  const checklist = buildClientChecklist(sections, id, draft.freelancerId, draft.area);
+  const done = (item: CheckItem, note = "") => { item.status = "Received"; item.date = todayIso(); if (note) item.note = note; };
+  checklist.forEach((item) => {
+    if (item.label === "Client profile created") done(item);
+    if (item.label.startsWith("Package")) done(item, pkg?.name ?? "Custom");
+    if (item.label.startsWith("Main contact") && draft.mainContact.name.trim() && draft.approver.name.trim()) done(item, `${draft.mainContact.name} · approver ${draft.approver.name}`);
+    if (item.label === "Billing contact" && draft.billingContact.trim()) done(item, draft.billingContact);
+    if (item.label.startsWith("Approval route")) done(item, draft.approvalMode === "C" ? "Internal" : "Client reviews if they ask");
+    if (item.label === "Freelancer assigned" && draft.freelancerId) done(item);
+  });
+  return {
+    id, area: draft.area, areaName: draft.areaName, description: draft.description, setupPosts: draft.setupPosts, monthDone: {}, packNotes: { brand: "", brain: "", templates: "" },
+    name: draft.name, color: draft.color, logo: draft.logo, sector: draft.sector, package: pkg?.name ?? "Custom", packageId: pkg?.id, assets: draft.assets,
+    sections: sections.map(({ id: sectionId, label, color, blurb }) => ({ id: sectionId, label, color, blurb })),
+    share: newShare(id, Date.now() % 1000), stage: "Onboarding", approvalMode: draft.approvalMode, mainContact: draft.mainContact, approver: draft.approver, billingContact: draft.billingContact,
+    channel: "Google Chat", expertReviewer: "", ownerId: "maria", opsId: "niamh", freelancerId: draft.freelancerId, freelancerFee: 0, fee: draft.fee, addOnFee: draft.addOnFee,
+    agreedPosts: marketing ? piecesPerMonth(draft.assets) : 0, platforms: marketing ? (draft.platforms?.length ? draft.platforms : ["LinkedIn"]) : [], currency: draft.currency, startDate: draft.startDate || todayIso(), links: { drive: "", canva: "", publer: "", chat: "", brandKit: "", guide: "", brain: "" }, checklist,
+    strategy: { offer: "", services: "", personas: [], pillars: [], tone: "", avoid: "", claims: "", approved: false }, hours: {}, planApproval: {}, access: [], files: [], costs: [],
+  };
+}
 
 /** Fills in anything a saved copy from an earlier version does not have yet. */
 function migrate(saved: State): State {
@@ -33,7 +59,7 @@ function migrate(saved: State): State {
   const fresh = !saved.cleaned;
   const nameOfSample = (id?: string) => saved.clients.find((client) => client.id === id)?.name;
   const keep = <T extends { clientId: string }>(list: T[]) => (fresh ? list.filter((item) => !sampleIds.has(item.clientId)) : list);
-  return {
+  const next: State = {
     ...saved,
     cleaned: true,
     freelancersCleared: true,
@@ -49,9 +75,19 @@ function migrate(saved: State): State {
     notices: fresh ? [] : saved.notices,
     playbook: saved.playbook ?? defaultPlaybook(),
     posts: keep(saved.posts),
-    settings: { ...saved.settings, assets: [...saved.settings.assets, ...defaultAssets.filter((asset) => !saved.settings.assets.some((item) => item.id === asset.id))], sections, monthly: saved.settings.monthly ?? defaultMonthly(), monthLine: saved.settings.monthLine ?? defaultMonthLine(saved.settings.dates) },
+    settings: { ...saved.settings, assets: [...saved.settings.assets, ...defaultAssets.filter((asset) => !saved.settings.assets.some((item) => item.id === asset.id))], sections, monthly: saved.settings.monthly ?? defaultMonthly(), monthLine: saved.settings.monthLine ?? defaultMonthLine(saved.settings.dates), rates: { ...defaultRates, ...saved.settings.rates } },
     clients: (fresh ? saved.clients.filter((client) => !sampleIds.has(client.id)) : saved.clients).map((client) => ({ ...client, area: client.area ?? "marketing", setupPosts: client.setupPosts ?? 2, monthDone: client.monthDone ?? {}, packNotes: client.packNotes ?? { brand: "", brain: "", templates: "" } })),
   };
+  // The first four clients are added once. Clients added by hand are kept, and ones deleted later do not come back.
+  if (!saved.launchClientsAdded) {
+    next.launchClientsAdded = true;
+    for (const { id, draft } of launchClientDrafts(next.settings)) {
+      if (next.clients.some((client) => client.id === id)) continue;
+      next.clients.push(makeClient(next, id, draft));
+      next.invoices.push({ clientId: id, month: next.month, status: "Not sent", date: "" });
+    }
+  }
+  return next;
 }
 
 // ─── Hash routing, so the back button works ───
@@ -119,6 +155,8 @@ function useStoreValue() {
       if (saved) {
         const parsed = JSON.parse(saved) as State;
         if (parsed.version === 5) setState(migrate(parsed));
+      } else {
+        setState((current) => migrate(current));
       }
     } catch {
       /* private mode or corrupt data: start from the sample */
@@ -187,7 +225,7 @@ function useStoreValue() {
     return {
       setMe: (id: string) => update((d) => { d.me = id; }),
       setMonth: (month: string) => update((d) => { d.month = month; }),
-      reset: () => { window.localStorage.removeItem(KEY); setState(seedState()); go({ view: "today" }); ping("Sample data restored"); },
+      reset: () => { window.localStorage.removeItem(KEY); setState({ ...seedState(), launchClientsAdded: true }); go({ view: "today" }); ping("Data emptied"); },
 
       // Access, files and costs on a client
       addAccess: (clientId: string, item: Omit<State["clients"][number]["access"][number], "id">) => update((d) => { d.clients.find((c) => c.id === clientId)!.access.push({ ...item, id: uid("acc") }); }),
@@ -257,28 +295,7 @@ function useStoreValue() {
         let id = draft.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || uid("client");
         if (stateRef.current.clients.some((client) => client.id === id)) id = `${id}-${Date.now().toString(36)}`;
         update((d) => {
-          const pkg = d.settings.packages.find((item) => item.id === draft.packageId);
-          const sections = d.settings.sections.filter((section) => draft.sectionIds.includes(section.id));
-          const marketing = draft.area === "marketing";
-          const checklist = buildClientChecklist(sections, id, draft.freelancerId, draft.area);
-          const done = (item: CheckItem, note = "") => { item.status = "Received"; item.date = todayIso(); if (note) item.note = note; };
-          checklist.forEach((item) => {
-            if (item.label === "Client profile created") done(item);
-            if (item.label.startsWith("Package")) done(item, pkg?.name ?? "Custom");
-            if (item.label.startsWith("Main contact") && draft.mainContact.name.trim() && draft.approver.name.trim()) done(item, `${draft.mainContact.name} · approver ${draft.approver.name}`);
-            if (item.label === "Billing contact" && draft.billingContact.trim()) done(item, draft.billingContact);
-            if (item.label.startsWith("Approval route")) done(item, draft.approvalMode === "C" ? "Internal" : "Client reviews if they ask");
-            if (item.label === "Freelancer assigned" && draft.freelancerId) done(item);
-          });
-          d.clients.push({
-            id, area: draft.area, areaName: draft.areaName, description: draft.description, setupPosts: draft.setupPosts, monthDone: {}, packNotes: { brand: "", brain: "", templates: "" },
-            name: draft.name, color: draft.color, logo: draft.logo, sector: draft.sector, package: pkg?.name ?? "Custom", packageId: pkg?.id, assets: draft.assets,
-            sections: sections.map(({ id: sectionId, label, color, blurb }) => ({ id: sectionId, label, color, blurb })),
-            share: newShare(id, Date.now() % 1000), stage: "Onboarding", approvalMode: draft.approvalMode, mainContact: draft.mainContact, approver: draft.approver, billingContact: draft.billingContact,
-            channel: "Google Chat", expertReviewer: "", ownerId: "maria", opsId: "niamh", freelancerId: draft.freelancerId, freelancerFee: 0, fee: draft.fee, addOnFee: draft.addOnFee,
-            agreedPosts: marketing ? piecesPerMonth(draft.assets) : 0, platforms: marketing ? ["LinkedIn"] : [], startDate: draft.startDate || todayIso(), links: { drive: "", canva: "", publer: "", chat: "", brandKit: "", guide: "", brain: "" }, checklist,
-            strategy: { offer: "", services: "", personas: [], pillars: [], tone: "", avoid: "", claims: "", approved: false }, hours: {}, planApproval: {}, access: [], files: [], costs: [],
-          });
+          d.clients.push(makeClient(d, id, draft));
           d.invoices.push({ clientId: id, month: d.month, status: "Not sent", date: "" });
           if (draft.leadId) {
             const lead = d.leads.find((item) => item.id === draft.leadId);
@@ -704,7 +721,7 @@ function useStoreValue() {
           const client = d.clients.find((c) => c.id === clientId)!;
           if (status === "Paid" && client.freelancerId) notify(d, "maria", `${client.name} paid. ${nameOf(d, client.freelancerId)} can now be paid.`, { view: "finance" });
         }),
-      payFreelancer: (clientId: string) => update((d) => { d.payouts.push({ clientId, month: d.month, status: "Paid", date: todayIso() }); }),
+      payFreelancer: (clientId: string, currency?: string, amount?: number) => update((d) => { d.payouts.push({ clientId, month: d.month, status: "Paid", date: todayIso(), amount, currency }); }),
       setFixedCosts: (costs: State["fixedCosts"]) => update((d) => { d.fixedCosts = costs; }),
       /** Edits the playbook in place: stages, slots and what is attached to them. */
       editPlaybook: (change: (playbook: State["playbook"]) => void) => update((d) => { change(d.playbook); }),

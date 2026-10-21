@@ -3,7 +3,8 @@
 import { useState } from "react";
 import { ArrowRight, Check, Download, Plus, Trash2 } from "lucide-react";
 import { useStore } from "@/lib/works/store";
-import { isOwner, money, monthName, nameOf, shiftMonth, todayIso } from "@/lib/works/logic";
+import { approx, clientCurrency, freelancerCostBase, freelancerCurrency, incomeBase, isOwner, money, monthName, nameOf, shiftMonth, todayIso, toBase } from "@/lib/works/logic";
+import { PayButton } from "./Pay";
 import type { Client, State } from "@/lib/works/types";
 import { Shell } from "./Shell";
 import { AttachField, Button, Card, CardHead, Chip, ClientMark, Empty, Field, fieldClass, tone } from "./kit";
@@ -14,16 +15,17 @@ function statementHtml(state: State, client: Client, month: string) {
   const cur = state.settings.currency;
   const invoice = state.invoices.find((item) => item.clientId === client.id && item.month === month);
   const costs = clientCosts(client, month);
-  const income = client.fee + client.addOnFee;
-  const freelance = client.freelancerId ? client.freelancerFee : 0;
+  const income = incomeBase(state, client);
+  const freelance = freelancerCostBase(state, client);
+  const feeCur = clientCurrency(state, client);
   const extra = costs.reduce((sum, item) => sum + item.amount, 0);
   const row = (label: string, value: string, bold = false) => `<tr><td>${label}</td><td style="text-align:right;${bold ? "font-weight:700" : ""}">${value}</td></tr>`;
-  return `<!doctype html><html><head><meta charset="utf-8"><title>${client.name} · ${monthName(month)} finance</title><style>body{font:15px/1.5 Arial,sans-serif;color:#1e2430;max-width:640px;margin:40px auto;padding:0 24px}h1{font-size:26px;margin:4px 0 20px}small{color:#6b7280;letter-spacing:.12em;font-weight:700}table{width:100%;border-collapse:collapse}td{padding:10px 4px;border-bottom:1px solid #eee}.total td{border-top:2px solid #1e2430;font-size:18px}footer{margin-top:30px;color:#9ca3af;font-size:12px}</style></head><body><small>FINANCE STATEMENT · INTERNAL</small><h1>${client.name} · ${monthName(month)}</h1><table>${row(`Monthly fee (${client.package})`, money(client.fee, cur))}${client.addOnFee ? row("Add-ons", money(client.addOnFee, cur)) : ""}${row("Invoice", invoice?.status ?? "Not sent")}${row(`Freelancer (${nameOf(state, client.freelancerId)})`, `− ${money(freelance, cur)}`)}${costs.map((item) => row(item.label, `− ${money(item.amount, cur)}`)).join("")}<tr class="total"><td><b>Margin</b></td><td style="text-align:right"><b>${money(income - freelance - extra, cur)}</b></td></tr></table><footer>Prepared by The Works · ${todayIso()}</footer></body></html>`;
+  return `<!doctype html><html><head><meta charset="utf-8"><title>${client.name} · ${monthName(month)} finance</title><style>body{font:15px/1.5 Arial,sans-serif;color:#1e2430;max-width:640px;margin:40px auto;padding:0 24px}h1{font-size:26px;margin:4px 0 20px}small{color:#6b7280;letter-spacing:.12em;font-weight:700}table{width:100%;border-collapse:collapse}td{padding:10px 4px;border-bottom:1px solid #eee}.total td{border-top:2px solid #1e2430;font-size:18px}footer{margin-top:30px;color:#9ca3af;font-size:12px}</style></head><body><small>FINANCE STATEMENT · INTERNAL</small><h1>${client.name} · ${monthName(month)}</h1><table>${row(`Monthly fee (${client.package})`, `${money(client.fee, feeCur)}${approx(state, client.fee, feeCur) ? ` (${approx(state, client.fee, feeCur)})` : ""}`)}${client.addOnFee ? row("Add-ons", money(client.addOnFee, feeCur)) : ""}${row("Invoice", invoice?.status ?? "Not sent")}${row(`Freelancer (${nameOf(state, client.freelancerId)})`, `− ${money(freelance, cur)}`)}${costs.map((item) => row(item.label, `− ${money(item.amount, cur)}`)).join("")}<tr class="total"><td><b>Margin</b></td><td style="text-align:right"><b>${money(income - freelance - extra, cur)}</b></td></tr></table><footer>Prepared by The Works · ${todayIso()}</footer></body></html>`;
 }
 
 export function Finance() {
   const store = useStore();
-  const { state, go, setInvoice, payFreelancer, setFixedCosts, ping, attachReport, updateReport } = store;
+  const { state, go, setInvoice, setFixedCosts, ping, attachReport, updateReport } = store;
   const [adding, setAdding] = useState(false);
   const [cost, setCost] = useState({ label: "", amount: "", category: "Software" });
   if (!isOwner(state)) return <Shell title="Finance"><Empty title="Owner access only">Client fees, margins and agency costs are visible to owners.</Empty></Shell>;
@@ -32,9 +34,9 @@ export function Finance() {
   const cur = state.settings.currency;
   const clients = state.clients.filter((client) => client.stage !== "Paused");
   const invoiceOf = (client: Client) => state.invoices.find((invoice) => invoice.clientId === client.id && invoice.month === month);
-  const contracted = clients.reduce((sum, client) => sum + client.fee + client.addOnFee, 0);
-  const received = clients.reduce((sum, client) => (invoiceOf(client)?.status === "Paid" ? sum + client.fee + client.addOnFee : sum), 0);
-  const freelance = clients.reduce((sum, client) => sum + (client.freelancerId ? client.freelancerFee : 0), 0);
+  const contracted = clients.reduce((sum, client) => sum + incomeBase(state, client), 0);
+  const received = clients.reduce((sum, client) => (invoiceOf(client)?.status === "Paid" ? sum + incomeBase(state, client) : sum), 0);
+  const freelance = clients.reduce((sum, client) => sum + freelancerCostBase(state, client), 0);
   const perClient = clients.reduce((sum, client) => sum + clientCosts(client, month).reduce((total, item) => total + item.amount, 0), 0);
   const fixed = state.fixedCosts.reduce((sum, item) => sum + item.amount, 0);
   const costsTotal = freelance + perClient + fixed;
@@ -86,22 +88,24 @@ export function Finance() {
               <tbody>
                 {clients.map((client) => {
                   const invoice = invoiceOf(client);
-                  const paid = state.payouts.some((item) => item.clientId === client.id && item.month === month);
+                  const payout = state.payouts.find((item) => item.clientId === client.id && item.month === month);
+                  const paid = Boolean(payout);
                   const fee = client.fee + client.addOnFee;
+                  const feeCur = clientCurrency(state, client);
                   const extra = clientCosts(client, month).reduce((sum, item) => sum + item.amount, 0);
-                  const margin = fee - (client.freelancerId ? client.freelancerFee : 0) - extra;
+                  const margin = incomeBase(state, client) - freelancerCostBase(state, client) - extra;
                   const status = invoice?.status ?? "Not sent";
                   return (
                     <tr key={client.id} className="border-b border-[#F5F3EF] last:border-0">
                       <td className="px-5 py-3"><button onClick={() => go({ view: "client", clientId: client.id, tab: "finance" })} className="flex items-center gap-2.5 text-left font-bold hover:text-[#1F5BC4]"><ClientMark client={client} size={28} />{client.name}</button></td>
-                      <td className="px-3 font-bold">{money(fee, cur)}</td>
+                      <td className="px-3 font-bold">{money(fee, feeCur)}{approx(state, fee, feeCur) && <div className="text-[11px] font-semibold text-[#8B867E]">{approx(state, fee, feeCur)}</div>}</td>
                       <td className="px-3">
                         <select aria-label={`Invoice for ${client.name}`} value={status} onChange={(event) => setInvoice(client.id, event.target.value as "Not sent" | "Sent" | "Paid")} className="rounded-lg border-0 px-2 py-1.5 text-[12px] font-bold" style={{ background: status === "Paid" ? tone.green.bg : status === "Sent" ? tone.amber.bg : tone.red.bg, color: status === "Paid" ? tone.green.ink : status === "Sent" ? tone.amber.ink : tone.red.ink }}>
                           <option>Not sent</option><option>Sent</option><option>Paid</option>
                         </select>
                       </td>
-                      <td className="px-3">{client.freelancerId ? <><b>{money(client.freelancerFee, cur)}</b><div className="text-[11px] text-[#8B867E]">{nameOf(state, client.freelancerId)}</div></> : <span className="text-[#8B867E]">—</span>}</td>
-                      <td className="px-3">{!client.freelancerId ? <span className="text-[#8B867E]">—</span> : paid ? <Chip t="green" dot>Paid</Chip> : status === "Paid" ? <Button size="sm" kind="good" onClick={() => payFreelancer(client.id)}>Pay now</Button> : <Chip t="amber">After client pays</Chip>}</td>
+                      <td className="px-3">{client.freelancerId ? <><b>{money(client.freelancerFee, freelancerCurrency(state, client))}</b>{approx(state, client.freelancerFee, freelancerCurrency(state, client)) && <span className="ml-1 text-[11px] text-[#8B867E]">{approx(state, client.freelancerFee, freelancerCurrency(state, client))}</span>}<div className="text-[11px] text-[#8B867E]">{nameOf(state, client.freelancerId)}</div></> : <span className="text-[#8B867E]">—</span>}</td>
+                      <td className="px-3">{!client.freelancerId ? <span className="text-[#8B867E]">—</span> : paid ? <Chip t="green" dot>Paid{payout?.amount ? ` ${money(payout.amount, payout.currency ?? cur)}` : ""}</Chip> : status === "Paid" ? <PayButton client={client} label="Pay" /> : <Chip t="amber">After client pays</Chip>}</td>
                       <td className="px-3">{extra ? money(extra, cur) : <span className="text-[#8B867E]">—</span>}</td>
                       <td className="px-5 font-extrabold" style={{ color: margin >= 0 ? tone.green.ink : tone.red.ink }}>{money(margin, cur)}</td>
                     </tr>

@@ -3,7 +3,7 @@
 import { useState, type ReactNode } from "react";
 import { ArrowRight, Check, ChevronDown, ExternalLink, FileText, FolderOpen, KeyRound, Link2, Pencil, Plus, ShieldAlert, Sparkles, Trash2 } from "lucide-react";
 import { useStore } from "@/lib/works/store";
-import { agreedFor, areaLabel, qaGroups, canBeAssigned, reportIn, isHired, firstMonthOf, gate, isFirstMonth, isFreelancer, isMarketing, isOwner, missing, money, monthName, monthlyAreas, nameOf, personById, progress, shiftMonth, shortDate, todayIso } from "@/lib/works/logic";
+import { agreedFor, areaLabel, qaGroups, canBeAssigned, reportIn, isHired, approx, clientCurrency, currencies, freelancerCostBase, freelancerCurrency, incomeBase, firstMonthOf, gate, isFirstMonth, isFreelancer, isMarketing, isOwner, missing, money, monthName, monthlyAreas, nameOf, personById, progress, shiftMonth, shortDate, todayIso } from "@/lib/works/logic";
 import type { AccessItem, ApprovalMode, Client, ClientFile } from "@/lib/works/types";
 import { Shell } from "./Shell";
 import { GateBanner } from "./Checklist";
@@ -12,6 +12,7 @@ import { ClientShare, ProfileEditor, ServicesCard } from "./ClientServices";
 import { MonthChecklist } from "./Monthly";
 import { StarterPack } from "./StarterPack";
 import { StrategyView } from "./Marketing";
+import { PayButton } from "./Pay";
 import { AttachField, Avatar, Bar, Button, Card, CardHead, Chip, ClientMark, Empty, Field, Light, Ring, Segmented, fieldClass, tone } from "./kit";
 
 export const modeText: Record<ApprovalMode, string> = {
@@ -218,7 +219,7 @@ function Overview({ client }: { client: Client }) {
           <Row label="Stage" value={client.stage} editing={editing}><select value={client.stage} onChange={(event) => set({ stage: event.target.value as Client["stage"] })} className={select}><option>Onboarding</option><option>Live</option><option>Paused</option></select></Row>
           <Row label="Start date" value={shortDate(client.startDate)} editing={editing}><input type="date" value={client.startDate} onChange={(event) => set({ startDate: event.target.value })} className={select} /></Row>
           {isMarketing(client) && <Row label="Posts in month 1" value={String(client.setupPosts)} editing={editing}><input type="number" min={0} value={client.setupPosts} onChange={(event) => set({ setupPosts: Math.max(0, Number(event.target.value) || 0) })} className={`${select} w-24`} /></Row>}
-          {owner && <Row label="Monthly fee" value={money(client.fee + client.addOnFee, state.settings.currency)} editing={false} />}
+          {owner && <Row label="Monthly fee" value={`${money(client.fee + client.addOnFee, clientCurrency(state, client))}${approx(state, client.fee + client.addOnFee, clientCurrency(state, client)) ? ` (${approx(state, client.fee + client.addOnFee, clientCurrency(state, client))})` : ""}`} editing={false} />}
           {g.blocking.length > 0 && (
             <button onClick={() => go({ view: "client", clientId: client.id, tab: "checklists" })} className="mt-3 flex w-full items-center gap-2 rounded-xl bg-[#FDECEC] px-3 py-2.5 text-left text-[13px] font-semibold text-[#B83232]">
               <ShieldAlert size={15} className="shrink-0" /><span className="truncate">Still missing: {g.blocking.slice(0, 2).map((item) => item.label.split(":")[0]).join(", ")}{g.blocking.length > 2 ? ` +${g.blocking.length - 2}` : ""}</span>
@@ -436,9 +437,12 @@ function ClientFinance({ client }: { client: Client }) {
   const paidOut = state.payouts.some((item) => item.clientId === client.id && item.month === state.month);
   const costs = client.costs.filter((item) => (item.recurring ? item.month <= state.month : item.month === state.month));
   const extra = costs.reduce((sum, item) => sum + item.amount, 0);
-  const income = client.fee + client.addOnFee;
-  const freelance = client.freelancerId ? client.freelancerFee : 0;
+  const income = incomeBase(state, client);
+  const freelance = freelancerCostBase(state, client);
   const margin = income - freelance - extra;
+  const feeCur = clientCurrency(state, client);
+  const payCur = freelancerCurrency(state, client);
+  const payout = state.payouts.find((item) => item.clientId === client.id && item.month === state.month);
   return (
     <div className="space-y-5">
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
@@ -450,13 +454,17 @@ function ClientFinance({ client }: { client: Client }) {
         <Card>
           <CardHead title="Agreed amounts" sub="Changes update Finance straight away. Clients and freelancers never see this." />
           <div className="grid gap-3 sm:grid-cols-3">
-            <Field label={`Monthly fee · ${cur}`}><input type="number" min={0} value={client.fee} onChange={(event) => updateClient(client.id, { fee: Number(event.target.value) })} className={fieldClass} /></Field>
-            <Field label={`Add-ons · ${cur}`}><input type="number" min={0} value={client.addOnFee} onChange={(event) => updateClient(client.id, { addOnFee: Number(event.target.value) })} className={fieldClass} /></Field>
-            <Field label={`Freelancer · ${cur}`}><input type="number" min={0} value={client.freelancerFee} onChange={(event) => updateClient(client.id, { freelancerFee: Number(event.target.value) })} className={fieldClass} /></Field>
+            <Field label={`Monthly fee · ${feeCur}`}><input type="number" min={0} value={client.fee} onChange={(event) => updateClient(client.id, { fee: Number(event.target.value) })} className={fieldClass} /></Field>
+            <Field label={`Add-ons · ${feeCur}`}><input type="number" min={0} value={client.addOnFee} onChange={(event) => updateClient(client.id, { addOnFee: Number(event.target.value) })} className={fieldClass} /></Field>
+            <Field label={`Freelancer · ${payCur}`}><input type="number" min={0} value={client.freelancerFee} onChange={(event) => updateClient(client.id, { freelancerFee: Number(event.target.value) })} className={fieldClass} /></Field>
+          </div>
+          <div className="mt-3 grid gap-3 sm:grid-cols-2">
+            <Field label="The client pays in" hint={approx(state, client.fee + client.addOnFee, feeCur) ? `${money(client.fee + client.addOnFee, feeCur)} is ${approx(state, client.fee + client.addOnFee, feeCur).replace("≈ ", "about ")} at the rate in Settings.` : "Same as the main currency."}><select value={feeCur} onChange={(event) => updateClient(client.id, { currency: event.target.value })} className={fieldClass}>{currencies.map((item) => <option key={item}>{item}</option>)}</select></Field>
+            <Field label="We pay the freelancer in" hint={client.freelancerId && approx(state, client.freelancerFee, payCur) ? `${money(client.freelancerFee, payCur)} is ${approx(state, client.freelancerFee, payCur).replace("≈ ", "about ")}.` : "Their own currency by default."}><select value={payCur} onChange={(event) => updateClient(client.id, { freelancerCurrency: event.target.value })} className={fieldClass}>{currencies.map((item) => <option key={item}>{item}</option>)}</select></Field>
           </div>
           <div className="mt-4 space-y-2">
             <div className="flex flex-wrap items-center gap-3 rounded-xl bg-[#F8F7F4] p-3"><span className="flex-1 text-[13px] font-semibold">{monthName(state.month)} invoice</span><Segmented size="sm" value={invoice?.status ?? "Not sent"} onChange={(status) => setInvoice(client.id, status)} options={[{ value: "Not sent", label: "Not sent" }, { value: "Sent", label: "Sent" }, { value: "Paid", label: "Paid" }]} /></div>
-            <div className="flex flex-wrap items-center gap-3 rounded-xl bg-[#F8F7F4] p-3"><span className="flex-1 text-[13px] font-semibold">Pay {nameOf(state, client.freelancerId)}</span>{!client.freelancerId ? <Chip>No freelancer</Chip> : paidOut ? <Chip t="green" dot>Paid</Chip> : invoice?.status === "Paid" ? <Button size="sm" kind="good" onClick={() => payFreelancer(client.id)}>Mark paid</Button> : <Chip t="amber">After the client pays</Chip>}</div>
+            <div className="flex flex-wrap items-center gap-3 rounded-xl bg-[#F8F7F4] p-3"><span className="flex-1 text-[13px] font-semibold">Pay {nameOf(state, client.freelancerId)}</span>{!client.freelancerId ? <Chip>No freelancer</Chip> : paidOut ? <Chip t="green" dot>Paid{payout?.amount ? ` ${money(payout.amount, payout.currency ?? cur)}` : ""}</Chip> : invoice?.status === "Paid" ? <PayButton client={client} label="Mark paid" /> : <Chip t="amber">After the client pays</Chip>}</div>
           </div>
         </Card>
         <Card>

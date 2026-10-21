@@ -1,4 +1,4 @@
-import type { AreaKind, AssetType, MonthMark, MonthlyStep, Playbook, PlaybookStage, SectionStep, CheckItem, Client, ClientAsset, Freelancer, Idea, Lead, MonthReport, PackageDef, Person, Post, PostStatus, SectionDef, State, StepKind, Strategy } from "./types";
+import type { AreaKind, NewClientDraft, AssetType, MonthMark, MonthlyStep, Playbook, PlaybookStage, SectionStep, CheckItem, Client, ClientAsset, Freelancer, Idea, Lead, MonthReport, PackageDef, Person, Post, PostStatus, SectionDef, State, StepKind, Strategy } from "./types";
 
 // ─── Dates are generated around today, so the demo always looks current ───
 const pad = (value: number) => String(value).padStart(2, "0");
@@ -913,6 +913,8 @@ export function seedState(): State {
     freelancers,
     // Starts empty: clients, posts and leads are added by the team. The sample ones above are kept only so older saved copies can be cleared.
     cleaned: true,
+    freelancersCleared: true,
+    launchClientsAdded: false,
     clients: [],
     ideas: [],
     posts: [],
@@ -942,8 +944,31 @@ export function seedState(): State {
       taxSetAside: 25,
       dates: { capture: 5, plan: 8, design: 15, approval: 20, schedule: 25 },
       currency: "EUR",
+      rates: { USD: 0.86 },
     },
   };
+}
+
+/** The first four clients, as the New client pop-up would collect them. Added once to a state that does not have them. */
+export function launchClientDrafts(settings: State["settings"]): { id: string; draft: NewClientDraft }[] {
+  const piece = (clientId: string, assetId: string, qty: number): ClientAsset => {
+    const found = settings.assets.find((item) => item.id === assetId);
+    return { id: `${clientId}-${assetId}`, assetId, name: found?.name ?? assetId, format: found?.format ?? "Single image", kind: "piece", qty, period: "month", source: "custom" };
+  };
+  const sectionsFor = (assets: ClientAsset[]) => settings.sections.filter((section) => (!section.areas || section.areas.includes("marketing")) && (section.always || assets.some((asset) => settings.assets.find((item) => item.id === asset.assetId)?.sections.includes(section.id)))).map((section) => section.id);
+  const make = (id: string, name: string, color: string, fee: number, assets: ClientAsset[]) => ({
+    id,
+    draft: {
+      area: "marketing", startDate: today, setupPosts: 2, name, color, sector: "", mainContact: { name: "", email: "", phone: "" }, approver: { name: "", email: "" }, billingContact: "",
+      packageId: "custom", assets, sectionIds: sectionsFor(assets), approvalMode: settings.defaultApprovalMode, fee, currency: "EUR", platforms: ["LinkedIn", "Facebook", "Instagram"], addOnFee: 0,
+    } as NewClientDraft,
+  });
+  return [
+    make("house-build", "House Build", "#E08A1E", 750, [piece("house-build", "company-post", 8), piece("house-build", "newsletter", 2)]),
+    make("buildreg", "Buildreg", "#2F6FDB", 500, [piece("buildreg", "short-video", 4)]),
+    make("firereg", "Firereg", "#D6457A", 500, [piece("firereg", "company-post", 8)]),
+    make("marker-group", "Marker Group", "#1D9E5A", 500, [piece("marker-group", "company-post", 1)]),
+  ];
 }
 
 export const allStatuses: PostStatus[] = ["Copy in progress", "Copy review", "Design in progress", "Design review", "Client approval", "Ready to schedule", "Scheduled", "Published"];

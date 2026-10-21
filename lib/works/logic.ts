@@ -21,6 +21,23 @@ export const ago = (iso: string) => {
 };
 export const money = (value: number, currency = "USD") => value.toLocaleString(currency === "USD" ? "en-US" : "en-IE", { style: "currency", currency, maximumFractionDigits: 0 });
 
+// ─── Currencies: clients and freelancers can each use their own. Everything adds up in the main currency in Settings. ───
+export const currencies = ["EUR", "USD"];
+export const symbolOf = (currency: string) => (currency === "USD" ? "$" : currency === "EUR" ? "€" : currency);
+export const defaultRates: Record<string, number> = { USD: 0.86 };
+/** An amount in another currency, in the main currency. */
+export const toBase = (state: State, amount: number, currency?: string) => (!currency || currency === state.settings.currency ? amount : amount * (state.settings.rates?.[currency] ?? defaultRates[currency] ?? 1));
+/** An amount in the main currency, in another currency. */
+export const fromBase = (state: State, amount: number, currency?: string) => (!currency || currency === state.settings.currency ? amount : amount / (state.settings.rates?.[currency] ?? defaultRates[currency] ?? 1));
+export const clientCurrency = (state: State, client: Client) => client.currency ?? state.settings.currency;
+export const freelancerCurrency = (state: State, client: Client) => client.freelancerCurrency ?? state.freelancers.find((person) => person.id === client.freelancerId)?.currency ?? state.settings.currency;
+/** What the client pays each month, in the main currency. */
+export const incomeBase = (state: State, client: Client) => toBase(state, client.fee + client.addOnFee, clientCurrency(state, client));
+/** What the freelancer costs each month for this client, in the main currency. */
+export const freelancerCostBase = (state: State, client: Client) => (client.freelancerId ? toBase(state, client.freelancerFee, freelancerCurrency(state, client)) : 0);
+/** "≈ €645" when an amount is not in the main currency, otherwise nothing. */
+export const approx = (state: State, amount: number, currency: string) => (currency === state.settings.currency ? "" : `≈ ${money(toBase(state, amount, currency), state.settings.currency)}`);
+
 // ─── People ───
 export const everyone = (state: State): (Person | Freelancer)[] => [...state.people, ...state.freelancers];
 export const personById = (state: State, id?: string) => everyone(state).find((person) => person.id === id);
