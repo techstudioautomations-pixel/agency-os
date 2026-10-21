@@ -216,7 +216,7 @@ export type AccessItem = {
 
 export type Attachment = { name: string; url: string; addedAt: string; addedBy: string };
 export type ClientFile = Attachment & { id: string; category: "Access" | "Logo" | "Photos" | "Project images" | "Brand" | "Contract" | "Report" | "Other" };
-export type ClientCost = { id: string; label: string; amount: number; month: string; recurring: boolean };
+export type ClientCost = { id: string; label: string; amount: number; /** Missing means the main currency. */ currency?: string; /** The month it was added, or the first month if it repeats. */ month: string; recurring: boolean };
 
 /** "Done" means the post was already made or scheduled before the idea was added here. */
 export type IdeaDecision = "New" | "Approved" | "Maybe" | "Rejected" | "Done";
@@ -470,7 +470,7 @@ export type Freelancer = Person & {
 export type Invoice = { clientId: string; month: string; status: "Not sent" | "Sent" | "Paid"; date: string };
 /** A freelancer payment. The amount is in the currency it was paid in. */
 export type Payout = { clientId: string; month: string; status: "Paid"; date: string; amount?: number; currency?: string };
-export type FixedCost = { id: string; label: string; amount: number; category: string };
+export type FixedCost = { id: string; label: string; amount: number; currency?: string; category: string; /** Missing means monthly. */ frequency?: "monthly" | "one-time"; /** The month a one-time cost belongs to. */ month?: string };
 
 export type Notice = {
   id: string;

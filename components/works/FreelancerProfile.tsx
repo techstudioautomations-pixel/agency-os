@@ -193,7 +193,7 @@ function SetupChecklist({ person }: { person: Freelancer }) {
 }
 
 // ─── Payments: what we pay, for what, how, and how often. One list: the freelancer, the client and Finance all read it. ───
-function Due({ item, showWho }: { item: Occurrence; showWho: boolean }) {
+function Due({ item, showWho, pay }: { item: Occurrence; showWho: boolean; pay: boolean }) {
   const store = useStore();
   const { state } = store;
   const [currency, setCurrency] = useState(item.fee.currency);
@@ -208,7 +208,9 @@ function Due({ item, showWho }: { item: Occurrence; showWho: boolean }) {
         <span className="text-[12px] text-[#6B6760]">{showWho ? `${item.person.name} · ` : ""}{client?.name ?? item.fee.custom ?? "Not for a client"} · {item.fee.channel}</span>
       </span>
       {item.paid ? (
-        <span className="flex items-center gap-2"><Chip t="green" dot>Paid {money(item.paid.amount, item.paid.currency)}</Chip><button onClick={() => store.unpayOccurrence(item.person.id, item.fee.id, item.month)} className="text-[12px] font-semibold text-[#8B867E] hover:text-[#B83232]">Undo</button></span>
+        <span className="flex items-center gap-2"><Chip t="green" dot>Paid {money(item.paid.amount, item.paid.currency)}</Chip>{pay && <button onClick={() => store.unpayOccurrence(item.person.id, item.fee.id, item.month)} className="text-[12px] font-semibold text-[#8B867E] hover:text-[#B83232]">Undo</button>}</span>
+      ) : !pay ? (
+        <span className="flex items-center gap-2">{item.date < today ? <Chip t="red">Due</Chip> : <Chip t="grey">To pay</Chip>}<b className="text-[13px]">{money(item.fee.amount, item.fee.currency)}</b></span>
       ) : (
         <span className="flex items-center gap-1.5">
           {item.date < today && <Chip t="red">Due</Chip>}
@@ -220,7 +222,7 @@ function Due({ item, showWho }: { item: Occurrence; showWho: boolean }) {
   );
 }
 
-export function PaymentsPanel({ person, client, month }: { person?: Freelancer; client?: Client; month?: string }) {
+export function PaymentsPanel({ person, client, month, edit = true, pay = true }: { person?: Freelancer; client?: Client; month?: string; edit?: boolean; pay?: boolean }) {
   const store = useStore();
   const { state } = store;
   const owner = isOwner(state);
@@ -254,13 +256,13 @@ export function PaymentsPanel({ person, client, month }: { person?: Freelancer; 
           {schedule.map((entry) => (
             <div key={entry.month}>
               <div className="mb-1 text-[12px] font-bold uppercase tracking-wide text-[#8B867E]">{monthName(entry.month)}</div>
-              <ul className="divide-y divide-[#F3F1ED] rounded-xl border border-[#F0EEE9]">{entry.items.map((item) => <Due key={`${item.fee.id}-${item.month}`} item={item} showWho={!person} />)}</ul>
+              <ul className="divide-y divide-[#F3F1ED] rounded-xl border border-[#F0EEE9]">{entry.items.map((item) => <Due key={`${item.fee.id}-${item.month}`} item={item} showWho={!person} pay={pay} />)}</ul>
             </div>
           ))}
         </div>
       ) : <p className="mb-4 text-[13px] text-[#8B867E]">No payments set up yet. Add the first one below.</p>}
 
-      {definitions.length > 0 && (
+      {edit && definitions.length > 0 && (
         <details className="mb-4 rounded-xl border border-[#F0EEE9] px-3.5 py-2.5">
           <summary className="cursor-pointer text-[13px] font-bold">Set up ({definitions.length})</summary>
           <ul className="mt-2 divide-y divide-[#F3F1ED]">
@@ -275,7 +277,8 @@ export function PaymentsPanel({ person, client, month }: { person?: Freelancer; 
         </details>
       )}
 
-      <form onSubmit={submit} className="space-y-2.5 rounded-xl bg-[#F8F7F4] p-3.5">
+      {!edit && <p className="rounded-xl bg-[#F8F7F4] px-3.5 py-2.5 text-[12px] text-[#6B6760]">To add or change a payment, open the client and go to its Finance tab. Marking them paid is done in Finance.</p>}
+      {edit && <form onSubmit={submit} className="space-y-2.5 rounded-xl bg-[#F8F7F4] p-3.5">
         <div className="text-[12px] font-bold text-[#55514B]">Add a payment</div>
         {!person && (
           <select value={form.personId || options[0]?.id || ""} onChange={(event) => setForm({ ...form, personId: event.target.value, currency: "" })} aria-label="Which freelancer" className={`${smallInput} w-full font-semibold`}>
@@ -303,7 +306,7 @@ export function PaymentsPanel({ person, client, month }: { person?: Freelancer; 
           <label className="flex items-center gap-1.5 text-[12px] font-semibold text-[#55514B]">{form.frequency === "monthly" ? "First paid on" : "Paid on"}<input type="date" value={form.date} onChange={(event) => setForm({ ...form, date: event.target.value })} aria-label="Date" className={smallInput} /></label>
           <Button type="submit" kind="primary" size="sm" className="ml-auto" disabled={!chosen}><Plus size={13} />Add payment</Button>
         </div>
-      </form>
+      </form>}
     </Card>
   );
 }
@@ -463,7 +466,7 @@ function TeamProfile({ person }: { person: Freelancer }) {
         </div>
       )}
       {tab === "setup" && (hired || person.status === "Paused") && <SetupChecklist person={person} />}
-      {tab === "payments" && owner && <PaymentsPanel person={person} />}
+      {tab === "payments" && owner && <PaymentsPanel person={person} edit={false} pay={false} />}
       {(tab === "overview" || !(hired || person.status === "Paused")) && (
       <div className="grid gap-5 xl:grid-cols-[1.2fr_.8fr]">
         <div className="min-w-0 space-y-5">

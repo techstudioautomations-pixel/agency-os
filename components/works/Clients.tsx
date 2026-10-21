@@ -3,7 +3,7 @@
 import { useState, type ReactNode } from "react";
 import { ArrowRight, Check, ChevronDown, ExternalLink, FileText, FolderOpen, KeyRound, Link2, Pencil, Plus, ShieldAlert, Sparkles, Trash2, X } from "lucide-react";
 import { useStore } from "@/lib/works/store";
-import { periodName, agreedFor, areaLabel, qaGroups, canBeAssigned, clientPayStatus, clientTeam, worksOn, reportIn, isHired, approx, clientCurrency, currencies, freelancerCostBase, freelancerCurrency, incomeBase, firstMonthOf, gate, isFirstMonth, isFreelancer, isMarketing, isOwner, missing, money, monthName, monthlyAreas, nameOf, personById, progress, shiftMonth, shortDate, todayIso } from "@/lib/works/logic";
+import { periodName, toBase, agreedFor, areaLabel, qaGroups, canBeAssigned, clientCostsBase, clientCostsIn, clientTeam, worksOn, reportIn, isHired, approx, clientCurrency, currencies, freelancerCostBase, freelancerCurrency, incomeBase, firstMonthOf, gate, isFirstMonth, isFreelancer, isMarketing, isOwner, missing, money, monthName, monthlyAreas, nameOf, personById, progress, shiftMonth, shortDate, todayIso } from "@/lib/works/logic";
 import type { AccessItem, ApprovalMode, Client, ClientFile, Freelancer } from "@/lib/works/types";
 import { Shell } from "./Shell";
 import { GateBanner } from "./Checklist";
@@ -425,68 +425,77 @@ function Reporting({ client }: { client: Client }) {
   );
 }
 
-// ─── Finance (owners) ───
+// ─── Finance (owners): the one place to add and change what a client costs ───
 function ClientFinance({ client }: { client: Client }) {
-  const { state, updateClient, setInvoice, payFreelancer, addCost, removeCost } = useStore();
-  const [cost, setCost] = useState({ label: "", amount: "", recurring: false });
+  const { state, updateClient, setInvoice, addCost, removeCost } = useStore();
   const cur = state.settings.currency;
-  const invoice = state.invoices.find((item) => item.clientId === client.id && item.month === state.month);
-  const paidOut = state.payouts.some((item) => item.clientId === client.id && item.month === state.month);
-  const costs = client.costs.filter((item) => (item.recurring ? item.month <= state.month : item.month === state.month));
-  const extra = costs.reduce((sum, item) => sum + item.amount, 0);
+  const month = state.month;
+  const [cost, setCost] = useState({ label: "", amount: "", currency: cur, recurring: false });
+  const invoice = state.invoices.find((item) => item.clientId === client.id && item.month === month);
+  const active = new Set(clientCostsIn(client, month).map((item) => item.id));
+  const extra = clientCostsBase(state, client, month);
   const income = incomeBase(state, client);
-  const freelance = freelancerCostBase(state, client);
+  const freelance = freelancerCostBase(state, client, month);
   const margin = income - freelance - extra;
   const feeCur = clientCurrency(state, client);
-  const payCur = freelancerCurrency(state, client);
-  const payout = state.payouts.find((item) => item.clientId === client.id && item.month === state.month);
-  const ps = clientPayStatus(state, client);
-  const hasFees = ps.has;
+  const tiles: [string, number, string, string, string][] = [
+    ["Income", income, "#EAF1FD", "#1F5BC4", "What the client pays this month"],
+    ["Freelancers", freelance, "#FFF3D9", "#94600A", "From the payments below"],
+    ["Other costs", extra, "#FFF3D9", "#94600A", "From the costs below"],
+    ["Margin", margin, margin >= 0 ? "#E7F6EE" : "#FDECEC", margin >= 0 ? "#17804A" : "#B83232", income ? `${Math.round((margin / income) * 100)}% of the income` : ""],
+  ];
   return (
     <div className="space-y-5">
+      <p className="max-w-[80ch] text-[13px] text-[#6B6760]">Everything for this client is added here: what it pays, what we pay the freelancers, and any other cost. Finance and the freelancers&apos; pages show it, and nothing is entered twice.</p>
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        {[["Income", money(income, cur), "#EAF1FD", "#1F5BC4"], ["Freelancer", money(freelance, cur), "#FFF3D9", "#94600A"], ["Other costs", money(extra, cur), "#FFF3D9", "#94600A"], ["Margin", money(margin, cur), "#E7F6EE", "#17804A"]].map(([label, value, bg, ink]) => (
-          <div key={label} className="rounded-2xl p-4" style={{ background: bg }}><div className="text-[12px] font-bold" style={{ color: ink }}>{label}</div><div className="mt-1 text-[24px] font-extrabold" style={{ color: ink }}>{value}</div></div>
+        {tiles.map(([label, value, bg, ink, note]) => (
+          <div key={label} className="rounded-2xl p-4" style={{ background: bg }}><div className="text-[12px] font-bold" style={{ color: ink }}>{label}</div><div className="mt-1 text-[24px] font-extrabold" style={{ color: ink }}>{money(value, cur)}</div><div className="text-[11px] font-semibold text-[#6B6760]">{note}</div></div>
         ))}
       </div>
-      <div className="grid gap-5 xl:grid-cols-2">
-        <Card>
-          <CardHead title="Agreed amounts" sub="Changes update Finance straight away. Clients and freelancers never see this." />
-          <div className="grid gap-3 sm:grid-cols-3">
-            <Field label={`Monthly fee · ${feeCur}`}><input type="number" min={0} value={client.fee} onChange={(event) => updateClient(client.id, { fee: Number(event.target.value) })} className={fieldClass} /></Field>
-            <Field label={`Add-ons · ${feeCur}`}><input type="number" min={0} value={client.addOnFee} onChange={(event) => updateClient(client.id, { addOnFee: Number(event.target.value) })} className={fieldClass} /></Field>
-            {hasFees ? <div className="rounded-xl bg-[#F8F7F4] p-3 text-[12px] text-[#6B6760]"><div className="font-semibold text-[#1E2430]">Freelancer</div>Set by the payments below.</div> : <Field label={`Freelancer · ${payCur}`}><input type="number" min={0} value={client.freelancerFee} onChange={(event) => updateClient(client.id, { freelancerFee: Number(event.target.value) })} className={fieldClass} /></Field>}
+
+      <Card>
+        <CardHead title="What the client pays" sub="Clients and freelancers never see this." />
+        <div className="grid gap-3 sm:grid-cols-4">
+          <Field label={`Monthly fee · ${feeCur}`}><input type="number" min={0} value={client.fee} onChange={(event) => updateClient(client.id, { fee: Number(event.target.value) })} className={fieldClass} /></Field>
+          <Field label={`Add-ons · ${feeCur}`}><input type="number" min={0} value={client.addOnFee} onChange={(event) => updateClient(client.id, { addOnFee: Number(event.target.value) })} className={fieldClass} /></Field>
+          <Field label="Currency" hint={approx(state, client.fee + client.addOnFee, feeCur) ? `${approx(state, client.fee + client.addOnFee, feeCur).replace("≈ ", "About ")} at the rate in Settings.` : undefined}><select value={feeCur} onChange={(event) => updateClient(client.id, { currency: event.target.value })} className={fieldClass}>{currencies.map((item) => <option key={item}>{item}</option>)}</select></Field>
+          <Field label={`${monthName(month)} invoice`}><Segmented size="sm" value={invoice?.status ?? "Not sent"} onChange={(status) => setInvoice(client.id, status)} options={[{ value: "Not sent", label: "Not sent" }, { value: "Sent", label: "Sent" }, { value: "Paid", label: "Paid" }]} /></Field>
+        </div>
+      </Card>
+
+      <PaymentsPanel client={client} month={month} />
+
+      <Card>
+        <CardHead title="Other costs on this client" sub="Stock, ads, printing, anything else. Choose monthly if it repeats." />
+        {client.costs.length > 0 ? (
+          <div className="mb-4 overflow-x-auto rounded-xl border border-[#F0EEE9]">
+            <table className="w-full min-w-[520px] text-left text-[13px]">
+              <thead><tr className="bg-[#FBFAF8] text-[11px] font-bold uppercase tracking-wide text-[#8B867E]"><th className="px-3.5 py-2">What</th><th className="px-3">When</th><th className="px-3 text-right">Amount</th><th className="px-3 text-right">In {cur}</th><th className="w-8" /></tr></thead>
+              <tbody>
+                {[...client.costs].sort((a, b) => a.month.localeCompare(b.month)).map((item) => {
+                  const itemCur = item.currency ?? cur;
+                  return (
+                    <tr key={item.id} className={`border-t border-[#F5F3EF] ${active.has(item.id) ? "" : "text-[#9A958D]"}`}>
+                      <td className="px-3.5 py-2.5 font-semibold">{item.label}</td>
+                      <td className="px-3 text-[12px]">{item.recurring ? <>Monthly from {monthName(item.month)}</> : <>One time · {monthName(item.month)}</>}{!active.has(item.id) && <span className="ml-1.5">· not this month</span>}</td>
+                      <td className="px-3 text-right font-bold">{money(item.amount, itemCur)}</td>
+                      <td className="px-3 text-right">{itemCur === cur ? <span className="text-[#B5B0A8]">—</span> : money(toBase(state, item.amount, itemCur), cur)}</td>
+                      <td className="pr-3 text-right"><button onClick={() => removeCost(client.id, item.id)} aria-label={`Remove ${item.label}`} className="text-[#B5B0A8] hover:text-[#B83232]"><Trash2 size={14} /></button></td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
-          <div className="mt-3 grid gap-3 sm:grid-cols-2">
-            <Field label="The client pays in" hint={approx(state, client.fee + client.addOnFee, feeCur) ? `${money(client.fee + client.addOnFee, feeCur)} is ${approx(state, client.fee + client.addOnFee, feeCur).replace("≈ ", "about ")} at the rate in Settings.` : "Same as the main currency."}><select value={feeCur} onChange={(event) => updateClient(client.id, { currency: event.target.value })} className={fieldClass}>{currencies.map((item) => <option key={item}>{item}</option>)}</select></Field>
-            <Field label="We pay the freelancer in" hint={client.freelancerId && approx(state, client.freelancerFee, payCur) ? `${money(client.freelancerFee, payCur)} is ${approx(state, client.freelancerFee, payCur).replace("≈ ", "about ")}.` : "Their own currency by default."}><select value={payCur} onChange={(event) => updateClient(client.id, { freelancerCurrency: event.target.value })} className={fieldClass}>{currencies.map((item) => <option key={item}>{item}</option>)}</select></Field>
-          </div>
-          <div className="mt-4 space-y-2">
-            <div className="flex flex-wrap items-center gap-3 rounded-xl bg-[#F8F7F4] p-3"><span className="flex-1 text-[13px] font-semibold">{monthName(state.month)} invoice</span><Segmented size="sm" value={invoice?.status ?? "Not sent"} onChange={(status) => setInvoice(client.id, status)} options={[{ value: "Not sent", label: "Not sent" }, { value: "Sent", label: "Sent" }, { value: "Paid", label: "Paid" }]} /></div>
-            <div className="flex flex-wrap items-center gap-3 rounded-xl bg-[#F8F7F4] p-3"><span className="flex-1 text-[13px] font-semibold">Pay {clientTeam(client).map((id) => nameOf(state, id)).join(", ") || "the freelancer"}</span>{!client.freelancerId && !ps.has ? <Chip>No freelancer</Chip> : ps.has && ps.due.length === 0 ? <Chip>Nothing due</Chip> : (ps.has ? ps.open.length === 0 : paidOut) ? <Chip t="green" dot>Paid{!ps.has && payout?.amount ? ` ${money(payout.amount, payout.currency ?? cur)}` : ""}</Chip> : invoice?.status === "Paid" ? <PayButton client={client} label="Mark paid" /> : <Chip t="amber">After the client pays</Chip>}</div>
-          </div>
-        </Card>
-        <PaymentsPanel client={client} />
-        <Card>
-          <CardHead title="Costs on this client" sub="Stock, ads, printing, extra freelance work… They also show in Finance." />
-          <ul className="space-y-1.5">
-            {costs.map((item) => (
-              <li key={item.id} className="flex items-center gap-2 rounded-xl bg-[#F8F7F4] px-3 py-2 text-[13px]">
-                <span className="flex-1 font-semibold">{item.label}{item.recurring && <span className="ml-1.5 text-[11px] font-normal text-[#8B867E]">monthly</span>}</span>
-                <b>{money(item.amount, cur)}</b>
-                <button onClick={() => removeCost(client.id, item.id)} aria-label={`Remove ${item.label}`} className="text-[#B5B0A8] hover:text-[#B83232]"><Trash2 size={14} /></button>
-              </li>
-            ))}
-            {costs.length === 0 && <li className="text-[13px] text-[#8B867E]">No costs this month.</li>}
-          </ul>
-          <form onSubmit={(event) => { event.preventDefault(); const amount = Number(cost.amount); if (!cost.label.trim() || !(amount > 0)) return; addCost(client.id, { label: cost.label.trim(), amount, recurring: cost.recurring }); setCost({ label: "", amount: "", recurring: false }); }} className="mt-3 flex flex-wrap items-center gap-2">
-            <input value={cost.label} onChange={(event) => setCost({ ...cost, label: event.target.value })} placeholder="What for" aria-label="Cost description" className="min-w-[140px] flex-1 rounded-xl border border-[#E2DED7] px-3 py-2 text-[13px]" />
-            <input type="number" min={0} value={cost.amount} onChange={(event) => setCost({ ...cost, amount: event.target.value })} placeholder={cur} aria-label="Amount" className="w-24 rounded-xl border border-[#E2DED7] px-3 py-2 text-[13px]" />
-            <label className="flex items-center gap-1.5 text-[12px] font-semibold"><input type="checkbox" checked={cost.recurring} onChange={(event) => setCost({ ...cost, recurring: event.target.checked })} />Monthly</label>
-            <Button type="submit" kind="primary" size="sm"><Plus size={13} />Add cost</Button>
-          </form>
-        </Card>
-      </div>
+        ) : <p className="mb-4 text-[13px] text-[#8B867E]">No other costs yet.</p>}
+        <form onSubmit={(event) => { event.preventDefault(); const amount = Number(cost.amount); if (!cost.label.trim() || !(amount > 0)) return; addCost(client.id, { label: cost.label.trim(), amount, currency: cost.currency, recurring: cost.recurring }); setCost({ ...cost, label: "", amount: "" }); }} className="flex flex-wrap items-center gap-2 rounded-xl bg-[#F8F7F4] p-3">
+          <input value={cost.label} onChange={(event) => setCost({ ...cost, label: event.target.value })} placeholder="What for" aria-label="Cost description" className="min-w-[160px] flex-1 rounded-xl border border-[#E2DED7] bg-white px-3 py-2 text-[13px]" />
+          <input type="number" min={0} value={cost.amount} onChange={(event) => setCost({ ...cost, amount: event.target.value })} placeholder="Amount" aria-label="Amount" className="w-28 rounded-xl border border-[#E2DED7] bg-white px-3 py-2 text-[13px]" />
+          <select value={cost.currency} onChange={(event) => setCost({ ...cost, currency: event.target.value })} aria-label="Currency" className="rounded-xl border border-[#E2DED7] bg-white px-2 py-2 text-[13px] font-bold">{currencies.map((item) => <option key={item}>{item}</option>)}</select>
+          <label className="flex items-center gap-1.5 text-[12px] font-semibold"><input type="checkbox" checked={cost.recurring} onChange={(event) => setCost({ ...cost, recurring: event.target.checked })} />Monthly</label>
+          <Button type="submit" kind="primary" size="sm"><Plus size={13} />Add cost</Button>
+        </form>
+      </Card>
     </div>
   );
 }

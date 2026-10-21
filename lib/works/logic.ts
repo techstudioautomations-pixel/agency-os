@@ -45,6 +45,13 @@ export const clientPayStatus = (state: State, client: Client, month = state.mont
   const due = clientOccurrences(state, client, month);
   return { has, due, open: due.filter((item) => !item.paid) };
 };
+/** Costs on a client that count in a month: monthly ones from the month they were added, one-time ones in their own month. */
+export const clientCostsIn = (client: Client, month: string) => client.costs.filter((item) => (item.recurring ? item.month <= month : item.month === month));
+export const clientCostsBase = (state: State, client: Client, month = state.month) => clientCostsIn(client, month).reduce((sum, item) => sum + toBase(state, item.amount, item.currency), 0);
+/** Agency running costs that count in a month. */
+export const fixedCostsIn = (state: State, month: string) => state.fixedCosts.filter((item) => (item.frequency ?? "monthly") === "monthly" || item.month === month);
+export const fixedCostsBase = (state: State, month = state.month) => fixedCostsIn(state, month).reduce((sum, item) => sum + toBase(state, item.amount, item.currency), 0);
+
 /** "≈ €645" when an amount is not in the main currency, otherwise nothing. */
 export const approx = (state: State, amount: number, currency: string) => (currency === state.settings.currency ? "" : `≈ ${money(toBase(state, amount, currency), state.settings.currency)}`);
 

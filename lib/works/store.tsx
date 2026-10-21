@@ -256,7 +256,7 @@ function useStoreValue() {
         ping("Added");
       },
       removeFile: (clientId: string, id: string) => update((d) => { const client = d.clients.find((c) => c.id === clientId)!; client.files = client.files.filter((item) => item.id !== id); }),
-      addCost: (clientId: string, cost: { label: string; amount: number; recurring: boolean }) => {
+      addCost: (clientId: string, cost: { label: string; amount: number; currency?: string; recurring: boolean }) => {
         update((d) => { d.clients.find((c) => c.id === clientId)!.costs.push({ ...cost, id: uid("cost"), month: d.month }); });
         ping("Cost added. It also shows in Finance.");
       },
