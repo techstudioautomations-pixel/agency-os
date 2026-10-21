@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Check, ChevronLeft, ChevronRight, Download, ExternalLink, Maximize2, Pencil, ShieldCheck, Trash2, UploadCloud, X } from "lucide-react";
 import { useStore } from "@/lib/works/store";
-import { ago, isFreelancer, isOwner, nameOf, personById, qaGroups, qaItemsFor, qaProgress, reviewerFor, shortDate, stageOf, stages, turnOf } from "@/lib/works/logic";
+import { worksOn, ago, isFreelancer, isOwner, nameOf, personById, qaGroups, qaItemsFor, qaProgress, reviewerFor, shortDate, stageOf, stages, turnOf } from "@/lib/works/logic";
 import type { Client, Post, PostFile, RevisionCategory } from "@/lib/works/types";
 import { buildZip, safeName } from "@/lib/zip";
 import { PostArt } from "./PostArt";
@@ -27,8 +27,8 @@ export function PostReview({ post, client, backScope }: { post: Post; client: Cl
   const turn = turnOf(state, post);
   const mine = turn.who === state.me;
   const freelancerView = isFreelancer(state);
-  const canEdit = isOwner(state) || (state.me === client.freelancerId && post.status !== "Published") || (!client.freelancerId && !freelancerView);
-  const isMaker = state.me === client.freelancerId;
+  const canEdit = isOwner(state) || (worksOn(client, state.me) && post.status !== "Published") || (!client.freelancerId && !freelancerView);
+  const isMaker = worksOn(client, state.me);
   const [editing, setEditing] = useState(() => isMaker && post.status === "Copy in progress" && !post.copy.trim());
   useEffect(() => { window.scrollTo(0, 0); }, [post.id]);
   const status = statusTone(post);
@@ -351,7 +351,7 @@ function Conversation({ post, client, mine }: { post: Post; client: Client; mine
   const end = useRef<HTMLDivElement>(null);
   const reviewer = reviewerFor(state, client, post);
   const isReviewer = state.me === reviewer || isOwner(state);
-  const isMaker = state.me === client.freelancerId || (!client.freelancerId && !isFreelancer(state));
+  const isMaker = worksOn(client, state.me) || (!client.freelancerId && !isFreelancer(state));
   const reviewing = post.status === "Copy review" || post.status === "Design review";
   const working = post.status === "Copy in progress" || post.status === "Design in progress";
   const openChanges = post.comments.filter((comment) => comment.kind === "change" && !comment.resolved).length;

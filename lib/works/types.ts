@@ -74,9 +74,9 @@ export type Client = {
   /** Manual ticks on the monthly checklists: month, then step id, then the date it was ticked. */
   monthDone: Record<string, Record<string, string>>;
   /** An uploaded document for each part of the starter pack. A link goes in links instead. */
-  packFiles?: Partial<Record<"brand" | "brain" | "templates", { name: string; url: string }>>;
+  packFiles?: Partial<Record<"brand" | "brain" | "templates" | "questionnaire", { name: string; url: string }>>;
   /** What the freelancer starter pack says, in words, so it can be read in the app. */
-  packNotes: { brand: string; brain: string; templates: string };
+  packNotes: { brand: string; brain: string; templates: string; questionnaire?: string };
   name: string;
   color: string;
   logo?: string;
@@ -99,7 +99,10 @@ export type Client = {
   expertReviewer: string;
   ownerId: string;
   opsId: string;
+  /** The lead freelancer. Kept equal to the first person in `team`. */
   freelancerId?: string;
+  /** Everyone working on this client, each with what they do, for example SEO. */
+  team?: { id: string; role: string }[];
   /** What the client pays in. Missing means the main currency in Settings. */
   currency?: string;
   /** What we pay the freelancer in for this client. Missing means the freelancer's own currency. */
@@ -110,7 +113,7 @@ export type Client = {
   agreedPosts: number;
   platforms: string[];
   startDate: string;
-  links: { drive: string; canva: string; publer: string; chat: string; brandKit: string; guide?: string; brain?: string };
+  links: { drive: string; canva: string; publer: string; chat: string; brandKit: string; guide?: string; brain?: string; questionnaire?: string };
   checklist: CheckItem[];
   strategy: Strategy;
   /** Light time tracking: hours per month per role. */
@@ -212,7 +215,7 @@ export type AccessItem = {
 };
 
 export type Attachment = { name: string; url: string; addedAt: string; addedBy: string };
-export type ClientFile = Attachment & { id: string; category: "Brand" | "Contract" | "Report" | "Photos" | "Other" };
+export type ClientFile = Attachment & { id: string; category: "Access" | "Logo" | "Photos" | "Project images" | "Brand" | "Contract" | "Report" | "Other" };
 export type ClientCost = { id: string; label: string; amount: number; month: string; recurring: boolean };
 
 /** "Done" means the post was already made or scheduled before the idea was added here. */
@@ -378,6 +381,8 @@ export type MonthReport = {
   reportLink: string;
   /** The freelancer's month-end report, as a file or link. */
   freelancerReport?: Attachment;
+  /** More files from the freelancer for the month: extra reports, screenshots, anything that belongs with it. */
+  freelancerReports?: Attachment[];
   /** The report we send the client. */
   clientReport?: Attachment;
   financeReport?: Attachment;
@@ -420,6 +425,8 @@ export type FreelancerFee = {
   /** How we pay: Revolut, bank transfer, PayPal… */
   channel: string;
   frequency: "one-time" | "monthly";
+  /** Months it has been paid, with what was paid and in which currency. */
+  paid?: Record<string, { date: string; amount: number; currency: string }>;
   /** The day it is paid. For a monthly payment, the first one; it then repeats on that day. */
   date: string;
 };

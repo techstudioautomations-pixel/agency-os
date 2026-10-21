@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { ArrowRight, BarChart3, CheckCircle2, ChevronDown, Lightbulb, Plus, Send } from "lucide-react";
 import { useStore } from "@/lib/works/store";
-import { agreedFor, canBeAssigned, isHired, gate, inReview, isFreelancer, isMarketing, me, monthName, monthlyAreas, myClients, personById, progress, shiftMonth, todayIso, turnOf } from "@/lib/works/logic";
+import { worksOn, agreedFor, canBeAssigned, isHired, gate, inReview, isFreelancer, isMarketing, me, monthName, monthlyAreas, myClients, personById, progress, shiftMonth, todayIso, turnOf } from "@/lib/works/logic";
 import type { Post } from "@/lib/works/types";
 import { Shell } from "./Shell";
 import { ExtraAlert } from "./ExtraWork";
@@ -212,7 +212,7 @@ export function Today() {
             </div>
             <div className="overflow-hidden rounded-2xl border border-[#E9E6E0] bg-white">
               {state.freelancers.filter(isHired).map((item) => {
-                const accounts = state.clients.filter((client) => client.freelancerId === item.id);
+                const accounts = state.clients.filter((client) => worksOn(client, item.id));
                 return (
                   <button key={item.id} onClick={() => go({ view: "freelancers", freelancerId: item.id })} className="flex w-full flex-wrap items-center gap-3 border-b border-[#F5F3EF] px-4 py-3 text-left last:border-0 hover:bg-[#FBFAF8]">
                     <Avatar name={item.name} color={item.color} photo={item.photo} size={34} />

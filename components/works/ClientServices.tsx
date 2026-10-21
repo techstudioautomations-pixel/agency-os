@@ -7,7 +7,7 @@ import { assetUsage, money, monthName, packageOf, shortDate } from "@/lib/works/
 import { packageAssets } from "@/lib/works/seed";
 import { clientColors, fileToLogo } from "@/lib/works/image";
 import type { Client, ClientAsset } from "@/lib/works/types";
-import { canBeAssigned, nameOf } from "@/lib/works/logic";
+import { isHired, nameOf, worksOn } from "@/lib/works/logic";
 import { PostArt } from "./PostArt";
 import { Bar, Button, Card, CardHead, Chip, ClientMark, Empty, Field, fieldClass, tone } from "./kit";
 
@@ -17,7 +17,7 @@ const formats = ["Single image", "Carousel", "Text post", "Video", "Newsletter",
 export function ServicesCard({ client }: { client: Client }) {
   const { state, updateClient, setClientAssets, addClientAsset, updateClientAsset } = useStore();
   const [assigning, setAssigning] = useState("");
-  const people = state.freelancers.filter((person) => canBeAssigned(state, person));
+  const people = state.freelancers.filter(isHired);
   const { settings } = state;
   const [editing, setEditing] = useState(false);
   const [pick, setPick] = useState("");
@@ -79,7 +79,7 @@ export function ServicesCard({ client }: { client: Client }) {
                     <Field label="Freelancer">
                       <select value={asset.assignedTo ?? ""} onChange={(event) => updateClientAsset(client.id, asset.id, { assignedTo: event.target.value || undefined, active: true })} className={fieldClass}>
                         <option value="">Nobody yet</option>
-                        {people.map((person) => <option key={person.id} value={person.id}>{person.name}{person.id === client.freelancerId ? " (on this account)" : ""}</option>)}
+                        {people.map((person) => <option key={person.id} value={person.id}>{person.name}{worksOn(client, person.id) ? " (on this account)" : ""}</option>)}
                       </select>
                     </Field>
                     <Field label="Due"><input type="date" value={asset.due ?? ""} onChange={(event) => updateClientAsset(client.id, asset.id, { due: event.target.value || undefined })} className={fieldClass} /></Field>

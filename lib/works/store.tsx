@@ -3,7 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { launchLogos } from "./logos";
 import { buildClientChecklist, launchClientDrafts, clients as sampleClients, leads as sampleLeads, freelancerChecklistTemplate, makeChecklist, sampleFreelancerIds, defaultAssets, defaultMonthLine, defaultMonthly, defaultPlaybook, defaultSections, newShare, piecesPerMonth, seedState } from "./seed";
-import { canBeAssigned, defaultRates, defaultToolNames, isHired, isPlanAsset, planSlot, monthlyAreas, nameOf, periodName, reviewerFor, todayIso } from "./logic";
+import { canBeAssigned, defaultRates, fromBase, toBase, defaultToolNames, isHired, isPlanAsset, planSlot, monthlyAreas, nameOf, periodName, reviewerFor, todayIso } from "./logic";
 import type { CheckItem, Client, FreelancerFee, ClientAsset, ClientSection, ClientShare, Idea, Lead, MonthReport, NewClientDraft, Notice, Post, PostDraft, ReportNumbers, RevisionCategory, Route, SectionStep, State, ReportPeriod, UpdateItem, WeekReport } from "./types";
 
 const KEY = "theworks-os-v5";
@@ -35,7 +35,7 @@ function makeClient(d: State, id: string, draft: NewClientDraft): Client {
     name: draft.name, color: draft.color, logo: draft.logo, sector: draft.sector, package: pkg?.name ?? "Custom", packageId: pkg?.id, assets: draft.assets,
     sections: sections.map(({ id: sectionId, label, color, blurb }) => ({ id: sectionId, label, color, blurb })),
     share: newShare(id, Date.now() % 1000), stage: "Onboarding", approvalMode: draft.approvalMode, mainContact: draft.mainContact, approver: draft.approver, billingContact: draft.billingContact,
-    channel: "Google Chat", expertReviewer: "", ownerId: "maria", opsId: "niamh", freelancerId: draft.freelancerId, freelancerFee: 0, fee: draft.fee, addOnFee: draft.addOnFee,
+    channel: "Google Chat", expertReviewer: "", ownerId: "maria", opsId: "niamh", freelancerId: draft.freelancerId, team: draft.freelancerId ? [{ id: draft.freelancerId, role: "" }] : [], freelancerFee: 0, fee: draft.fee, addOnFee: draft.addOnFee,
     agreedPosts: marketing ? piecesPerMonth(draft.assets) : 0, platforms: marketing ? (draft.platforms?.length ? draft.platforms : ["LinkedIn"]) : [], currency: draft.currency, startDate: draft.startDate || todayIso(), links: { drive: "", canva: "", publer: "", chat: "", brandKit: "", guide: "", brain: "" }, checklist,
     strategy: { offer: "", services: "", personas: [], pillars: [], tone: "", avoid: "", claims: "", approved: false }, hours: {}, planApproval: {}, access: [], files: [], costs: [],
   };
@@ -78,7 +78,7 @@ function migrate(saved: State): State {
     updates: saved.updates ?? [],
     posts: keep(saved.posts),
     settings: { ...saved.settings, assets: [...saved.settings.assets, ...defaultAssets.filter((asset) => !saved.settings.assets.some((item) => item.id === asset.id))], sections, monthly: saved.settings.monthly ?? defaultMonthly(), monthLine: saved.settings.monthLine ?? defaultMonthLine(saved.settings.dates), rates: { ...defaultRates, ...saved.settings.rates } },
-    clients: (fresh ? saved.clients.filter((client) => !sampleIds.has(client.id)) : saved.clients).map((client) => ({ ...client, area: client.area ?? "marketing", setupPosts: client.setupPosts ?? 2, monthDone: client.monthDone ?? {}, packNotes: client.packNotes ?? { brand: "", brain: "", templates: "" } })),
+    clients: (fresh ? saved.clients.filter((client) => !sampleIds.has(client.id)) : saved.clients).map((client) => ({ ...client, team: client.team ?? (client.freelancerId ? [{ id: client.freelancerId, role: "" }] : []), area: client.area ?? "marketing", setupPosts: client.setupPosts ?? 2, monthDone: client.monthDone ?? {}, packNotes: client.packNotes ?? { brand: "", brain: "", templates: "" } })),
   };
   // The first four clients are added once. Clients added by hand are kept, and ones deleted later do not come back.
   if (!saved.launchClientsAdded) {
@@ -294,6 +294,22 @@ function useStoreValue() {
         });
         if (file) ping("Report attached");
       },
+      /** Adds one more file to the freelancer's reports for a month. There can be as many as needed. */
+      addFreelancerReportFile: (clientId: string, month: string, file: { name: string; url: string }) => {
+        update((d) => {
+          let report = d.reports.find((item) => item.clientId === clientId && item.month === month);
+          if (!report) { report = { id: `${clientId}-${month}`, clientId, month, checked: false, summary: "", recommendations: "", approved: false, sentAt: "", reportLink: "" }; d.reports.push(report); }
+          (report.freelancerReports ?? (report.freelancerReports = [])).push({ ...file, addedAt: todayIso(), addedBy: d.me });
+          const client = d.clients.find((c) => c.id === clientId)!;
+          notify(d, client.opsId, `${client.name}: a file was added to the freelancer's report`, { view: "client", clientId, tab: "reporting" });
+        });
+        ping("Added to the reports");
+      },
+      removeFreelancerReportFile: (clientId: string, month: string, index: number) =>
+        update((d) => {
+          const report = d.reports.find((item) => item.clientId === clientId && item.month === month);
+          if (report?.freelancerReports) report.freelancerReports.splice(index, 1);
+        }),
       movePost: (id: string, date: string) => {
         update((d) => {
           const post = d.posts.find((item) => item.id === id)!;
@@ -411,18 +427,55 @@ function useStoreValue() {
           const client = d.clients.find((c) => c.id === clientId)!;
           client.hours[month] = { ...(client.hours[month] ?? { owner: 0, ops: 0, freelancer: 0 }), [role]: value };
         }),
-      assignFreelancer: (clientId: string, freelancerId: string) => {
+      /** Adds a freelancer to a client. A client can have several, each with what they do. The first is the lead. */
+      assignFreelancer: (clientId: string, freelancerId: string, role = "") => {
+        if (!freelancerId) return;
         const candidate = stateRef.current.freelancers.find((item) => item.id === freelancerId);
-        const blocked = Boolean(freelancerId && candidate && !canBeAssigned(stateRef.current, candidate));
-        if (!blocked) update((d) => {
+        const missingPaperwork = Boolean(candidate && !canBeAssigned(stateRef.current, candidate));
+        update((d) => {
           const client = d.clients.find((item) => item.id === clientId)!;
-          client.freelancerId = freelancerId || undefined;
+          const team = client.team ?? (client.team = client.freelancerId ? [{ id: client.freelancerId, role: "" }] : []);
+          if (!team.some((member) => member.id === freelancerId)) team.push({ id: freelancerId, role });
+          client.freelancerId = team[0]?.id;
           const item = client.checklist.find((entry) => entry.label === "Freelancer assigned");
-          if (item) { item.status = freelancerId ? "Received" : "Not asked"; item.date = freelancerId ? todayIso() : ""; }
-          if (freelancerId) notify(d, freelancerId, `You have been assigned to ${client.name}`, { view: "marketing", clientId });
+          if (item) { item.status = "Received"; item.date = todayIso(); }
+          notify(d, freelancerId, `You have been assigned to ${client.name}${role ? ` for ${role}` : ""}`, { view: "marketing", clientId });
         });
-        ping(blocked ? "Blocked: NDA and contract must be signed first" : freelancerId ? "Freelancer assigned and notified" : "Freelancer removed");
+        ping(missingPaperwork ? "Assigned and notified. Their NDA or contract is not signed yet." : "Freelancer assigned and notified");
       },
+      unassignFreelancer: (clientId: string, freelancerId: string) => {
+        update((d) => {
+          const client = d.clients.find((item) => item.id === clientId)!;
+          client.team = (client.team ?? []).filter((member) => member.id !== freelancerId);
+          if (client.freelancerId === freelancerId) client.freelancerId = client.team[0]?.id;
+          const item = client.checklist.find((entry) => entry.label === "Freelancer assigned");
+          if (item && client.team.length === 0) { item.status = "Not asked"; item.date = ""; }
+        });
+        ping("Freelancer taken off this client");
+      },
+      setTeamRole: (clientId: string, freelancerId: string, role: string) =>
+        update((d) => {
+          const member = d.clients.find((item) => item.id === clientId)!.team?.find((entry) => entry.id === freelancerId);
+          if (member) member.role = role;
+        }),
+      /** Marks payments as paid for a month, in the currency they were actually paid in. */
+      payOccurrences: (items: { personId: string; feeId: string; month: string }[], currency: string) => {
+        update((d) => {
+          for (const { personId, feeId, month } of items) {
+            const fee = d.freelancers.find((person) => person.id === personId)?.fees.find((entry) => entry.id === feeId);
+            if (!fee) continue;
+            const inBase = toBase(d, fee.amount, fee.currency);
+            const amount = Math.round(fromBase(d, inBase, currency) * 100) / 100;
+            (fee.paid ?? (fee.paid = {}))[month] = { date: todayIso(), amount, currency };
+          }
+        });
+        ping("Marked as paid");
+      },
+      unpayOccurrence: (personId: string, feeId: string, month: string) =>
+        update((d) => {
+          const fee = d.freelancers.find((person) => person.id === personId)?.fees.find((entry) => entry.id === feeId);
+          if (fee?.paid) delete fee.paid[month];
+        }),
 
       // Ideas
       addIdeas: (clientId: string, items: Pick<Idea, "title" | "notes" | "format">[], source: string) => {

@@ -1,10 +1,10 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import { ArrowRight, Check, ChevronDown, ExternalLink, FileText, FolderOpen, KeyRound, Link2, Pencil, Plus, ShieldAlert, Sparkles, Trash2 } from "lucide-react";
+import { ArrowRight, Check, ChevronDown, ExternalLink, FileText, FolderOpen, KeyRound, Link2, Pencil, Plus, ShieldAlert, Sparkles, Trash2, X } from "lucide-react";
 import { useStore } from "@/lib/works/store";
-import { agreedFor, areaLabel, qaGroups, canBeAssigned, reportIn, isHired, approx, clientCurrency, currencies, freelancerCostBase, freelancerCurrency, incomeBase, firstMonthOf, gate, isFirstMonth, isFreelancer, isMarketing, isOwner, missing, money, monthName, monthlyAreas, nameOf, personById, progress, shiftMonth, shortDate, todayIso } from "@/lib/works/logic";
-import type { AccessItem, ApprovalMode, Client, ClientFile } from "@/lib/works/types";
+import { periodName, agreedFor, areaLabel, qaGroups, canBeAssigned, clientPayStatus, clientTeam, worksOn, reportIn, isHired, approx, clientCurrency, currencies, freelancerCostBase, freelancerCurrency, incomeBase, firstMonthOf, gate, isFirstMonth, isFreelancer, isMarketing, isOwner, missing, money, monthName, monthlyAreas, nameOf, personById, progress, shiftMonth, shortDate, todayIso } from "@/lib/works/logic";
+import type { AccessItem, ApprovalMode, Client, ClientFile, Freelancer } from "@/lib/works/types";
 import { Shell } from "./Shell";
 import { GateBanner } from "./Checklist";
 import { AreaDetail, AreaGrid, AreaStrip } from "./Areas";
@@ -13,7 +13,8 @@ import { MonthChecklist } from "./Monthly";
 import { StarterPack } from "./StarterPack";
 import { StrategyView } from "./Marketing";
 import { PayButton } from "./Pay";
-import { PaymentsCard } from "./FreelancerProfile";
+import { AccessAssets, ClientFilesTab, StrategyDocs } from "./ClientDocs";
+import { PaymentsPanel } from "./FreelancerProfile";
 import { AttachField, Avatar, Bar, Button, Card, CardHead, Chip, ClientMark, Empty, Field, Light, Ring, Segmented, fieldClass, tone } from "./kit";
 
 export const modeText: Record<ApprovalMode, string> = {
@@ -73,7 +74,7 @@ export function ClientProfile({ clientId, tab, sub }: { clientId: string; tab?: 
     { value: "overview", label: "Overview" },
     { value: "checklists", label: "Checklists", count: missing(client.checklist).filter((item) => !item.soft && !item.detail).length },
     ...(isMarketing(client) ? [{ value: "strategy", label: "Strategy" }] : []),
-    { value: "access", label: "Access" },
+    { value: "access", label: "Access and assets" },
     { value: "reporting", label: "Reporting" },
     { value: "files", label: "Files & links" },
     ...(isMarketing(client) ? [{ value: "share", label: "Client view" }] : []),
@@ -111,10 +112,18 @@ export function ClientProfile({ clientId, tab, sub }: { clientId: string; tab?: 
       </div>
       {current === "overview" && <Overview client={client} />}
       {current === "checklists" && <Checklists client={client} sub={sub} />}
-      {current === "strategy" && isMarketing(client) && <StrategyView client={client} />}
-      {current === "access" && <Access client={client} />}
+      {current === "strategy" && isMarketing(client) && (
+        <div className="space-y-6">
+          <StrategyDocs client={client} />
+          <details className="rounded-2xl border border-[#E9E6E0] bg-white px-5 py-4">
+            <summary className="cursor-pointer text-[15px] font-bold">Written strategy: offer, personas and pillars</summary>
+            <div className="mt-4"><StrategyView client={client} /></div>
+          </details>
+        </div>
+      )}
+      {current === "access" && <AccessAssets client={client}><Access client={client} /></AccessAssets>}
       {current === "reporting" && <Reporting client={client} />}
-      {current === "files" && <Files client={client} />}
+      {current === "files" && <ClientFilesTab client={client} />}
       {current === "share" && <ClientShare client={client} />}
       {current === "finance" && owner && <ClientFinance client={client} />}
     </Shell>
@@ -133,20 +142,24 @@ function Row({ label, value, editing, children }: { label: string; value: ReactN
 
 function MonthPanel({ client }: { client: Client }) {
   const { state } = useStore();
+  const [open, setOpen] = useState(true);
   const areas = monthlyAreas(state, client);
   if (areas.length === 0) return null;
+  const left = areas.reduce((sum, area) => sum + area.steps.filter((step) => !step.done).length, 0);
   return (
     <Card>
-      <CardHead title={`This month · ${monthName(state.month)}`} sub={isFirstMonth(client, state.month) ? "Set-up month" : "What needs doing for this client"} />
-      <div className={`grid gap-6 ${areas.length > 1 ? "lg:grid-cols-2" : ""}`}>
-        {areas.map((area) => <MonthChecklist key={area.id} client={client} area={area} month={state.month} />)}
-      </div>
+      <CardHead title={`This month · ${monthName(state.month)}`} sub={isFirstMonth(client, state.month) ? "Set-up month" : "What needs doing for this client"} right={<span className="flex items-center gap-2">{!open && <Chip t={left ? "amber" : "green"}>{left ? `${left} to do` : "All done"}</Chip>}<button onClick={() => setOpen(!open)} aria-expanded={open} className="rounded-lg px-2.5 py-1 text-[12px] font-semibold text-[#1F5BC4] hover:bg-[#EEF2FA]">{open ? "Hide" : "Show"}</button></span>} />
+      {open && (
+        <div className={`grid gap-6 ${areas.length > 1 ? "lg:grid-cols-2" : ""}`}>
+          {areas.map((area) => <MonthChecklist key={area.id} client={client} area={area} month={state.month} />)}
+        </div>
+      )}
     </Card>
   );
 }
 
 function Overview({ client }: { client: Client }) {
-  const { state, go, updateClient, assignFreelancer } = useStore();
+  const { state, go, updateClient, assignFreelancer, unassignFreelancer, setTeamRole } = useStore();
   const [editing, setEditing] = useState(false);
   const owner = isOwner(state);
   const g = gate(client.checklist);
@@ -206,12 +219,29 @@ function Overview({ client }: { client: Client }) {
           <Row label="Billing contact" value={client.billingContact} editing={editing}>{input(client.billingContact, (value) => set({ billingContact: value }))}</Row>
           <Row label="Technical expert" value={client.expertReviewer} editing={editing}>{input(client.expertReviewer, (value) => set({ expertReviewer: value }))}</Row>
           <Row label="We talk on" value={client.channel} editing={editing}><select value={client.channel} onChange={(event) => set({ channel: event.target.value as Client["channel"] })} className={select}><option>Google Chat</option><option>Email</option></select></Row>
-          <Row label="Freelancer" value={fl?.name} editing={editing}>
-            <select value={client.freelancerId ?? ""} onChange={(event) => assignFreelancer(client.id, event.target.value)} className={select}>
-              <option value="">Not assigned</option>
-              {state.freelancers.filter(isHired).map((person) => <option key={person.id} value={person.id}>{person.name}{canBeAssigned(state, person) ? "" : " · NDA/contract missing"}</option>)}
-            </select>
-          </Row>
+          <div className="grid grid-cols-[130px_1fr] items-start gap-3 border-b border-[#F3F1ED] py-2.5 last:border-0">
+            <span className="pt-1.5 text-[12px] font-semibold text-[#8B867E]">Freelancers</span>
+            <div className="min-w-0 space-y-2">
+              {clientTeam(client).map((id) => {
+                const person = personById(state, id) as Freelancer | undefined;
+                const member = client.team?.find((entry) => entry.id === id);
+                if (!person) return null;
+                return (
+                  <div key={id} className="flex flex-wrap items-center gap-2">
+                    <Avatar name={person.name} color={person.color} photo={person.photo} size={24} />
+                    <span className="text-[14px] font-semibold">{person.name}</span>
+                    <input value={member?.role ?? ""} onChange={(event) => setTeamRole(client.id, id, event.target.value)} placeholder="What they do, e.g. SEO" aria-label={`What ${person.name} does`} className="min-w-[140px] flex-1 rounded-lg border border-[#E2DED7] px-2.5 py-1 text-[13px]" />
+                    {!canBeAssigned(state, person) && <Chip t="amber">NDA or contract missing</Chip>}
+                    <button onClick={() => unassignFreelancer(client.id, id)} aria-label={`Take ${person.name} off this client`} className="text-[#B5B0A8] hover:text-[#B83232]"><X size={14} /></button>
+                  </div>
+                );
+              })}
+              <select value="" onChange={(event) => { if (event.target.value) assignFreelancer(client.id, event.target.value); }} aria-label="Add a freelancer" className={select}>
+                <option value="">{clientTeam(client).length ? "Add another freelancer…" : "Assign a freelancer…"}</option>
+                {state.freelancers.filter((person) => isHired(person) && !worksOn(client, person.id)).map((person) => <option key={person.id} value={person.id}>{person.name}{canBeAssigned(state, person) ? "" : " · NDA/contract missing"}</option>)}
+              </select>
+            </div>
+          </div>
         </Card>
         <Card>
           <CardHead title="How we run it" />
@@ -325,7 +355,7 @@ function Access({ client }: { client: Client }) {
 
 // ─── Reporting: one row per month, attach and tick ───
 function Reporting({ client }: { client: Client }) {
-  const { state, go, attachReport, updateReport } = useStore();
+  const { state, go, attachReport, updateReport, addFreelancerReportFile, removeFreelancerReportFile } = useStore();
   const owner = isOwner(state);
   const months = Array.from({ length: 6 }, (_, index) => shiftMonth(state.month, -index)).filter((month) => month >= client.startDate.slice(0, 7));
   const tick = (done: boolean) => (done ? <Check size={14} className="text-[#1D9E5A]" /> : <span className="h-3.5 w-3.5 rounded-full border-2 border-[#CFCAC2]" />);
@@ -349,11 +379,25 @@ function Reporting({ client }: { client: Client }) {
             </div>
             <div className={`mt-3 grid gap-3 ${owner ? "md:grid-cols-3" : "md:grid-cols-2"}`}>
               <div className="rounded-xl bg-[#F8F7F4] p-3">
-                <div className="mb-2 flex items-center gap-1.5 text-[12px] font-bold">{tick(reportIn(report))}Freelancer&apos;s report</div>
+                <div className="mb-2 flex items-center gap-1.5 text-[12px] font-bold">{tick(reportIn(report))}Freelancer&apos;s reports</div>
+                <ul className="mb-2 space-y-1">
+                  {[
+                    ...(report?.freelancerReport ? [{ key: "full", label: "Full month", file: report.freelancerReport, remove: () => attachReport(client.id, month, "freelancerReport", undefined) }] : []),
+                    ...Object.entries(report?.weekly ?? {}).filter(([, part]) => part.freelancerReport).map(([key, part]) => ({ key, label: periodName(key, month), file: part.freelancerReport!, remove: () => attachReport(client.id, month, "freelancerReport", undefined, key) })),
+                    ...(report?.freelancerReports ?? []).map((file, index) => ({ key: `extra-${index}`, label: "Added", file, remove: () => removeFreelancerReportFile(client.id, month, index) })),
+                  ].map((item) => (
+                    <li key={item.key} className="flex items-center gap-2 rounded-lg bg-white px-2.5 py-1.5 text-[12px]">
+                      <FileText size={13} className="shrink-0 text-[#8B867E]" />
+                      <a href={item.file.url} target="_blank" rel="noreferrer" download={item.file.url.startsWith("data:") ? item.file.name : undefined} className="min-w-0 flex-1 truncate font-semibold hover:text-[#1F5BC4]">{item.file.name}<span className="ml-1.5 font-normal text-[#8B867E]">{item.label}</span></a>
+                      <button onClick={item.remove} aria-label={`Remove ${item.file.name}`} className="text-[#B5B0A8] hover:text-[#B83232]"><Trash2 size={12} /></button>
+                    </li>
+                  ))}
+                </ul>
                 <div className="flex flex-wrap items-center gap-2">
-                  <AttachField value={report?.freelancerReport} onChange={(file) => attachReport(client.id, month, "freelancerReport", file)} compact />
+                  <AttachField onChange={(file) => file && addFreelancerReportFile(client.id, month, file)} label="Add a file or link" compact />
                   <button onClick={() => go({ view: "reports", clientId: client.id, month })} className="rounded-lg px-2 py-1 text-[12px] font-semibold text-[#1F5BC4] hover:bg-[#EEF2FA]">Open numbers</button>
                 </div>
+                <p className="mt-1.5 text-[11px] text-[#8B867E]">Reports the freelancer uploads in Monthly reports land here by themselves.</p>
               </div>
               <div className="rounded-xl bg-[#F8F7F4] p-3">
                 <div className="mb-2 flex items-center gap-1.5 text-[12px] font-bold">{tick(sent)}Client report {sent && <span className="font-semibold text-[#17804A]">· sent {shortDate(report!.sentAt)}</span>}</div>
@@ -379,56 +423,6 @@ function Reporting({ client }: { client: Client }) {
   );
 }
 
-// ─── Files & links ───
-const categories: ClientFile["category"][] = ["Brand", "Contract", "Photos", "Report", "Other"];
-
-function Files({ client }: { client: Client }) {
-  const { state, addFile, removeFile, updateClient } = useStore();
-  const [category, setCategory] = useState<ClientFile["category"]>("Brand");
-  const setLink = (key: keyof Client["links"], value: string) => updateClient(client.id, { links: { ...client.links, [key]: value } });
-  return (
-    <div className="grid gap-5 xl:grid-cols-[1.2fr_.8fr]">
-      <Card>
-        <CardHead title="Files" sub="Contracts, brand files, photo folders. Upload or paste a link." right={
-          <span className="flex items-center gap-2">
-            <select value={category} onChange={(event) => setCategory(event.target.value as ClientFile["category"])} aria-label="Category" className="rounded-xl border border-[#E2DED7] bg-white px-2.5 py-1.5 text-[12px] font-semibold">{categories.map((item) => <option key={item}>{item}</option>)}</select>
-            <AttachField onChange={(file) => file && addFile(client.id, { ...file, category })} label="Upload file" />
-          </span>
-        } />
-        {client.files.length === 0 ? <Empty title="No files yet" /> : (
-          <div className="space-y-4">
-            {categories.filter((item) => client.files.some((file) => file.category === item)).map((item) => (
-              <div key={item}>
-                <div className="mb-1.5 text-[12px] font-bold uppercase tracking-wide text-[#8B867E]">{item}</div>
-                <ul className="divide-y divide-[#F3F1ED] rounded-xl border border-[#F0EEE9]">
-                  {client.files.filter((file) => file.category === item).map((file) => (
-                    <li key={file.id} className="flex items-center gap-3 px-3 py-2.5">
-                      <FileText size={16} className="shrink-0 text-[#8B867E]" />
-                      <a href={file.url} target="_blank" rel="noreferrer" download={file.url.startsWith("data:") ? file.name : undefined} className="min-w-0 flex-1 truncate text-[13px] font-semibold hover:text-[#1F5BC4]">{file.name}</a>
-                      <span className="hidden text-[12px] text-[#9A958D] sm:inline">{nameOf(state, file.addedBy)} · {shortDate(file.addedAt)}</span>
-                      <button onClick={() => removeFile(client.id, file.id)} aria-label={`Remove ${file.name}`} className="text-[#B5B0A8] hover:text-[#B83232]"><Trash2 size={14} /></button>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ))}
-          </div>
-        )}
-      </Card>
-      <Card>
-        <CardHead title="Workspace links" />
-        {([["guide", "Brand guide"], ["brain", "Strategy brain"], ["canva", "Canva templates"], ["drive", "Drive folder"], ["brandKit", "Canva brand kit"], ["publer", "Publishing tool"], ["chat", client.channel === "Email" ? "Email thread" : `${client.channel} space`]] as [keyof Client["links"], string][]).map(([key, label]) => (
-          <div key={key} className="flex items-center gap-2 border-b border-[#F3F1ED] py-2.5 last:border-0">
-            <span className="w-28 shrink-0 text-[13px] font-semibold">{label}</span>
-            <input value={client.links[key] ?? ""} onChange={(event) => setLink(key, event.target.value)} placeholder="https://…" aria-label={label} className="min-w-0 flex-1 rounded-lg border border-[#E2DED7] px-2.5 py-1.5 text-[13px] outline-none focus:border-[#2F6FDB]" />
-            {/^https?:/.test(client.links[key] ?? "") && <a href={client.links[key]} target="_blank" rel="noreferrer" aria-label={`Open ${label}`} className="text-[#1F5BC4]"><ExternalLink size={15} /></a>}
-          </div>
-        ))}
-      </Card>
-    </div>
-  );
-}
-
 // ─── Finance (owners) ───
 function ClientFinance({ client }: { client: Client }) {
   const { state, updateClient, setInvoice, payFreelancer, addCost, removeCost } = useStore();
@@ -444,8 +438,8 @@ function ClientFinance({ client }: { client: Client }) {
   const feeCur = clientCurrency(state, client);
   const payCur = freelancerCurrency(state, client);
   const payout = state.payouts.find((item) => item.clientId === client.id && item.month === state.month);
-  const person = state.freelancers.find((item) => item.id === client.freelancerId);
-  const hasFees = Boolean(person?.fees.some((fee) => fee.clientId === client.id));
+  const ps = clientPayStatus(state, client);
+  const hasFees = ps.has;
   return (
     <div className="space-y-5">
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
@@ -467,10 +461,10 @@ function ClientFinance({ client }: { client: Client }) {
           </div>
           <div className="mt-4 space-y-2">
             <div className="flex flex-wrap items-center gap-3 rounded-xl bg-[#F8F7F4] p-3"><span className="flex-1 text-[13px] font-semibold">{monthName(state.month)} invoice</span><Segmented size="sm" value={invoice?.status ?? "Not sent"} onChange={(status) => setInvoice(client.id, status)} options={[{ value: "Not sent", label: "Not sent" }, { value: "Sent", label: "Sent" }, { value: "Paid", label: "Paid" }]} /></div>
-            <div className="flex flex-wrap items-center gap-3 rounded-xl bg-[#F8F7F4] p-3"><span className="flex-1 text-[13px] font-semibold">Pay {nameOf(state, client.freelancerId)}</span>{!client.freelancerId ? <Chip>No freelancer</Chip> : paidOut ? <Chip t="green" dot>Paid{payout?.amount ? ` ${money(payout.amount, payout.currency ?? cur)}` : ""}</Chip> : invoice?.status === "Paid" ? <PayButton client={client} label="Mark paid" /> : <Chip t="amber">After the client pays</Chip>}</div>
+            <div className="flex flex-wrap items-center gap-3 rounded-xl bg-[#F8F7F4] p-3"><span className="flex-1 text-[13px] font-semibold">Pay {clientTeam(client).map((id) => nameOf(state, id)).join(", ") || "the freelancer"}</span>{!client.freelancerId && !ps.has ? <Chip>No freelancer</Chip> : ps.has && ps.due.length === 0 ? <Chip>Nothing due</Chip> : (ps.has ? ps.open.length === 0 : paidOut) ? <Chip t="green" dot>Paid{!ps.has && payout?.amount ? ` ${money(payout.amount, payout.currency ?? cur)}` : ""}</Chip> : invoice?.status === "Paid" ? <PayButton client={client} label="Mark paid" /> : <Chip t="amber">After the client pays</Chip>}</div>
           </div>
         </Card>
-        {person && <PaymentsCard person={person} client={client} />}
+        <PaymentsPanel client={client} />
         <Card>
           <CardHead title="Costs on this client" sub="Stock, ads, printing, extra freelance work… They also show in Finance." />
           <ul className="space-y-1.5">

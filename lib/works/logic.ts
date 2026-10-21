@@ -34,11 +34,16 @@ export const freelancerCurrency = (state: State, client: Client) => client.freel
 export const incomeBase = (state: State, client: Client) => toBase(state, client.fee + client.addOnFee, clientCurrency(state, client));
 /** What the freelancer costs each month for this client, in the main currency. */
 export const freelancerCostBase = (state: State, client: Client, month = state.month) => {
-  const person = state.freelancers.find((item) => item.id === client.freelancerId);
-  if (!person) return 0;
-  const fees = person.fees.filter((fee) => fee.clientId === client.id);
+  const hasPayments = state.freelancers.some((person) => person.fees.some((fee) => fee.clientId === client.id));
   // When payments are set up for this client, they are the cost. Otherwise the single figure on the client page is.
-  return fees.length ? feesFor(person, client.id, month).reduce((sum, fee) => sum + toBase(state, fee.amount, fee.currency), 0) : toBase(state, client.freelancerFee, freelancerCurrency(state, client));
+  if (hasPayments) return clientOccurrences(state, client, month).reduce((sum, item) => sum + occurrenceBase(state, item), 0);
+  return client.freelancerId ? toBase(state, client.freelancerFee, freelancerCurrency(state, client)) : 0;
+};
+/** Has this client any payments set up, and are all of this month's paid? */
+export const clientPayStatus = (state: State, client: Client, month = state.month) => {
+  const has = state.freelancers.some((person) => person.fees.some((fee) => fee.clientId === client.id));
+  const due = clientOccurrences(state, client, month);
+  return { has, due, open: due.filter((item) => !item.paid) };
 };
 /** "≈ €645" when an amount is not in the main currency, otherwise nothing. */
 export const approx = (state: State, amount: number, currency: string) => (currency === state.settings.currency ? "" : `≈ ${money(toBase(state, amount, currency), state.settings.currency)}`);
@@ -50,7 +55,10 @@ export const nameOf = (state: State, id?: string) => (id === "client" ? "Client"
 export const me = (state: State) => personById(state, state.me) ?? state.people[0];
 export const isOwner = (state: State) => me(state).role === "owner";
 export const isFreelancer = (state: State) => me(state).role === "freelancer";
-export const myClients = (state: State) => (isFreelancer(state) ? state.clients.filter((client) => client.freelancerId === state.me) : state.clients);
+/** Everyone assigned to a client: the lead first, then the rest. */
+export const clientTeam = (client: Client) => [...new Set([client.freelancerId, ...(client.team ?? []).map((member) => member.id)].filter((id): id is string => Boolean(id)))];
+export const worksOn = (client: Client, personId: string) => clientTeam(client).includes(personId);
+export const myClients = (state: State) => (isFreelancer(state) ? state.clients.filter((client) => worksOn(client, state.me)) : state.clients);
 
 /** Who reviews copy and design for a client. */
 export const reviewerFor = (state: State, client?: Client, post?: Post) => post?.reviewerId || (state.settings.reviewer === "maria-all" ? "maria" : client?.opsId ?? "niamh");
@@ -125,10 +133,28 @@ export function nextPayment(fee: FreelancerFee, today: string) {
   const candidate = thisMonth >= today ? thisMonth : dayOf(shiftMonth(month, 1));
   return candidate < first ? first : candidate;
 }
-/** What a freelancer is paid for a client in a month: monthly payments from their start month, one-time ones in their own month. */
-export const feesFor = (person: Freelancer, clientId: string, month: string) =>
-  person.fees.filter((fee) => fee.clientId === clientId && (fee.frequency === "monthly" ? fee.date.slice(0, 7) <= month : fee.date.startsWith(month)));
+/** Does a payment fall in this month? Monthly ones from their first month on, one-time ones in their own month. */
+export const feeApplies = (fee: FreelancerFee, month: string) => (fee.frequency === "monthly" ? fee.date.slice(0, 7) <= month : fee.date.startsWith(month));
+/** The day a payment falls due in a month. */
+export const dueDate = (fee: FreelancerFee, month: string) => {
+  if (fee.frequency === "one-time") return fee.date;
+  const day = Number(fee.date.slice(8, 10)) || 1;
+  const last = new Date(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 0).getDate();
+  return `${month}-${String(Math.min(day, last)).padStart(2, "0")}`;
+};
 
+export type Occurrence = { person: Freelancer; fee: FreelancerFee; month: string; date: string; paid?: { date: string; amount: number; currency: string } };
+/** Every payment due in a month, for everyone, newest rules first: this is the one list Finance, the client page and the freelancer page all read. */
+export function occurrencesIn(state: State, month: string): Occurrence[] {
+  return state.freelancers
+    .flatMap((person) => person.fees.filter((fee) => feeApplies(fee, month)).map((fee) => ({ person, fee, month, date: dueDate(fee, month), paid: fee.paid?.[month] })))
+    .sort((a, b) => a.date.localeCompare(b.date));
+}
+export const clientOccurrences = (state: State, client: Client, month: string) => occurrencesIn(state, month).filter((item) => item.fee.clientId === client.id);
+/** Payments to freelancers that are not for a client. They count as a company cost. */
+export const otherOccurrences = (state: State, month: string) => occurrencesIn(state, month).filter((item) => !item.fee.clientId);
+const occurrenceBase = (state: State, item: Occurrence) => toBase(state, item.paid?.amount ?? item.fee.amount, item.paid?.currency ?? item.fee.currency);
+export const otherFreelancerCostBase = (state: State, month = state.month) => otherOccurrences(state, month).reduce((sum, item) => sum + occurrenceBase(state, item), 0);
 export const canBeAssigned = (state: State | undefined, freelancer: Freelancer) => {
   if (!isHired(freelancer)) return false;
   const steps = setupSteps(state, freelancer);
@@ -324,7 +350,7 @@ export const monthView = (report: MonthReport): MonthReport => {
 /** Has the freelancer's report for the month come in? Either the full month, or every week covered. */
 export const reportIn = (report?: MonthReport) => {
   if (!report) return false;
-  if (report.freelancerReport || report.numbers) return true;
+  if (report.freelancerReport || report.numbers || report.freelancerReports?.length) return true;
   const covered = coveredWeeks(report);
   return [1, 2, 3, 4].every((week) => covered.has(week));
 };

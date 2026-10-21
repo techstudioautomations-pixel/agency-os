@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { ArrowRight, ExternalLink, FolderOpen, Plus, Search, ShieldCheck, ShieldX, UserPlus, X } from "lucide-react";
 import { useStore } from "@/lib/works/store";
-import { canBeAssigned, currencies, isFreelancer, isHired, isOnTeam, isOwner, money, payChannels, serviceList, setupProgress, specialityOptions, todayIso, turnOf } from "@/lib/works/logic";
+import { worksOn, canBeAssigned, currencies, isFreelancer, isHired, isOnTeam, isOwner, money, payChannels, serviceList, setupProgress, specialityOptions, todayIso, turnOf } from "@/lib/works/logic";
 import type { Freelancer } from "@/lib/works/types";
 import { Shell } from "./Shell";
 import { FreelancerProfile } from "./FreelancerProfile";
@@ -32,7 +32,7 @@ export function Freelancers({ freelancerId }: { freelancerId?: string }) {
           {team.map((person) => {
             const p = setupProgress(state, person);
             const ok = canBeAssigned(state, person);
-            const accounts = state.clients.filter((client) => client.freelancerId === person.id);
+            const accounts = state.clients.filter((client) => worksOn(client, person.id));
             const desk = state.posts.filter((post) => post.date.startsWith(state.month) && turnOf(state, post).who === person.id).length;
             return (
               <button key={person.id} onClick={() => go({ view: "freelancers", freelancerId: person.id })} className="group min-w-0 overflow-hidden rounded-2xl border border-[#E9E6E0] bg-white text-left transition hover:border-[#D2CCC2] hover:shadow-[0_8px_24px_rgba(30,36,48,.07)]">

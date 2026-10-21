@@ -3,8 +3,9 @@
 import { useState } from "react";
 import { ArrowRight, Check, Download, Plus, Trash2 } from "lucide-react";
 import { useStore } from "@/lib/works/store";
-import { approx, clientCurrency, freelancerCostBase, freelancerCurrency, incomeBase, isOwner, money, monthName, nameOf, shiftMonth, todayIso, toBase } from "@/lib/works/logic";
+import { approx, clientCurrency, clientPayStatus, clientTeam, freelancerCostBase, otherFreelancerCostBase, incomeBase, isOwner, money, monthName, nameOf, shiftMonth, todayIso, toBase } from "@/lib/works/logic";
 import { PayButton } from "./Pay";
+import { PaymentsPanel } from "./FreelancerProfile";
 import type { Client, State } from "@/lib/works/types";
 import { Shell } from "./Shell";
 import { AttachField, Button, Card, CardHead, Chip, ClientMark, Empty, Field, fieldClass, tone } from "./kit";
@@ -36,7 +37,8 @@ export function Finance() {
   const invoiceOf = (client: Client) => state.invoices.find((invoice) => invoice.clientId === client.id && invoice.month === month);
   const contracted = clients.reduce((sum, client) => sum + incomeBase(state, client), 0);
   const received = clients.reduce((sum, client) => (invoiceOf(client)?.status === "Paid" ? sum + incomeBase(state, client) : sum), 0);
-  const freelance = clients.reduce((sum, client) => sum + freelancerCostBase(state, client), 0);
+  const otherFreelance = otherFreelancerCostBase(state, month);
+  const freelance = clients.reduce((sum, client) => sum + freelancerCostBase(state, client), 0) + otherFreelance;
   const perClient = clients.reduce((sum, client) => sum + clientCosts(client, month).reduce((total, item) => total + item.amount, 0), 0);
   const fixed = state.fixedCosts.reduce((sum, item) => sum + item.amount, 0);
   const costsTotal = freelance + perClient + fixed;
@@ -89,7 +91,9 @@ export function Finance() {
                 {clients.map((client) => {
                   const invoice = invoiceOf(client);
                   const payout = state.payouts.find((item) => item.clientId === client.id && item.month === month);
-                  const paid = Boolean(payout);
+                  const ps = clientPayStatus(state, client, month);
+                  const paid = ps.has ? ps.due.length > 0 && ps.open.length === 0 : Boolean(payout);
+                  const paidTotal = ps.has ? ps.due.reduce((sum, item) => sum + toBase(state, item.paid?.amount ?? 0, item.paid?.currency ?? cur), 0) : 0;
                   const fee = client.fee + client.addOnFee;
                   const feeCur = clientCurrency(state, client);
                   const extra = clientCosts(client, month).reduce((sum, item) => sum + item.amount, 0);
@@ -104,8 +108,8 @@ export function Finance() {
                           <option>Not sent</option><option>Sent</option><option>Paid</option>
                         </select>
                       </td>
-                      <td className="px-3">{client.freelancerId ? <><b>{money(freelancerCostBase(state, client), cur)}</b><div className="text-[11px] text-[#8B867E]">{nameOf(state, client.freelancerId)}</div></> : <span className="text-[#8B867E]">—</span>}</td>
-                      <td className="px-3">{!client.freelancerId ? <span className="text-[#8B867E]">—</span> : paid ? <Chip t="green" dot>Paid{payout?.amount ? ` ${money(payout.amount, payout.currency ?? cur)}` : ""}</Chip> : status === "Paid" ? <PayButton client={client} label="Pay" /> : <Chip t="amber">After client pays</Chip>}</td>
+                      <td className="px-3">{client.freelancerId || ps.has ? <><b>{money(freelancerCostBase(state, client, month), cur)}</b><div className="text-[11px] text-[#8B867E]">{clientTeam(client).map((id) => nameOf(state, id)).join(", ") || "Payments set up"}</div></> : <span className="text-[#8B867E]">—</span>}</td>
+                      <td className="px-3">{!client.freelancerId && !ps.has ? <span className="text-[#8B867E]">—</span> : ps.has && ps.due.length === 0 ? <span className="text-[#8B867E]">Nothing due</span> : paid ? <Chip t="green" dot>Paid{ps.has ? ` ${money(paidTotal, cur)}` : payout?.amount ? ` ${money(payout.amount, payout.currency ?? cur)}` : ""}</Chip> : status === "Paid" ? <PayButton client={client} label="Pay" month={month} /> : <Chip t="amber">After client pays</Chip>}</td>
                       <td className="px-3">{extra ? money(extra, cur) : <span className="text-[#8B867E]">—</span>}</td>
                       <td className="px-5 font-extrabold" style={{ color: margin >= 0 ? tone.green.ink : tone.red.ink }}>{money(margin, cur)}</td>
                     </tr>
@@ -143,6 +147,8 @@ export function Finance() {
           </Card>
         </div>
 
+        <PaymentsPanel month={month} />
+
         <div className="grid gap-5 xl:grid-cols-2">
           <Card>
             <CardHead title="Agency costs" sub="Software, fees and running costs every month." right={<Button size="sm" onClick={() => setAdding(!adding)}><Plus size={13} />Add</Button>} />
@@ -155,6 +161,12 @@ export function Finance() {
               </form>
             )}
             <ul className="divide-y divide-[#F3F1ED]">
+              {otherFreelance > 0 && (
+                <li className="flex items-center gap-2 py-2.5 text-[13px]">
+                  <span className="flex-1 font-semibold">Freelancers, not for a client<span className="ml-2 text-[11px] font-normal text-[#8B867E]">Freelancers · from their payments</span></span>
+                  <b>{money(otherFreelance, cur)}</b>
+                </li>
+              )}
               {state.fixedCosts.map((item) => (
                 <li key={item.id} className="flex items-center gap-2 py-2.5 text-[13px]">
                   <span className="flex-1 font-semibold">{item.label}<span className="ml-2 text-[11px] font-normal text-[#8B867E]">{item.category}</span></span>
@@ -163,7 +175,7 @@ export function Finance() {
                 </li>
               ))}
             </ul>
-            <div className="mt-2 flex justify-between border-t border-[#F0EEE9] pt-3 text-[14px] font-bold"><span>Total</span><span>{money(fixed, cur)}</span></div>
+            <div className="mt-2 flex justify-between border-t border-[#F0EEE9] pt-3 text-[14px] font-bold"><span>Total</span><span>{money(fixed + otherFreelance, cur)}</span></div>
           </Card>
 
           <Card>

@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { ArrowLeft, ArrowRight, Check, ClipboardCopy, Globe, Megaphone, Minus, Plus, Shapes, Trash2, X } from "lucide-react";
 import { useStore } from "@/lib/works/store";
-import { canBeAssigned, currencies, money, monthName, shiftMonth, todayIso, toBase } from "@/lib/works/logic";
+import { isHired, currencies, money, monthName, shiftMonth, todayIso, toBase } from "@/lib/works/logic";
 import { ChannelIcon } from "./ChannelIcon";
 import { packageAssets } from "@/lib/works/seed";
 import { clientColors, fileToLogo } from "@/lib/works/image";
@@ -66,7 +66,7 @@ function Wizard() {
   const appliesHere = (section: (typeof settings.sections)[number]) => !section.areas || section.areas.includes(area);
   const suggested = new Set(settings.sections.filter((section) => appliesHere(section) && (section.always || assets.some((asset) => settings.assets.find((entry) => entry.id === asset.assetId)?.sections.includes(section.id)))).map((section) => section.id));
   const picked = (id: string) => sectionOverride[id] ?? suggested.has(id);
-  const assignable = state.freelancers.filter((person) => canBeAssigned(state, person));
+  const assignable = state.freelancers.filter(isHired);
 
   function chooseArea(next: AreaKind) {
     setArea(next);
@@ -313,7 +313,7 @@ function Wizard() {
                   ))}
                 </div>
               </div>}
-              <Field label="Freelancer (optional)" hint="Only people with a signed NDA and contract can be assigned.">
+              <Field label="Freelancer (optional)" hint="You can add more freelancers later, from the client page.">
                 <select value={freelancerId} onChange={(event) => setFreelancerId(event.target.value)} className={fieldClass}>
                   <option value="">Assign later</option>
                   {assignable.map((person) => <option key={person.id} value={person.id}>{person.name} · {person.speciality}</option>)}
