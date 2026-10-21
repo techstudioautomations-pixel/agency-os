@@ -3,12 +3,12 @@
 import { useState, type ReactNode } from "react";
 import { ExternalLink, FileText, Loader2, Trash2, Wand2 } from "lucide-react";
 import { useStore } from "@/lib/works/store";
-import { nameOf, shortDate } from "@/lib/works/logic";
+import { clientTeam, nameOf, personById, shortDate } from "@/lib/works/logic";
 import { fileToLogo } from "@/lib/works/image";
 import { mainPoints } from "@/lib/works/mainPoints";
 import { reportText } from "@/lib/works/readReport";
 import type { Client, ClientFile } from "@/lib/works/types";
-import { AttachField, Button, Card, CardHead, Chip, ClientMark, Empty, fieldClass } from "./kit";
+import { AttachField, Avatar, Button, Card, CardHead, Chip, ClientMark, Empty, fieldClass } from "./kit";
 
 type DocKey = "brand" | "brain" | "templates" | "questionnaire";
 const docs: { key: DocKey; label: string; note: string; color: string; linkKey: "guide" | "brain" | "canva" | "questionnaire" }[] = [
@@ -152,7 +152,8 @@ const allCategories: ClientFile["category"][] = ["Access", "Logo", "Brand", "Pho
 
 /** Every file and link for the client in one place: the strategy documents, what the client sent, contracts and reports, the logo and the workspace links. */
 export function ClientFilesTab({ client }: { client: Client }) {
-  const { updateClient, ping } = useStore();
+  const { state, updateClient, ping, setTeamLinks } = useStore();
+  const team = clientTeam(client);
   const setLink = (key: keyof Client["links"], value: string) => updateClient(client.id, { links: { ...client.links, [key]: value } });
   const pick = async (file?: File) => { if (!file) return; try { updateClient(client.id, { logo: await fileToLogo(file) }); } catch { ping("Could not read that image. Try a PNG or JPG."); } };
   return (
@@ -187,6 +188,30 @@ export function ClientFilesTab({ client }: { client: Client }) {
               {client.logo && <button onClick={() => updateClient(client.id, { logo: undefined })} className="text-[12px] font-semibold text-[#8B867E] hover:text-[#B83232]">Remove</button>}
             </div>
           </div>
+        </Card>
+        <Card>
+          <CardHead title="Freelancers' links" sub="Each freelancer's own Canva and Drive for this client. New posts they make open from these." />
+          {team.length === 0 ? <p className="text-[13px] text-[#8B867E]">No freelancer on this client yet.</p> : (
+            <ul className="space-y-3">
+              {team.map((id) => {
+                const person = personById(state, id);
+                const member = client.team?.find((entry) => entry.id === id);
+                if (!person) return null;
+                return (
+                  <li key={id} className="rounded-xl bg-[#F8F7F4] p-3">
+                    <div className="mb-2 flex items-center gap-2 text-[13px] font-bold"><Avatar name={person.name} color={person.color} photo={"photo" in person ? person.photo : undefined} size={22} />{person.name}{member?.role && <span className="font-normal text-[#6B6760]">· {member.role}</span>}</div>
+                    {([["canva", "Canva"], ["drive", "Drive"]] as const).map(([key, label]) => (
+                      <div key={key} className="mb-1.5 flex items-center gap-2 last:mb-0">
+                        <span className="w-12 shrink-0 text-[12px] font-semibold text-[#55514B]">{label}</span>
+                        <input value={member?.links?.[key] ?? ""} onChange={(event) => setTeamLinks(client.id, id, { [key]: event.target.value })} placeholder="https://…" aria-label={`${person.name} ${label}`} className="min-w-0 flex-1 rounded-lg border border-[#E2DED7] bg-white px-2.5 py-1.5 text-[13px] outline-none focus:border-[#2F6FDB]" />
+                        {/^https?:/.test(member?.links?.[key] ?? "") && <a href={member?.links?.[key]} target="_blank" rel="noreferrer" aria-label={`Open ${person.name} ${label}`} className="text-[#1F5BC4]"><ExternalLink size={15} /></a>}
+                      </div>
+                    ))}
+                  </li>
+                );
+              })}
+            </ul>
+          )}
         </Card>
         <Card>
           <CardHead title="Workspace links" />
